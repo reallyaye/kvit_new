@@ -1,19 +1,21 @@
 import sqlite3, threading, time, random
 from contextlib import contextmanager
-from config import DB, DATABASE_URL
+import config
 from logger import logger
 
 # Глобальный мьютекс для строгой сериализации параллельных операций записи в SQLite
 _DB_WRITE_LOCK = threading.Lock()
 
 def get_db():
-    """Создаёт и возвращает оптимизированное соединение с SQLite (WAL, busy timeout, кэш страниц)."""
-    con = sqlite3.connect(DB, timeout=60.0, check_same_thread=False)
+    """Создаёт и возвращает оптимизированное соединение с SQLite (WAL, busy timeout, mmap, кэш страниц)."""
+    con = sqlite3.connect(config.DB, timeout=60.0, check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute('PRAGMA journal_mode = WAL;')
     con.execute('PRAGMA busy_timeout = 60000;')
     con.execute('PRAGMA synchronous = NORMAL;')
     con.execute('PRAGMA cache_size = -64000;')  # 64 MB памяти на кэш страниц
+    con.execute('PRAGMA temp_store = MEMORY;')  # Временные таблицы и индексы в RAM
+    con.execute('PRAGMA mmap_size = 268435456;')  # 256 MB Memory-mapped I/O для ускорения чтения
     return con
 
 @contextmanager
