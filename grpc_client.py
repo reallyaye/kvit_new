@@ -12,7 +12,7 @@ def run():
         print("Укажите секретный ключ GRPC_API_KEY в файле .env перед запуском клиента.")
         return
 
-    target = f"{'127.0.0.1' if GRPC_HOST in ('0.0.0.0', '') else GRPC_HOST}:{GRPC_PORT}"
+    target = f"{'127.0.0.1' if GRPC_HOST in ('0.0.0.0', '') else GRPC_HOST}:{GRPC_PORT}"  # nosec B104
     print(f"Подключение к gRPC серверу: {target}...")
 
     # Метаданные авторизации для защищённого gRPC сервера

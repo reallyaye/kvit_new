@@ -1,4 +1,7 @@
-import os, html
+import os
+import html
+import re
+import ipaddress
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,7 +41,6 @@ OCR_DPI = int(os.environ.get('OCR_DPI', '200'))
 OCR_FALLBACK_ON_NO_TEXT = os.environ.get('OCR_FALLBACK_ON_NO_TEXT', 'true').lower() in ('true', '1', 'yes')
 
 # ────────────────────── Шардирование квитанций ──────────────────────
-import re
 
 def get_receipt_shard_parts(account: str):
     """
@@ -77,7 +79,6 @@ USE_HTTPS = os.environ.get('USE_HTTPS', 'false').lower() in ('true', '1', 'yes')
 SSL_CERT_PATH = os.environ.get('SSL_CERT_PATH', '')
 SSL_KEY_PATH = os.environ.get('SSL_KEY_PATH', '')
 
-import ipaddress
 def _parse_trusted_proxies(raw: str):
     nets = []
     for item in raw.split(','):
@@ -97,7 +98,7 @@ TRUSTED_PROXY_NETWORKS = _parse_trusted_proxies(TRUSTED_PROXIES_RAW)
 
 
 # ────────────────────── gRPC Microservice ──────────────────────
-GRPC_HOST = os.environ.get('GRPC_HOST', '0.0.0.0')
+GRPC_HOST = os.environ.get('GRPC_HOST', '127.0.0.1')  # nosec B104
 GRPC_PORT = int(os.environ.get('GRPC_PORT', '50051'))
 GRPC_API_KEY = os.environ.get('GRPC_API_KEY', '').strip()
 GRPC_USE_TLS = os.environ.get('GRPC_USE_TLS', 'false').lower() in ('true', '1', 'yes')

@@ -1,14 +1,20 @@
-import os, sys, tempfile, shutil, sqlite3, traceback
+import os
+import sys
+import tempfile
+import shutil
+import sqlite3
+import traceback
 import config
+import builtins
 
 # Fallback pytest fixture для работы без установленного пакета pytest
 class _MockPytest:
     @staticmethod
     def fixture(fn=None, *args, **kwargs):
-        if fn and callable(fn): return fn
+        if fn and callable(fn):
+            return fn
         return lambda f: f
 
-import builtins
 sys.modules['pytest'] = _MockPytest()
 
 
@@ -168,7 +174,8 @@ def run_all():
     ]:
         try:
             reset_db()
-            import pathlib, inspect
+            import pathlib
+            import inspect
             sig = inspect.signature(getattr(test_audit_comprehensive, fn_name))
             if len(sig.parameters) > 0:
                 getattr(test_audit_comprehensive, fn_name)(pathlib.Path(test_dir))

@@ -1,4 +1,9 @@
-import selectors, socket, threading, time, json, struct
+import selectors
+import socket
+import threading
+import time
+import json
+import struct
 from config import WS_SOCKET_TIMEOUT
 from logger import logger
 
@@ -8,6 +13,14 @@ class WebSocketClientState:
         self.client_ip = client_ip
         self.buf = bytearray()
         self.last_active = time.time()
+
+    @property
+    def buffer(self):
+        return self.buf
+
+    @buffer.setter
+    def buffer(self, v):
+        self.buf = v
 
 class WebSocketManager:
     """
@@ -20,6 +33,7 @@ class WebSocketManager:
         self._selector = selectors.DefaultSelector()
         self._clients = {}  # {fileno: WebSocketClientState}
         self._running = True
+        self._last_cleanup = time.time()
         self._loop_thread = threading.Thread(target=self._event_loop, daemon=True, name="WebSocketEventLoop")
         self._loop_thread.start()
 
@@ -55,7 +69,7 @@ class WebSocketManager:
                 except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
                     break
                 except Exception as e:
-                    logger.debug(f"[WS] Ошибка в потоке клиента {client_ip}: {e}")
+                    logger.error(f"[WS] Ошибка в соединении {client_ip}: {e}")
                     break
         finally:
             self.unregister(client_sock)
@@ -70,8 +84,10 @@ class WebSocketManager:
                 self._clients[client_sock.fileno()] = state
             except Exception as e:
                 logger.error(f"[WS] Ошибка регистрации клиента {client_ip}: {e}")
-                try: client_sock.close()
-                except Exception: pass
+                try:
+                    client_sock.close()
+                except Exception:
+                    pass
                 return
         self.send(client_sock, 'connected', {'message': 'WebSocket соединение установлено'})
         logger.info(f"[WS] Клиент {client_ip} успешно зарегистрирован (всего онлайн: {len(self._clients)})")
@@ -98,7 +114,7 @@ class WebSocketManager:
         frame = self._encode_frame(msg_data)
         with self._lock:
             dead_clients = []
-            for fn, state in list(self._clients.items()):
+            for _fn, state in list(self._clients.items()):
                 try:
                     state.sock.sendall(frame)
                 except Exception:
@@ -129,13 +145,29 @@ class WebSocketManager:
             header = struct.pack('!BBQ', first_byte, 127, length)
         return header + payload
 
+    def _cleanup_idle_clients(self, now):
+        with self._lock:
+            timed_out = [
+                st.sock for st in self._clients.values()
+                if now - st.last_active > WS_SOCKET_TIMEOUT
+            ]
+        for sock in timed_out:
+            self.unregister(sock)
+
     def _event_loop(self):
         """Единый фоновый поток мультиплексирования ввода/вывода для всех подключений."""
         while self._running:
             try:
-                events = self._selector.select(timeout=1.0)
+                # На Windows select.select() на пустом селекторе падает с WinError 10022
+                with self._lock:
+                    has_clients = bool(self._clients)
+                if not has_clients:
+                    time.sleep(0.05)
+                    continue
+
+                events = self._selector.select(timeout=0.2)
                 now = time.time()
-                for key, mask in events:
+                for key, _mask in events:
                     state: WebSocketClientState = key.data
                     sock = state.sock
                     try:
@@ -151,40 +183,46 @@ class WebSocketManager:
                     except Exception:
                         self.unregister(sock)
 
-                # Периодическая проверка таймаутов неактивных соединений
-                with self._lock:
-                    timed_out = [
-                        st.sock for st in self._clients.values()
-                        if now - st.last_active > WS_SOCKET_TIMEOUT
-                    ]
-                for sock in timed_out:
-                    self.unregister(sock)
-
+                # Периодическая проверка неактивных клиентов раз в 10 секунд
+                if now - self._last_cleanup > 10.0:
+                    self._cleanup_idle_clients(now)
+                    self._last_cleanup = now
             except Exception:
-                time.sleep(0.1)
+                time.sleep(0.05)
 
     def _process_frames(self, state: WebSocketClientState):
-        """Разбирает и обрабатывает буферизированные RFC 6455 фреймы."""
-        while len(state.buf) >= 2:
+        """Парсит накопленный буфер фреймов WebSocket по RFC 6455."""
+        MAX_FRAME_SIZE = 16 * 1024 * 1024
+        while True:
+            # Если буфер клиента превысил допустимый лимит — отключаем клиента во избежание DoS / исчерпания памяти
+            if len(state.buf) > MAX_FRAME_SIZE:
+                logger.warning("[WS] Превышен максимальный лимит фрейма WebSocket (16MB). Принудительное закрытие соединения.")
+                self.unregister(state.sock)
+                return
+
+            if len(state.buf) < 2:
+                break
+
             b1 = state.buf[0]
             b2 = state.buf[1]
+
             opcode = b1 & 0x0F
             masked = (b2 & 0x80) != 0
             payload_len = b2 & 0x7F
             header_offset = 2
 
             if payload_len == 126:
-                if len(state.buf) < 4: return
+                if len(state.buf) < 4:
+                    return
                 payload_len = struct.unpack('!H', state.buf[2:4])[0]
                 header_offset = 4
             elif payload_len == 127:
-                if len(state.buf) < 10: return
+                if len(state.buf) < 10:
+                    return
                 payload_len = struct.unpack('!Q', state.buf[2:10])[0]
                 header_offset = 10
 
-            MAX_FRAME_SIZE = 16 * 1024 * 1024  # 16 MB лимит на размер одного WebSocket фрейма
             if payload_len > MAX_FRAME_SIZE or payload_len < 0:
-                # Аномальный/вредоносный размер фрейма — принудительно отключаем сокет
                 try:
                     state.sock.close()
                 except Exception:
@@ -213,8 +251,11 @@ class WebSocketManager:
             # 0x9 - Ping -> Pong
             elif opcode == 0x9:
                 pong = struct.pack('!BB', 0x8A, 0)
-                try: state.sock.sendall(pong)
-                except Exception: self.unregister(state.sock); return
+                try:
+                    state.sock.sendall(pong)
+                except Exception:
+                    self.unregister(state.sock)
+                    return
             # 0x1 - Text Frame
             elif opcode == 0x1:
                 try:

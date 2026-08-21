@@ -147,7 +147,7 @@ def run_sqlite_load_test(num_accounts=100_000, num_receipts=200_000, concurrent_
                     con = get_db()
                     try:
                         res = con.execute("""
-                            SELECT 
+                            SELECT
                                 COUNT(DISTINCT a.id) as total_accounts,
                                 COUNT(DISTINCT r.id) as total_receipts
                             FROM accounts a

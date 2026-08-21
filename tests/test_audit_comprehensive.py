@@ -1,4 +1,11 @@
-import os, io, tempfile, shutil, time, struct, socket, threading
+import os
+import io
+import tempfile
+import shutil
+import time
+import struct
+import socket
+import threading
 try:
     import pymupdf as fitz
 except ImportError:
@@ -131,8 +138,7 @@ def test_audit_reconcile_service_pagination_and_multiperiod():
 
 def test_audit_sharding_and_security_traversal():
     """Тестирование шардирования нестандартных счетов и защиты от атак обхода каталогов."""
-    from config import RECEIPTS_DIR
-    
+
     # 1. Различные граничные номера счетов
     assert get_receipt_shard_parts("5") == ("05", "00")
     assert get_receipt_shard_parts("88") == ("88", "00")
@@ -237,7 +243,7 @@ def test_audit_websocket_frames_and_multiplexing():
     mock_payload = b'{"action":"ping"}'
     mask_key = b'\x12\x34\x56\x78'
     masked_payload = bytes([b ^ mask_key[i % 4] for i, b in enumerate(mock_payload)])
-    
+
     client_frame = bytearray([0x81, 0x80 | len(mock_payload)]) + mask_key + masked_payload
 
     # Создаем фиктивный сокет для state

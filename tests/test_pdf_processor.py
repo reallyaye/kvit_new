@@ -111,7 +111,7 @@ def test_streaming_multipart_parser(tmp_path):
 
     boundary = "----WebKitFormBoundaryX9QWz7qg8jL"
     pdf_content = b"%PDF-1.4 mock binary content 12345"
-    
+
     body = (
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="pdf"; filename="test_doc.pdf"\r\n'
@@ -219,7 +219,7 @@ def test_pdf_processor_multipage_receipt_grouping(tmp_path):
 
 def test_pdf_processor_sharding_helpers():
     from config import get_receipt_shard_parts, get_sharded_receipt_rel_path
-    
+
     # Стандартный 6-значный лицевой счет
     assert get_receipt_shard_parts("800146") == ("80", "01")
     assert get_sharded_receipt_rel_path("800146", "800146_abc.pdf") == "80/01/800146_abc.pdf"
@@ -247,7 +247,7 @@ def test_pdf_processor_ocr_fallback_and_handling(tmp_path):
     doc = fitz.open()
     page = doc.new_page()
     page.insert_text((50, 50), "Лицевой счет: 998877\nПериод: Май 2026")
-    
+
     # Обычный векторный текст
     text, used_ocr = pdf_processor.extract_page_text(page)
     assert "998877" in text

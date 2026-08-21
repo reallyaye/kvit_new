@@ -76,7 +76,8 @@ def migrate_receipts_to_sharding():
     и обновляет относительные пути в БД.
     Возвращает: (migrated_files_count, updated_db_records_count)
     """
-    import os, shutil
+    import os
+    import shutil
     from config import RECEIPTS_DIR, get_receipt_shard_parts, get_sharded_receipt_rel_path
 
     migrated_files = 0
@@ -165,7 +166,7 @@ def sync_receipts_with_filesystem():
             for i in range(0, len(ids_to_delete), 500):
                 chunk = ids_to_delete[i:i+500]
                 placeholders = ','.join('?' * len(chunk))
-                con_write.execute(f'DELETE FROM receipts WHERE id IN ({placeholders})', chunk)
+                con_write.execute(f'DELETE FROM receipts WHERE id IN ({placeholders})', chunk)  # nosec B608
         removed_count = len(ids_to_delete)
 
     return removed_count, valid_count

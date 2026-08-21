@@ -1,4 +1,5 @@
-import time, threading
+import time
+import threading
 from collections import defaultdict, deque
 
 class RateLimiter:

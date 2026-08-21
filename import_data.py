@@ -1,4 +1,9 @@
-import argparse, os, re, sys, secrets, hashlib
+import argparse
+import os
+import re
+import sys
+import secrets
+import hashlib
 from config import BASE, DB, RECEIPTS_DIR
 from database import get_db, write_transaction, migrate_db, sync_receipts_with_filesystem
 from database.migrations import migrate_receipts_to_sharding
@@ -131,9 +136,9 @@ def main():
                 if not account:
                     continue
 
-                def get_val(idx):
-                    if idx < len(row) and row[idx] is not None:
-                        val = row[idx]
+                def get_val(idx, current_row=row):
+                    if idx < len(current_row) and current_row[idx] is not None:
+                        val = current_row[idx]
                         if isinstance(val, float) and val.is_integer():
                             return str(int(val))
                         return str(val).strip()

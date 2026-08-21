@@ -136,7 +136,10 @@ def test_client_ip_anti_spoofing():
         config.TRUST_PROXY = orig_tp
 
 def test_safe_import_path_protection():
-    import config, os, tempfile, shutil
+    import config
+    import os
+    import tempfile
+    import shutil
 
     test_base = tempfile.mkdtemp(prefix='kvit_sec_test_')
     inside_dir = os.path.join(test_base, 'allowed_folder')
@@ -235,7 +238,9 @@ def test_grpc_rate_limiting_and_security():
     assert ctx3.status_code == grpc.StatusCode.RESOURCE_EXHAUSTED
 
 def test_async_websocket_multiplexer():
-    import socket, json, time, struct
+    import socket
+    import json
+    import struct
     from services.websocket.ws_manager import ws_manager
 
     # Создаем пару связанных сокетов для имитации клиента и сервера
@@ -277,7 +282,8 @@ def test_async_websocket_multiplexer():
         s_cli.close()
 
 def test_concurrent_database_writes_with_retry():
-    import threading, sqlite3
+    import threading
+    import sqlite3
     from database import write_transaction, get_db
 
     # Создаем тестовую таблицу
@@ -309,7 +315,7 @@ def test_concurrent_database_writes_with_retry():
 
 def test_persistent_state_and_session_sharing():
     from services.security.auth_service import AuthService, auth_service
-    from services.security.ip_throttler import IPThrottler, ip_throttler
+    from services.security.ip_throttler import IPThrottler
     from database import migrate_db
     migrate_db()
 

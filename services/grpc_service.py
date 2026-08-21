@@ -1,5 +1,6 @@
 import grpc
-import os, secrets
+import os
+import secrets
 from concurrent import futures
 
 from config import (
@@ -44,7 +45,7 @@ class AuthInterceptor(grpc.ServerInterceptor):
         if not token or not secrets.compare_digest(token, self._api_key):
             def deny_rpc(request, context):
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, "Invalid or missing gRPC API key")
-            
+
             # Возвращаем соответствующий обработчик в зависимости от типа RPC
             handler = continuation(handler_call_details)
             if handler and handler.unary_stream:
@@ -227,7 +228,7 @@ class ReconcileGrpcServicer(receipts_pb2_grpc.ReconcileServiceServicer):
         )
 
 
-def create_grpc_server(host: str = "0.0.0.0", port: int = 50051, max_workers: int = 10):
+def create_grpc_server(host: str = "127.0.0.1", port: int = 50051, max_workers: int = 10):  # nosec B104
     """Создаёт и конфигурирует gRPC сервер с поддержкой аутентификации, Rate Limiting и TLS."""
     interceptors = []
     if GRPC_API_KEY:

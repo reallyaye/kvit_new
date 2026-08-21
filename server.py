@@ -1,7 +1,16 @@
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from http.cookies import SimpleCookie
-import os, re, tempfile, shutil, hashlib, base64, struct, json, html, ipaddress
+import os
+import re
+import tempfile
+import shutil
+import hashlib
+import base64
+import struct
+import json
+import html
+import ipaddress
 
 import config
 from config import (
@@ -143,7 +152,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_error(400, 'Missing Sec-WebSocket-Key')
             return
 
-        accept_val = base64.b64encode(hashlib.sha1((key + WS_GUID).encode('utf-8')).digest()).decode('utf-8')
+        # Согласно спецификации RFC 6455 (WebSocket Handshake), для вычисления Sec-WebSocket-Accept используется SHA-1
+        accept_val = base64.b64encode(hashlib.sha1((key + WS_GUID).encode('utf-8'), usedforsecurity=False).digest()).decode('utf-8')  # nosec B324
 
         try:
             self.send_response(101, 'Switching Protocols')

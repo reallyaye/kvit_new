@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-import os, re, hashlib, secrets
+import os
+import re
+import hashlib
+import secrets
 from config import RECEIPTS_DIR, OCR_ENABLED, OCR_LANGUAGES, OCR_DPI, get_receipt_shard_parts, get_sharded_receipt_rel_path
 
 try:
