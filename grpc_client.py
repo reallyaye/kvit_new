@@ -7,6 +7,11 @@ from proto import receipts_pb2, receipts_pb2_grpc
 from config import GRPC_HOST, GRPC_PORT, GRPC_API_KEY
 
 def run():
+    if not GRPC_API_KEY:
+        print("❌ ОШИБКА: Переменная GRPC_API_KEY не задана в окружении или файле .env.")
+        print("Укажите секретный ключ GRPC_API_KEY в файле .env перед запуском клиента.")
+        return
+
     target = f"{'127.0.0.1' if GRPC_HOST in ('0.0.0.0', '') else GRPC_HOST}:{GRPC_PORT}"
     print(f"Подключение к gRPC серверу: {target}...")
 
