@@ -17,7 +17,16 @@ def test_auth_service_lifecycle():
     config.ADMIN_PASSWORD_HASH = ''
     assert auth_service.verify_password('admin') is True
     assert auth_service.verify_password('wrong_password') is False
+    assert auth_service.verify_password('') is False
+    assert auth_service.verify_password('   ') is False
     assert auth_service.verify_password(None) is False
+
+    # Тест: если в конфигурации пустая строка (из docker-compose ${ADMIN_PASSWORD:-})
+    config.ADMIN_PASSWORD = ''
+    config.ADMIN_PASSWORD_HASH = ''
+    assert auth_service.verify_password('') is False
+    assert auth_service.verify_password('admin') is False
+    assert auth_service.verify_password('   ') is False
 
     # Тест проверки через PBKDF2 хеш
     h = hash_password('SecretSecure123!')
@@ -29,6 +38,7 @@ def test_auth_service_lifecycle():
     config.ADMIN_PASSWORD_HASH = h
     assert auth_service.verify_password('SecretSecure123!') is True
     assert auth_service.verify_password('admin') is False
+    assert auth_service.verify_password('') is False
 
     token = auth_service.create_session()
     assert len(token) == 64
