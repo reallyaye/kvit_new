@@ -1,0 +1,32 @@
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".git",
+    "__pycache__",
+    "tmp",
+    "receipts",
+    "logs",
+    ".pytest_cache",
+]
+
+[tool.ruff.lint]
+# Базовый набор правил линтинга: ошибки, предупреждения, баги
+select = ["E", "F", "W", "B"]
+ignore = [
+    "E501",  # Длина строк
+    "F401",  # Неиспользуемые импорты (удобно для экспортов пакетов)
+    "F841",  # Локальные неиспользуемые переменные
+    "E701",  # Несколько операторов на одной строке
+    "E722",  # Bare except (в fallback-логике)
+    "B008",  # Вызовы функций в аргументах
+    "B904",  # Raise without from
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "tmp", "receipts", "logs", ".pytest_cache"]
+skips = [
+    "B101",  # Использование assert в тестах
+    "B104",  # Привязка к 0.0.0.0 (для контейнеров/gRPC)
+    "B108",  # Использование /tmp
+]
