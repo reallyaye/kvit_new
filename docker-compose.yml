@@ -20,7 +20,7 @@ services:
       - LOG_FILE=/app/logs/app.log
       - LOG_LEVEL=INFO
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - GRPC_API_KEY=${GRPC_API_KEY:-kvit_grpc_secret_key_2026}
+      - GRPC_API_KEY=${GRPC_API_KEY:?GRPC_API_KEY environment variable is required}
       - TRUST_PROXY=false
       - WS_SOCKET_TIMEOUT=60.0
     volumes:

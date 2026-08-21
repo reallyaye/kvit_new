@@ -94,7 +94,7 @@ TRUSTED_PROXY_NETWORKS = _parse_trusted_proxies(TRUSTED_PROXIES_RAW)
 # ────────────────────── gRPC Microservice ──────────────────────
 GRPC_HOST = os.environ.get('GRPC_HOST', '0.0.0.0')
 GRPC_PORT = int(os.environ.get('GRPC_PORT', '50051'))
-GRPC_API_KEY = os.environ.get('GRPC_API_KEY', 'kvit_grpc_secret_key_2026')
+GRPC_API_KEY = os.environ.get('GRPC_API_KEY', '').strip()
 GRPC_USE_TLS = os.environ.get('GRPC_USE_TLS', 'false').lower() in ('true', '1', 'yes')
 GRPC_CERT_PATH = os.environ.get('GRPC_CERT_PATH', '')
 GRPC_KEY_PATH = os.environ.get('GRPC_KEY_PATH', '')

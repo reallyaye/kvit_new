@@ -28,6 +28,7 @@ def run_all():
 
     config.DB = db_file
     config.RECEIPTS_DIR = receipts_dir
+    config.GRPC_API_KEY = "test_secure_grpc_key_for_testing"
 
     import services.pdf.pdf_processor
     import services.receipts.receipt_service

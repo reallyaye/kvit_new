@@ -16,6 +16,7 @@ def setup_test_env(monkeypatch, tmp_path):
 
     monkeypatch.setattr(config, 'DB', db_file)
     monkeypatch.setattr(config, 'RECEIPTS_DIR', receipts_dir)
+    monkeypatch.setattr(config, 'GRPC_API_KEY', 'test_secure_grpc_key_for_testing')
     monkeypatch.setattr('services.pdf.pdf_processor.RECEIPTS_DIR', receipts_dir)
     monkeypatch.setattr('services.receipts.receipt_service.RECEIPTS_DIR', receipts_dir)
 

@@ -19,7 +19,12 @@ def setup_logger(name: str = "kvit") -> logging.Logger:
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # 1. Консольный обработчик (stdout)
+    # 1. Консольный обработчик (stdout) с поддержкой UTF-8
+    if hasattr(sys.stdout, 'reconfigure'):
+        try:
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
     console_handler.setFormatter(log_format)
