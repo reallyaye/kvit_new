@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package receipts;
+
+// ────────── Сущности ──────────
+message Account {
+    string account_number = 1;
+    string customer_name = 2;
+    string address = 3;
+}
+
+message ReceiptItem {
+    string period = 1;
+    string pdf_file = 2;
+    string access_token = 3;
+}
+
+// ────────── Запросы и ответы для ReceiptService ──────────
+message AccountRequest {
+    string account_number = 1;
+}
+
+message AccountResponse {
+    bool found = 1;
+    Account account = 2;
+    string message = 3;
+}
+
+message ReceiptsQuery {
+    string account_number = 1;
+    string period_filter = 2;
+}
+
+message ReceiptsListResponse {
+    string account_number = 1;
+    repeated ReceiptItem receipts = 2;
+    int32 total_count = 3;
+}
+
+message EmptyRequest {}
+
+message PeriodsResponse {
+    repeated string periods = 1;
+}
+
+message TokenRequest {
+    string access_token = 1;
+}
+
+message FileChunk {
+    bytes data = 1;
+    int64 chunk_index = 2;
+    bool is_last = 3;
+}
+
+message StatsResponse {
+    int64 total_accounts = 1;
+    int64 total_receipts = 2;
+}
+
+// ────────── Запросы и ответы для ReconcileService ──────────
+message ReconcileQuery {
+    string filter = 1; // "all", "with", "without", "orphans"
+    string period_filter = 2;
+    int32 page = 3;
+    int32 per_page = 4;
+}
+
+message ReconcileRow {
+    string account_number = 1;
+    string customer_name = 2;
+    string address = 3;
+    string period = 4;
+    string pdf_file = 5;
+    bool has_receipt = 6;
+}
+
+message ReconcileSummaryResponse {
+    int64 total_accounts = 1;
+    int64 total_receipts = 2;
+    int64 matched = 3;
+    int64 unmatched = 4;
+    int64 orphans = 5;
+    float coverage_percent = 6;
+    repeated ReconcileRow rows = 7;
+    int32 page = 8;
+    int32 total_pages = 9;
+}
+
+// ────────── Сервисы gRPC ──────────
+service ReceiptService {
+    rpc GetAccount(AccountRequest) returns (AccountResponse);
+    rpc GetReceipts(ReceiptsQuery) returns (ReceiptsListResponse);
+    rpc GetDistinctPeriods(EmptyRequest) returns (PeriodsResponse);
+    rpc GetSystemStats(EmptyRequest) returns (StatsResponse);
+    rpc StreamReceiptPDF(TokenRequest) returns (stream FileChunk);
+}
+
+service ReconcileService {
+    rpc GetReconcileSummary(ReconcileQuery) returns (ReconcileSummaryResponse);
+}

@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  kvit-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kvit-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"    # HTTP Веб-сервер и WebSocket шлюз
+      - "50051:50051"  # gRPC микросервис
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - GRPC_HOST=0.0.0.0
+      - GRPC_PORT=50051
+      - DB_PATH=/app/data/data.sqlite3
+      - RECEIPTS_DIR=/app/receipts
+      - LOG_FILE=/app/logs/app.log
+      - LOG_LEVEL=INFO
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - GRPC_API_KEY=${GRPC_API_KEY:-kvit_grpc_secret_key_2026}
+      - TRUST_PROXY=false
+      - WS_SOCKET_TIMEOUT=60.0
+    volumes:
+      - kvit-data:/app/data
+      - kvit-receipts:/app/receipts
+      - kvit-logs:/app/logs
+
+volumes:
+  kvit-data:
+  kvit-receipts:
+  kvit-logs:

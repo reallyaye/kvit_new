@@ -1,0 +1,754 @@
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+from http.cookies import SimpleCookie
+import os, re, tempfile, shutil, hashlib, base64, struct, json, html, ipaddress
+
+import config
+from config import (
+    WS_GUID, PROTECTED_PATHS, WS_SOCKET_TIMEOUT,
+    RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH
+)
+from database import get_db, write_transaction, sync_receipts_with_filesystem
+from services.security import rate_limiter, ip_throttler, auth_service
+from services.websocket import ws_manager
+from services.pdf import pdf_processor
+from services.receipts import receipt_service
+from services.reconciliation import reconcile_service
+from logger import logger
+from templates import (
+    layout,
+    render_search_form, render_search_result, render_address_search_results,
+    render_address_clarification_prompt, render_address_not_found,
+    render_upload_form,
+    render_reconcile_page,
+    render_login_form, render_rate_limit_page, render_throttled_page,
+    render_404_page, render_forbidden_page
+)
+
+class AppRequestHandler(BaseHTTPRequestHandler):
+    """Главный HTTP-шлюз и роутер приложения."""
+
+    def log_message(self, format, *args):
+        """Перенаправляет стандартные HTTP логи доступа в централизованный логер."""
+        logger.info(f"{self._get_client_ip()} - {format % args}")
+
+    # ────────────────────── Вспомогательные методы ──────────────────────
+
+    def _is_trusted_proxy(self, ip_str: str) -> bool:
+        """Проверяет, принадлежит ли IP-адрес доверенной подсети обратного прокси."""
+        try:
+            ip_obj = ipaddress.ip_address(ip_str)
+            return any(ip_obj in net for net in config.TRUSTED_PROXY_NETWORKS)
+        except ValueError:
+            return False
+
+    def _get_client_ip(self) -> str:
+        """Определяет реальный IP-адрес клиента с защитой от спуфинга заголовков."""
+        peer_ip = self.client_address[0] if self.client_address else '127.0.0.1'
+
+        # Если TRUST_PROXY выключен или прямое соединение поступило НЕ от доверенного прокси,
+        # любые заголовки X-Forwarded-For и X-Real-IP безусловно игнорируются
+        if not getattr(config, 'TRUST_PROXY', False) or not self._is_trusted_proxy(peer_ip):
+            return peer_ip
+
+        # Обработка цепочки X-Forwarded-For (клиент, прокси1, прокси2...)
+        # Идем справа налево: первый не доверенный прокси IP является реальным адресом клиента
+        forwarded = self.headers.get('X-Forwarded-For')
+        if forwarded:
+            ips = [p.strip() for p in forwarded.split(',') if p.strip()]
+            for candidate in reversed(ips):
+                try:
+                    ipaddress.ip_address(candidate)
+                    if not self._is_trusted_proxy(candidate):
+                        return candidate
+                except ValueError:
+                    continue
+            if ips:
+                try:
+                    ipaddress.ip_address(ips[0])
+                    return ips[0]
+                except ValueError:
+                    pass
+
+        real_ip = self.headers.get('X-Real-IP')
+        if real_ip:
+            candidate = real_ip.strip()
+            try:
+                ipaddress.ip_address(candidate)
+                return candidate
+            except ValueError:
+                pass
+
+        return peer_ip
+
+    def _get_session_token(self):
+        cookie_header = self.headers.get('Cookie')
+        if not cookie_header:
+            return None
+        cookie = SimpleCookie()
+        try:
+            cookie.load(cookie_header)
+            if 'session' in cookie:
+                return cookie['session'].value
+        except Exception:
+            pass
+        return None
+
+    def _is_admin(self) -> bool:
+        token = self._get_session_token()
+        return auth_service.is_valid_session(token)
+
+    def send_html(self, text: str, code: int = 200, extra_headers: dict = None):
+        try:
+            data = text.encode('utf-8')
+            self.send_response(code)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(data)))
+            if extra_headers:
+                for k, v in extra_headers.items():
+                    self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(data)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+
+    def send_json(self, data: dict, code: int = 200, extra_headers: dict = None):
+        try:
+            body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+            self.send_response(code)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            if extra_headers:
+                for k, v in extra_headers.items():
+                    self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+
+    def _redirect(self, location: str, extra_headers: dict = None):
+        self.send_response(302)
+        self.send_header('Location', location)
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
+        self.end_headers()
+
+    # ────────────────────── WebSocket Handshake ──────────────────────
+
+    def _handle_websocket(self):
+        """Выполняет handshake WebSocket (RFC 6455) и передает управление в WebSocket менеджер."""
+        key = self.headers.get('Sec-WebSocket-Key')
+        if not key:
+            self.send_error(400, 'Missing Sec-WebSocket-Key')
+            return
+
+        accept_val = base64.b64encode(hashlib.sha1((key + WS_GUID).encode('utf-8')).digest()).decode('utf-8')
+
+        try:
+            self.send_response(101, 'Switching Protocols')
+            self.send_header('Upgrade', 'websocket')
+            self.send_header('Connection', 'Upgrade')
+            self.send_header('Sec-WebSocket-Accept', accept_val)
+            self.end_headers()
+            self.wfile.flush()
+        except Exception:
+            return
+
+        self.close_connection = True
+        ws_manager.handle_connection(self.connection, self._get_client_ip())
+
+    # ────────────────────── GET ──────────────────────
+
+    def do_GET(self):
+        u = urlparse(self.path)
+        path = u.path
+        q = parse_qs(u.query)
+        is_admin = self._is_admin()
+        client_ip = self._get_client_ip()
+
+        # WebSocket перехват
+        if path == '/ws' and self.headers.get('Upgrade', '').lower() == 'websocket':
+            self._handle_websocket()
+            return
+
+        # 1. IP Throttling (ограничение одновременных запросов и всплесков)
+        throttle_allowed, throttle_reason, throttle_retry = ip_throttler.acquire(client_ip)
+        if not throttle_allowed:
+            if path.startswith('/api/'):
+                msg = 'Слишком много одновременных запросов с вашего IP' if throttle_reason == 'concurrency_limit' else 'Слишком высокая частота запросов (burst limit)'
+                self.send_json({
+                    'error': 'Throttled',
+                    'message': f'{msg}. Пожалуйста, подождите {throttle_retry} сек.',
+                    'retry_after': throttle_retry
+                }, 429, {
+                    'Retry-After': str(throttle_retry),
+                    'X-Throttled-Reason': throttle_reason
+                })
+            else:
+                body = render_throttled_page(throttle_retry)
+                self.send_html(layout(body, 'search', is_admin=is_admin), 429, {'Retry-After': str(throttle_retry)})
+            return
+
+        try:
+            # 2. Rate Limit для API эндпоинтов (GET)
+            if path.startswith('/api/'):
+                allowed, retry_after, remaining = rate_limiter.is_allowed('api', client_ip, RATE_LIMIT_API, 60)
+                if not allowed:
+                    self.send_json({
+                        'error': 'Too Many Requests',
+                        'message': f'Превышен лимит запросов к API. Пожалуйста, подождите {retry_after} сек.',
+                        'retry_after': retry_after
+                    }, 429, {
+                        'Retry-After': str(retry_after),
+                        'X-RateLimit-Limit': str(RATE_LIMIT_API),
+                        'X-RateLimit-Remaining': '0'
+                    })
+                    return
+
+            # 3. Rate Limit для публичных операций поиска и скачивания
+            if path in ('/search', '/receipt', '/download'):
+                allowed, retry_after, remaining = rate_limiter.is_allowed('search', client_ip, RATE_LIMIT_SEARCH, 60)
+                if not allowed:
+                    body = render_rate_limit_page(retry_after)
+                    self.send_html(layout(body, 'search', is_admin=is_admin), 429, {'Retry-After': str(retry_after)})
+                    return
+
+            # Роутинг страниц
+            if path == '/':
+                tab = q.get('tab', ['account'])[0].strip()
+                periods = receipt_service.get_distinct_periods()
+                body = render_search_form(periods, active_tab=tab)
+                self.send_html(layout(body, 'search', is_admin=is_admin))
+            elif path == '/search':
+                account = q.get('account', [''])[0].strip()
+                address_query = q.get('address', [''])[0].strip()
+                period_filter = q.get('period', [''])[0].strip()
+
+                if account:
+                    account_row = receipt_service.get_account(account)
+                    receipts = receipt_service.get_receipts(account, period_filter) if account_row else []
+                    body = render_search_result(account, period_filter, account_row, receipts)
+                    self.send_html(layout(body, 'search', is_admin=is_admin))
+                elif address_query:
+                    status, acc_data, prompt_msg = receipt_service.search_account_by_specific_address(address_query)
+                    if status == 'EXACT_MATCH' and acc_data:
+                        acc_num = str(acc_data['account_number'])
+                        account_row = receipt_service.get_account(acc_num)
+                        receipts = receipt_service.get_receipts(acc_num, period_filter) if account_row else []
+                        body = render_search_result(acc_num, period_filter, account_row, receipts)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                    elif status == 'NOT_FOUND':
+                        periods = receipt_service.get_distinct_periods()
+                        body = render_address_not_found(address_query, period_filter, prompt_msg, periods)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                    else:
+                        periods = receipt_service.get_distinct_periods()
+                        body = render_address_clarification_prompt(address_query, period_filter, prompt_msg, periods)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                else:
+                    self._redirect('/')
+            elif path == '/login':
+                if is_admin:
+                    self._redirect('/')
+                else:
+                    body = render_login_form()
+                    self.send_html(layout(body, 'login', is_admin=False))
+            elif path == '/logout':
+                token = self._get_session_token()
+                if token:
+                    auth_service.destroy_session(token)
+                self._redirect('/', extra_headers={
+                    'Set-Cookie': 'session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'
+                })
+            elif path in PROTECTED_PATHS:
+                if not is_admin:
+                    self._redirect('/login')
+                    return
+                if path == '/upload':
+                    body = render_upload_form()
+                    self.send_html(layout(body, 'upload', is_admin=True))
+                elif path == '/reconcile':
+                    filt = q.get('filter', ['without'])[0]
+                    if filt not in ('all', 'with', 'without', 'orphans'):
+                        filt = 'without'
+                    period_filter = q.get('period', [''])[0].strip()
+                    page_num = max(1, int(q.get('page', ['1'])[0]))
+                    data = reconcile_service.get_reconciliation_data(filt, period_filter, page_num)
+                    body = render_reconcile_page(data)
+                    self.send_html(layout(body, 'reconcile', is_admin=True))
+            elif path in ('/receipt', '/download'):
+                self._serve_pdf(path, q)
+            else:
+                body = render_404_page()
+                self.send_html(layout(body, 'search', is_admin=is_admin), 404)
+        finally:
+            ip_throttler.release(client_ip)
+
+    # ────────────────────── POST ──────────────────────
+
+    def do_POST(self):
+        u = urlparse(self.path)
+        is_admin = self._is_admin()
+        client_ip = self._get_client_ip()
+
+        # 1. IP Throttling (ограничение одновременных запросов и всплесков)
+        throttle_allowed, throttle_reason, throttle_retry = ip_throttler.acquire(client_ip)
+        if not throttle_allowed:
+            if u.path.startswith('/api/'):
+                msg = 'Слишком много одновременных запросов с вашего IP' if throttle_reason == 'concurrency_limit' else 'Слишком высокая частота запросов (burst limit)'
+                self.send_json({
+                    'error': 'Throttled',
+                    'message': f'{msg}. Пожалуйста, подождите {throttle_retry} сек.',
+                    'retry_after': throttle_retry
+                }, 429, {
+                    'Retry-After': str(throttle_retry),
+                    'X-Throttled-Reason': throttle_reason
+                })
+            else:
+                body = render_login_form(f'Слишком много одновременных запросов. Пожалуйста, подождите {throttle_retry} сек.')
+                self.send_html(layout(body, 'login', is_admin=False), 429)
+            return
+
+        try:
+            # 2. Rate Limit для попыток авторизации (защита от брутфорса)
+            if u.path == '/login':
+                allowed, retry_after, remaining = rate_limiter.is_allowed('login', client_ip, RATE_LIMIT_LOGIN, 60)
+                if not allowed:
+                    body = render_login_form(f'Слишком много попыток входа. В целях безопасности подождите {retry_after} сек.')
+                    self.send_html(layout(body, 'login', is_admin=False), 429, {'Retry-After': str(retry_after)})
+                    return
+                self._handle_login()
+                return
+
+            # 3. Rate Limit для API эндпоинтов (POST)
+            if u.path.startswith('/api/'):
+                allowed, retry_after, remaining = rate_limiter.is_allowed('api', client_ip, RATE_LIMIT_API, 60)
+                if not allowed:
+                    self.send_json({
+                        'error': 'Too Many Requests',
+                        'message': f'Превышен лимит запросов к API. Пожалуйста, подождите {retry_after} сек.',
+                        'retry_after': retry_after
+                    }, 429, {
+                        'Retry-After': str(retry_after),
+                        'X-RateLimit-Limit': str(RATE_LIMIT_API),
+                        'X-RateLimit-Remaining': '0'
+                    })
+                    return
+
+            # Роутинг POST запросов
+            if u.path == '/upload':
+                if not is_admin:
+                    self._redirect('/login')
+                    return
+                self._handle_upload()
+            elif u.path == '/import-folder':
+                if not is_admin:
+                    self._redirect('/login')
+                    return
+                self._handle_import_folder()
+            elif u.path == '/api/upload-batch':
+                self._handle_api_upload_batch()
+            elif u.path == '/api/sync-receipts':
+                self._handle_api_sync_receipts()
+            else:
+                self.send_html(layout(render_404_page(), is_admin=is_admin), 404)
+        finally:
+            ip_throttler.release(client_ip)
+
+    # ────────────────────── Обработчики действий ──────────────────────
+
+    def _handle_login(self):
+        length = int(self.headers.get('Content-Length', 0))
+        data = self.rfile.read(length)
+        params = parse_qs(data.decode('utf-8', errors='replace'))
+        password = params.get('password', [''])[0]
+
+        if auth_service.verify_password(password):
+            token = auth_service.create_session()
+            self._redirect('/', extra_headers={
+                'Set-Cookie': f'session={token}; Path=/; Max-Age=86400; HttpOnly; SameSite=Strict'
+            })
+        else:
+            body = render_login_form('Неверный пароль. Попробуйте ещё раз.')
+            self.send_html(layout(body, 'login', is_admin=False))
+
+    def _parse_multipart_to_disk(self):
+        """Потоковый разбор multipart/form-data на диск с константным потреблением памяти O(1)."""
+        content_type = self.headers.get('Content-Type', '')
+        content_length = int(self.headers.get('Content-Length', 0))
+
+        boundary = None
+        for part in content_type.split(';'):
+            part = part.strip()
+            if part.startswith('boundary='):
+                boundary = part[len('boundary='):].strip('"\'')
+                break
+        if not boundary or content_length <= 0:
+            return None, None
+
+        boundary_bytes = boundary.encode('latin1')
+        delimiter = b'--' + boundary_bytes
+        delimiter_crlf = b'\r\n--' + boundary_bytes
+
+        tmp_dir = tempfile.mkdtemp(prefix='kvit_upload_')
+        pdf_files = []
+
+        remaining = content_length
+        read_chunk_size = 64 * 1024  # 64 KB буфер чтения
+
+        def read_stream():
+            nonlocal remaining
+            while remaining > 0:
+                to_read = min(read_chunk_size, remaining)
+                chunk = self.rfile.read(to_read)
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+
+        stream = read_stream()
+        buf = b''
+
+        # 1. Поиск первого разделителя
+        while delimiter not in buf:
+            try:
+                chunk = next(stream)
+            except StopIteration:
+                break
+            buf += chunk
+
+        first_delim_idx = buf.find(delimiter)
+        if first_delim_idx < 0:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return None, None
+
+        buf = buf[first_delim_idx + len(delimiter):]
+
+        # 2. Потоковый разбор каждой части
+        while True:
+            # Если это завершающий разделитель '--'
+            if buf.startswith(b'--'):
+                break
+
+            # Пропускаем CRLF после разделителя
+            if buf.startswith(b'\r\n'):
+                buf = buf[2:]
+            elif buf.startswith(b'\n'):
+                buf = buf[1:]
+
+            # Читаем заголовки секции до '\r\n\r\n' (или '\n\n')
+            while b'\r\n\r\n' not in buf and b'\n\n' not in buf:
+                try:
+                    chunk = next(stream)
+                except StopIteration:
+                    break
+                buf += chunk
+
+            header_end = buf.find(b'\r\n\r\n')
+            header_len = 4
+            if header_end < 0:
+                header_end = buf.find(b'\n\n')
+                header_len = 2
+
+            if header_end < 0:
+                break
+
+            header_bytes = buf[:header_end]
+            buf = buf[header_end + header_len:]
+
+            header_text = header_bytes.decode('utf-8', errors='replace')
+            m_name = re.search(r'name="([^"]*)"', header_text)
+            m_fn = re.search(r'filename="([^"]*)"', header_text)
+            field_name = m_name.group(1) if m_name else ''
+            file_name = m_fn.group(1) if m_fn else ''
+
+            is_target_file = (field_name == 'pdf' or file_name.lower().endswith('.pdf')) and bool(file_name)
+
+            out_file = None
+            tmp_path = None
+            base_name = None
+            if is_target_file:
+                base_name = file_name.rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
+                if not base_name:
+                    base_name = f'upload_{len(pdf_files):04d}.pdf'
+                tmp_path = os.path.join(tmp_dir, f'{len(pdf_files):06d}_{base_name}')
+                out_file = open(tmp_path, 'wb')
+
+            # Потоковая запись данных секции на диск до следующего delimiter_crlf
+            needle = delimiter_crlf
+            needle_len = len(needle)
+
+            while True:
+                idx = buf.find(needle)
+                if idx >= 0:
+                    # Разделитель найден
+                    if out_file and idx > 0:
+                        out_file.write(buf[:idx])
+                    buf = buf[idx + needle_len:]
+                    break
+                else:
+                    # Сбрасываем безопасную часть буфера на диск
+                    if len(buf) > needle_len:
+                        flush_len = len(buf) - needle_len
+                        if out_file:
+                            out_file.write(buf[:flush_len])
+                        buf = buf[flush_len:]
+
+                    try:
+                        chunk = next(stream)
+                        buf += chunk
+                    except StopIteration:
+                        if out_file and buf:
+                            out_file.write(buf)
+                        buf = b''
+                        break
+
+            if out_file:
+                out_file.close()
+                if os.path.getsize(tmp_path) > 0:
+                    pdf_files.append((base_name, tmp_path))
+                else:
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+
+        # Дочитываем оставшийся хвост потока, если есть
+        for _ in stream:
+            pass
+
+        return tmp_dir, pdf_files
+
+    def _handle_api_upload_batch(self):
+        if not self._is_admin():
+            self.send_json({'error': 'Unauthorized'}, 401)
+            return
+
+        tmp_dir, pdf_files = self._parse_multipart_to_disk()
+        if tmp_dir is None or not pdf_files:
+            self.send_json({'error': 'Файлы не получены'}, 400)
+            return
+
+        con = get_db()
+        try:
+            known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
+            existing_hashes = {row[0] for row in con.execute('SELECT content_hash FROM receipts WHERE content_hash IS NOT NULL').fetchall()}
+            total_added = 0
+            total_skipped = 0
+            total_orphan = 0
+            total_duplicates = 0
+            all_details = []
+            all_receipts = []
+
+            for base_name, tmp_path in pdf_files:
+                added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(tmp_path, base_name, known_accounts, existing_hashes)
+                total_added += added
+                total_orphan += orphan
+                total_skipped += skipped
+                total_duplicates += dups
+                status_icon = '✅' if orphan == 0 and skipped == 0 and dups == 0 else '⚠'
+                all_details.append(f'📄 {base_name}: {status_icon} +{added}, сирот {orphan}, пропущено {skipped}, дубликатов {dups}')
+                all_details.extend(details)
+                all_receipts.extend(receipts)
+
+            if all_receipts:
+                with write_transaction() as con_write:
+                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)', all_receipts)
+                ws_manager.broadcast('upload_batch_completed', {
+                    'files_count': len(pdf_files),
+                    'added': total_added,
+                    'orphan': total_orphan,
+                    'duplicates': total_duplicates,
+                    'skipped': total_skipped
+                })
+
+            self.send_json({
+                'success': True,
+                'files_count': len(pdf_files),
+                'added': total_added,
+                'orphan': total_orphan,
+                'skipped': total_skipped,
+                'duplicates': total_duplicates,
+                'details': all_details
+            })
+        finally:
+            con.close()
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def _handle_api_sync_receipts(self):
+        if not self._is_admin():
+            self.send_json({'error': 'Unauthorized'}, 401)
+            return
+
+        removed, valid = sync_receipts_with_filesystem()
+        ws_manager.broadcast('receipts_synced', {
+            'removed': removed,
+            'valid': valid
+        })
+        self.send_json({
+            'success': True,
+            'removed': removed,
+            'valid': valid,
+            'message': f'Синхронизация завершена: удалено отсутствующих записей — {removed}, актуальных файлов на диске — {valid}'
+        })
+
+    def _handle_import_folder(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        body_bytes = self.rfile.read(content_length)
+        params = parse_qs(body_bytes.decode('utf-8', errors='replace'))
+        folder_path = params.get('folder_path', [''])[0].strip()
+
+        # 1. Проверка безопасности пути (whitelist, jail, path traversal)
+        is_safe, real_folder_path, error_msg = config.is_safe_import_path(folder_path)
+        if not is_safe:
+            body = render_upload_form(f'<div class="err">{error_msg}</div>')
+            self.send_html(layout(body, 'upload', is_admin=True))
+            return
+
+        # 2. Безопасное сканирование с ограничением глубины и максимального числа файлов
+        pdf_paths = []
+        base_depth = real_folder_path.count(os.sep)
+
+        for root, dirs, files in os.walk(real_folder_path):
+            current_depth = root.count(os.sep) - base_depth
+            if current_depth >= config.MAX_IMPORT_DEPTH:
+                dirs.clear()  # Прекращаем спуск по подпапкам глубже MAX_IMPORT_DEPTH
+            for file in files:
+                if file.lower().endswith('.pdf'):
+                    pdf_paths.append(os.path.join(root, file))
+                    if len(pdf_paths) >= config.MAX_IMPORT_FILES:
+                        break
+            if len(pdf_paths) >= config.MAX_IMPORT_FILES:
+                break
+
+        if not pdf_paths:
+            body = render_upload_form(f'<div class="warn">В папке <code>{html.escape(folder_path)}</code> не найдено ни одного .pdf файла.</div>')
+            self.send_html(layout(body, 'upload', is_admin=True))
+            return
+
+        con = get_db()
+        try:
+            known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
+            existing_hashes = {row[0] for row in con.execute('SELECT content_hash FROM receipts WHERE content_hash IS NOT NULL').fetchall()}
+            total_added = 0
+            total_skipped = 0
+            total_orphan = 0
+            total_duplicates = 0
+            all_details = []
+            all_receipts = []
+
+            for path in pdf_paths:
+                base_name = os.path.basename(path)
+                added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(path, base_name, known_accounts, existing_hashes)
+                total_added += added
+                total_orphan += orphan
+                total_skipped += skipped
+                total_duplicates += dups
+                status_icon = '✅' if orphan == 0 and skipped == 0 and dups == 0 else '⚠'
+                all_details.append(f'📄 {base_name}: {status_icon} +{added}, сирот {orphan}, пропущено {skipped}, дубликатов {dups}')
+                all_details.extend(details)
+                all_receipts.extend(receipts)
+
+            if all_receipts:
+                with write_transaction() as con_write:
+                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)', all_receipts)
+                ws_manager.broadcast('folder_import_completed', {
+                    'files_count': len(pdf_paths),
+                    'added': total_added,
+                    'orphan': total_orphan,
+                    'duplicates': total_duplicates,
+                    'skipped': total_skipped
+                })
+
+            detail_html = '<br>'.join(html.escape(d) for d in all_details)
+            cls = 'ok' if total_orphan == 0 and total_skipped == 0 else 'warn'
+            msg = f'''<div class="{cls}">
+                <b>Импорт из папки завершён: {len(pdf_paths)} PDF-файлов</b><br><br>
+                Путь к папке: <code>{html.escape(folder_path)}</code><br>
+                Привязано к счетам: <b>{total_added}</b><br>
+                Счёта нет в базе: <b>{total_orphan}</b><br>
+                Не удалось распознать: <b>{total_skipped}</b><br>
+                Дубликатов пропущено: <b>{total_duplicates}</b><br><br>
+                <details><summary>Подробности по файлам</summary><br>{detail_html}</details>
+            </div>'''
+            body = render_upload_form(msg)
+            self.send_html(layout(body, 'upload', is_admin=True))
+        finally:
+            con.close()
+
+    def _handle_upload(self):
+        tmp_dir, pdf_files = self._parse_multipart_to_disk()
+        if tmp_dir is None or not pdf_files:
+            body = render_upload_form('<div class="err">Файлы не выбраны или не удалось разобрать запрос.</div>')
+            self.send_html(layout(body, 'upload', is_admin=True))
+            return
+
+        total_added = 0
+        total_skipped = 0
+        total_orphan = 0
+        total_duplicates = 0
+        total_files = len(pdf_files)
+        all_details = []
+        all_receipts = []
+
+        con = get_db()
+        try:
+            known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
+            existing_hashes = {row[0] for row in con.execute('SELECT content_hash FROM receipts WHERE content_hash IS NOT NULL').fetchall()}
+
+            for file_name, tmp_path in pdf_files:
+                added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(tmp_path, file_name, known_accounts, existing_hashes)
+                total_added += added
+                total_orphan += orphan
+                total_skipped += skipped
+                total_duplicates += dups
+                status_icon = '✅' if orphan == 0 and skipped == 0 and dups == 0 else '⚠'
+                all_details.append(f'📄 {file_name}: {status_icon} привязано {added}, сирот {orphan}, пропущено {skipped}, дубликатов {dups}')
+                all_details.extend(details)
+                all_receipts.extend(receipts)
+
+            if all_receipts:
+                with write_transaction() as con_write:
+                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)', all_receipts)
+        finally:
+            con.close()
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        detail_html = '<br>'.join(html.escape(d) for d in all_details)
+        cls = 'ok' if total_orphan == 0 and total_skipped == 0 else 'warn'
+        files_label = f'{total_files} файл' + ('ов' if total_files >= 5 else ('а' if 2 <= total_files <= 4 else ''))
+        msg = f'''<div class="{cls}">
+            <b>Обработано: {files_label}</b><br><br>
+            Привязано к счетам: <b>{total_added}</b><br>
+            Счёта нет в базе: <b>{total_orphan}</b><br>
+            Не удалось распознать: <b>{total_skipped}</b><br>
+            Дубликатов пропущено: <b>{total_duplicates}</b><br><br>
+            <details><summary>Подробности по файлам</summary><br>{detail_html}</details>
+        </div>'''
+        body = render_upload_form(msg)
+        self.send_html(layout(body, 'upload', is_admin=True))
+
+    def _serve_pdf(self, path: str, q: dict):
+        token = q.get('token', [''])[0].strip()
+        fp = receipt_service.get_pdf_by_token(token)
+        if not fp:
+            if not token or len(token) != 32:
+                body = render_forbidden_page()
+                self.send_html(layout(body, 'search', is_admin=self._is_admin()), 403)
+            else:
+                body = render_404_page()
+                self.send_html(layout(body, 'search', is_admin=self._is_admin()), 404)
+            return
+
+        with open(fp, 'rb') as f:
+            data = f.read()
+
+        disp = 'attachment; ' if path == '/download' else 'inline; '
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/pdf')
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Content-Disposition', disp + 'filename="receipt.pdf"')
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(data)
