@@ -1,6 +1,11 @@
 # 📄 Kvit-App — Высокопроизводительный сервис квитанций и сверки счетов
 
-Современный сервис для обработки, шардированного хранения, сверки и выдачи квитанций по лицевым счетам (Web UI, WebSocket Real-time, gRPC API).
+[![CI Tests & Security](https://github.com/reallyaye/kvit_new/actions/workflows/tests.yml/badge.svg)](https://github.com/reallyaye/kvit_new/actions)
+![Python 3.10 | 3.11 | 3.12](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Security: Audited & Fuzzed](https://img.shields.io/badge/Security-Audited%20%26%20Fuzzed-success.svg)](SECURITY.md)
+
+Современный промышленный сервис для обработки, шардированного хранения, сверки и выдачи квитанций по лицевым счетам (Web UI, WebSocket Real-time, gRPC API).
 
 ---
 
