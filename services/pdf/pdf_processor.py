@@ -3,7 +3,8 @@ import os
 import re
 import hashlib
 import secrets
-from config import RECEIPTS_DIR, OCR_ENABLED, OCR_LANGUAGES, OCR_DPI, get_receipt_shard_parts, get_sharded_receipt_rel_path
+import config
+from config import OCR_ENABLED, OCR_LANGUAGES, OCR_DPI, get_receipt_shard_parts, get_sharded_receipt_rel_path
 
 try:
     import pymupdf as fitz
@@ -34,7 +35,7 @@ ADDRESS_PATTERNS = [
     re.compile(r'(?:Мекенжайы\s*/\s*Адрес|Мекен-жайы\s*/\s*Адрес|Адрес\s*/\s*Мекенжайы|Мекенжайы|Мекен-жайы|Адрес)\s*[:\s]+([^\n\r]+)', re.IGNORECASE),
 ]
 
-os.makedirs(RECEIPTS_DIR, exist_ok=True)
+os.makedirs(config.RECEIPTS_DIR, exist_ok=True)
 
 class ReceiptDocument:
     def __init__(self, start_page_idx: int, account: str, period: str, address: str = None):
@@ -197,7 +198,7 @@ class PDFProcessor:
 
             # Двухуровневое шардирование: receipts/{s1}/{s2}/{account}_{hash}.pdf
             s1, s2 = get_receipt_shard_parts(account)
-            shard_dir = os.path.join(RECEIPTS_DIR, s1, s2)
+            shard_dir = os.path.join(config.RECEIPTS_DIR, s1, s2)
             os.makedirs(shard_dir, exist_ok=True)
 
             base_filename = f'{account}_{content_hash[:16]}.pdf'

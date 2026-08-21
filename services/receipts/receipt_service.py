@@ -1,5 +1,7 @@
-import os, re
-from config import RECEIPTS_DIR, get_receipt_shard_parts
+import os
+import re
+import config
+from config import get_receipt_shard_parts
 from database import get_db
 
 RE_HOUSE = re.compile(r'(?:дом\s*(?:№\s*)?|д\.?\s*|д\s+|үй(?:і)?\s*)(\d+[\w\-\/]*)', re.IGNORECASE)
@@ -233,8 +235,8 @@ class ReceiptService:
                 return None
 
             raw_file = r['pdf_file']
-            receipts_abs = os.path.abspath(RECEIPTS_DIR)
-            fp = os.path.abspath(os.path.join(RECEIPTS_DIR, raw_file))
+            receipts_abs = os.path.abspath(config.RECEIPTS_DIR)
+            fp = os.path.abspath(os.path.join(config.RECEIPTS_DIR, raw_file))
 
             # Защита от Path Traversal: путь обязан находиться строго внутри RECEIPTS_DIR
             try:
@@ -252,12 +254,12 @@ class ReceiptService:
             base_filename = os.path.basename(raw_file)
             if acc:
                 s1, s2 = get_receipt_shard_parts(acc)
-                sharded_fp = os.path.abspath(os.path.join(RECEIPTS_DIR, s1, s2, base_filename))
+                sharded_fp = os.path.abspath(os.path.join(config.RECEIPTS_DIR, s1, s2, base_filename))
                 if os.path.isfile(sharded_fp):
                     return sharded_fp
 
             # 2. Если в БД записан шардированный путь '80/01/800146_hash.pdf', но файл лежит в корне
-            flat_fp = os.path.abspath(os.path.join(RECEIPTS_DIR, base_filename))
+            flat_fp = os.path.abspath(os.path.join(config.RECEIPTS_DIR, base_filename))
             if os.path.isfile(flat_fp):
                 return flat_fp
 

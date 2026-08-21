@@ -48,51 +48,13 @@ def run_all():
         con.executescript('''
             DROP TABLE IF EXISTS receipts;
             DROP TABLE IF EXISTS accounts;
-            CREATE TABLE accounts(
-                id INTEGER PRIMARY KEY,
-                account_number TEXT NOT NULL UNIQUE,
-                customer_name TEXT,
-                address TEXT,
-                street TEXT,
-                building TEXT,
-                corpus TEXT,
-                district TEXT,
-                organization TEXT
-            );
-            CREATE INDEX idx_accounts_account ON accounts(account_number);
-            CREATE INDEX idx_accounts_address ON accounts(address);
-
-            CREATE TABLE receipts(
-                id INTEGER PRIMARY KEY,
-                account_number TEXT NOT NULL,
-                period TEXT NOT NULL,
-                pdf_file TEXT NOT NULL,
-                content_hash TEXT,
-                access_token TEXT,
-                address TEXT,
-                UNIQUE(account_number, period)
-            );
-            CREATE INDEX idx_receipts_account_period ON receipts(account_number, period);
-            CREATE INDEX idx_receipts_hash ON receipts(content_hash);
-            CREATE INDEX idx_receipts_address ON receipts(address);
-            CREATE UNIQUE INDEX idx_receipts_token ON receipts(access_token);
-
-            CREATE TABLE IF NOT EXISTS app_sessions (
-                token TEXT PRIMARY KEY,
-                expires_at REAL NOT NULL,
-                created_at REAL NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_sessions_expires ON app_sessions(expires_at);
-
-            CREATE TABLE IF NOT EXISTS security_blocks (
-                ip TEXT PRIMARY KEY,
-                blocked_until REAL NOT NULL,
-                reason TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_blocks_until ON security_blocks(blocked_until);
+            DROP TABLE IF EXISTS app_sessions;
+            DROP TABLE IF EXISTS security_blocks;
         ''')
         con.commit()
         con.close()
+        from database import migrate_db
+        migrate_db()
 
     # 1. test_security
     from tests import test_security
@@ -153,8 +115,8 @@ def run_all():
     for fn_name in ['test_reconcile_metrics', 'test_reconcile_filter_without', 'test_reconcile_filter_orphans', 'test_reconcile_with_period_filter']:
         try:
             reset_db()
-            test_reconcile_service.seed_reconcile_data()
-            getattr(test_reconcile_service, fn_name)(None)
+            seed_res = test_reconcile_service.seed_reconcile_data()
+            getattr(test_reconcile_service, fn_name)(seed_res)
             print(f"  [OK] test_reconcile_service.{fn_name}")
             passed += 1
         except Exception as e:
@@ -186,6 +148,7 @@ def run_all():
         except Exception as e:
             print(f"  [FAIL] test_audit_comprehensive.{fn_name}: {e}")
             traceback.print_exc()
+            failed += 1
     # 6. test_fuzzing (Фаззинг-тесты сетевых парсеров)
     from tests import test_fuzzing
     for fn_name in [

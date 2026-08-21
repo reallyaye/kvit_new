@@ -45,9 +45,9 @@ class IPThrottler:
             with write_transaction() as con:
                 con.execute('INSERT OR REPLACE INTO security_blocks(ip, blocked_until, reason) VALUES (?, ?, ?)',
                             (ip, blocked_until, reason))
-            logger.warn(f"[Security] IP {ip} заблокирован на {duration_seconds}с. Причина: {reason}")
+            logger.warning(f"[Security] IP {ip} заблокирован на {duration_seconds}с. Причина: {reason}")
         except Exception as e:
-            logger.warn(f"[Security] Не удалось персистировать бан IP {ip}: {e}")
+            logger.warning(f"[Security] Не удалось персистировать бан IP {ip}: {e}")
 
     def is_banned(self, ip: str) -> tuple[bool, int]:
         """Проверяет, заблокирован ли IP (в памяти или БД). Возвращает (is_banned, retry_after)."""
