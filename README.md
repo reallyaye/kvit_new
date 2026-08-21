@@ -65,3 +65,62 @@ python run_tests.py
 ```bash
 docker-compose up --build -d
 ```
+
+---
+
+## 🔒 Сетевая архитектура и TLS / HTTPS
+
+> **Важно:** По умолчанию сервис слушает внутренний HTTP/WebSocket порт (`127.0.0.1:8000`) и gRPC (`0.0.0.0:50051`).  
+> **Рекомендуемая продакшн-архитектура:** Сервис ожидает Reverse Proxy (Nginx, Traefik, Caddy или IIS на Windows Server) с TLS-терминацией перед собой.
+
+### Вариант 1: Развёртывание за Nginx (Linux / Debian)
+В файле `.env` установите:
+```ini
+TRUST_PROXY=true
+TRUSTED_PROXIES=127.0.0.1,::1
+```
+
+Пример конфигурации `/etc/nginx/sites-available/kvit`:
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name kvit.your-company.kz;
+
+    ssl_certificate /etc/letsencrypt/live/kvit.your-company.kz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/kvit.your-company.kz/privkey.pem;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+
+        # WebSocket поддержка
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Передача реального IP для Rate Limiting и IP Throttling
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Вариант 2: Развёртывание на Windows Server (IIS как Reverse Proxy)
+1. Установите в IIS модули **URL Rewrite** и **Application Request Routing (ARR)**.
+2. В IIS включите проксирование (Server Proxy Settings → Enable proxy).
+3. Создайте правило перенаправления с SSL-сайта (порт 443) на `http://127.0.0.1:8000`.
+4. В `.env` задайте `TRUST_PROXY=true`.
+
+### Вариант 3: Прямой запуск со встроенным TLS (без Reverse Proxy)
+Если требуется поднять HTTPS напрямую силами Python:
+1. Поместите SSL-сертификаты на сервер.
+2. В `.env` укажите:
+```ini
+USE_HTTPS=true
+SSL_CERT_PATH=/path/to/fullchain.pem
+SSL_KEY_PATH=/path/to/privkey.pem
+```
+Сервис автоматически обернет серверный сокет через `ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)`.

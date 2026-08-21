@@ -72,6 +72,11 @@ TRUST_PROXY = os.environ.get('TRUST_PROXY', 'false').lower() in ('true', '1', 'y
 # Список доверенных IP и подсетей обратных прокси через запятую (например: 127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)
 TRUSTED_PROXIES_RAW = os.environ.get('TRUSTED_PROXIES', '127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7')
 
+# Опциональная встроенная TLS/HTTPS терминация (для прямого запуска без Reverse Proxy)
+USE_HTTPS = os.environ.get('USE_HTTPS', 'false').lower() in ('true', '1', 'yes')
+SSL_CERT_PATH = os.environ.get('SSL_CERT_PATH', '')
+SSL_KEY_PATH = os.environ.get('SSL_KEY_PATH', '')
+
 import ipaddress
 def _parse_trusted_proxies(raw: str):
     nets = []

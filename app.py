@@ -42,16 +42,34 @@ def main():
     migrate_db()
     logger.info("Миграции базы данных проверены.")
 
-    # 2. Инициализация и запуск gRPC сервера
+    # 4. Инициализация и запуск gRPC сервера
     grpc_server = create_grpc_server(host=GRPC_HOST, port=GRPC_PORT)
     grpc_server.start()
 
-    # 3. Инициализация и запуск многопоточного HTTP/WebSocket сервера
+    # 5. Инициализация и запуск многопоточного HTTP/WebSocket сервера
     http_server = ThreadingHTTPServer((HOST, PORT), AppRequestHandler)
 
-    logger.info(f"HTTP/Web сервер:     http://{HOST}:{PORT}")
-    logger.info(f"WebSocket шлюз:      ws://{HOST}:{PORT}/ws (Async Multiplexed)")
-    logger.info(f"gRPC микросервис:    {GRPC_HOST}:{GRPC_PORT}")
+    protocol = "http"
+    is_tls = False
+    if config.USE_HTTPS or (config.SSL_CERT_PATH and config.SSL_KEY_PATH):
+        if os.path.isfile(config.SSL_CERT_PATH) and os.path.isfile(config.SSL_KEY_PATH):
+            import ssl
+            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_ctx.load_cert_chain(certfile=config.SSL_CERT_PATH, keyfile=config.SSL_KEY_PATH)
+            http_server.socket = ssl_ctx.wrap_socket(http_server.socket, server_side=True)
+            protocol = "https"
+            is_tls = True
+        else:
+            logger.error(f"❌ ОШИБКА TLS: Файлы сертификатов не найдены: cert='{config.SSL_CERT_PATH}', key='{config.SSL_KEY_PATH}'")
+            sys.exit(1)
+
+    logger.info(f"Веб-сервер ({protocol.upper()}):     {protocol}://{HOST}:{PORT}")
+    logger.info(f"WebSocket шлюз:      {'wss' if is_tls else 'ws'}://{HOST}:{PORT}/ws (Async Multiplexed)")
+    logger.info(f"gRPC микросервис:    {GRPC_HOST}:{GRPC_PORT} (TLS={'ON' if config.GRPC_USE_TLS else 'OFF'})")
+    if config.TRUST_PROXY:
+        logger.info("Режим Reverse Proxy: TLS терминируется внешним прокси (Nginx/IIS/Traefik).")
+    elif not is_tls:
+        logger.info("Архитектура: сервис ожидает Reverse Proxy (Nginx/IIS) с TLS-терминацией перед собой.")
     logger.info("Система безопасности: IDOR Token, Rate Limiter, IP Throttler, gRPC Auth, WS Timeout")
 
     try:
