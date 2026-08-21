@@ -7,7 +7,7 @@ __pycache__/
 *.pyo
 *.pyd
 .upload
-tmp/
+/tmp/
 *.sqlite3
 *.sqlite3-journal
 *.sqlite3-wal
@@ -15,7 +15,7 @@ tmp/
 *.xls
 *.xlsx
 *.csv
-receipts/
-logs/
+/receipts/
+/logs/
 .pytest_cache/
 
