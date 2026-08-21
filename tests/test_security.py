@@ -9,9 +9,26 @@ from services.security.rate_limiter import rate_limiter
 from services.security.ip_throttler import ip_throttler
 
 def test_auth_service_lifecycle():
+    import config
+    from services.security.auth_service import hash_password, verify_password_hash
+
+    # Тест проверки через открытый пароль
+    config.ADMIN_PASSWORD = 'admin'
+    config.ADMIN_PASSWORD_HASH = ''
     assert auth_service.verify_password('admin') is True
     assert auth_service.verify_password('wrong_password') is False
     assert auth_service.verify_password(None) is False
+
+    # Тест проверки через PBKDF2 хеш
+    h = hash_password('SecretSecure123!')
+    assert h.startswith('pbkdf2_sha256$')
+    assert verify_password_hash('SecretSecure123!', h) is True
+    assert verify_password_hash('wrong', h) is False
+
+    config.ADMIN_PASSWORD = ''
+    config.ADMIN_PASSWORD_HASH = h
+    assert auth_service.verify_password('SecretSecure123!') is True
+    assert auth_service.verify_password('admin') is False
 
     token = auth_service.create_session()
     assert len(token) == 64
@@ -20,6 +37,8 @@ def test_auth_service_lifecycle():
 
     auth_service.destroy_session(token)
     assert auth_service.is_valid_session(token) is False
+    config.ADMIN_PASSWORD = 'admin'
+    config.ADMIN_PASSWORD_HASH = ''
 
 def test_auth_service_concurrency():
     tokens = []

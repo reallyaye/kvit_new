@@ -1,7 +1,34 @@
-import time, secrets, threading
-from config import ADMIN_PASSWORD, SESSION_LIFETIME
+import time, secrets, threading, hashlib
+import config
+from config import SESSION_LIFETIME
 from database.connection import get_db, write_transaction
 from logger import logger
+
+def hash_password(password: str, iterations: int = 600_000) -> str:
+    """Генерирует криптостойкий PBKDF2-HMAC-SHA256 хеш с уникальной солью."""
+    if not isinstance(password, str) or not password:
+        raise ValueError("Пароль должен быть непустой строкой")
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+    return f"pbkdf2_sha256${iterations}${salt}${dk.hex()}"
+
+def verify_password_hash(password: str, stored_hash: str) -> bool:
+    """Безопасная проверка пароля против хеша PBKDF2 с защитой от атак по времени (Timing Attacks)."""
+    if not isinstance(password, str) or not isinstance(stored_hash, str):
+        return False
+    if not password or not stored_hash:
+        return False
+    try:
+        parts = stored_hash.strip().split('$')
+        if len(parts) != 4 or parts[0] != 'pbkdf2_sha256':
+            return False
+        iterations = int(parts[1])
+        salt = parts[2]
+        expected_hex = parts[3]
+        dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+        return secrets.compare_digest(dk.hex(), expected_hex)
+    except Exception:
+        return False
 
 class AuthService:
     """
@@ -33,10 +60,21 @@ class AuthService:
             pass
 
     def verify_password(self, password: str) -> bool:
-        """Безопасная проверка пароля с защитой от Timing Attacks."""
-        if not isinstance(password, str):
+        """Безопасная проверка пароля администратора (по хешу или открытому значению с защитой от Timing Attacks)."""
+        if not isinstance(password, str) or not password:
             return False
-        return secrets.compare_digest(password, ADMIN_PASSWORD)
+
+        # 1. Проверка по хешу пароля (рекомендуемый безопасный способ)
+        if config.ADMIN_PASSWORD_HASH:
+            if verify_password_hash(password, config.ADMIN_PASSWORD_HASH):
+                return True
+
+        # 2. Проверка по открытому паролю (совместимость)
+        if config.ADMIN_PASSWORD:
+            if secrets.compare_digest(password, config.ADMIN_PASSWORD):
+                return True
+
+        return False
 
     def create_session(self) -> str:
         """Создаёт новую сессию, сохраняет её в БД и возвращает токен."""

@@ -19,7 +19,8 @@ services:
       - RECEIPTS_DIR=/app/receipts
       - LOG_FILE=/app/logs/app.log
       - LOG_LEVEL=INFO
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - GRPC_API_KEY=${GRPC_API_KEY:?GRPC_API_KEY environment variable is required}
       - TRUST_PROXY=false
       - WS_SOCKET_TIMEOUT=60.0

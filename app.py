@@ -23,7 +23,22 @@ def main():
         logger.error("=" * 70)
         sys.exit(1)
 
-    # 2. Автоматические миграции базы данных
+    # 2. Проверка обязательного пароля администратора
+    if not config.ADMIN_PASSWORD_HASH and not config.ADMIN_PASSWORD:
+        from services.security.auth_service import hash_password
+        sample_pass = secrets.token_urlsafe(12)
+        sample_hash = hash_password(sample_pass)
+        logger.error("=" * 70)
+        logger.error("❌ ОШИБКА КОНФИГУРАЦИИ: Пароль администратора не задан!")
+        logger.error("Для безопасности укажите ADMIN_PASSWORD_HASH или ADMIN_PASSWORD в файле .env.")
+        logger.error("Сгенерирован рекомендуемый пароль и его безопасный хеш:")
+        logger.error(f"\n    Пароль: {sample_pass}")
+        logger.error(f"    ADMIN_PASSWORD_HASH={sample_hash}\n")
+        logger.error("Добавьте ADMIN_PASSWORD_HASH в файл .env и перезапустите приложение.")
+        logger.error("=" * 70)
+        sys.exit(1)
+
+    # 3. Автоматические миграции базы данных
     migrate_db()
     logger.info("Миграции базы данных проверены.")
 
