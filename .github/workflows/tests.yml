@@ -64,6 +64,6 @@ jobs:
       - name: Run Test Suite
         env:
           GRPC_API_KEY: "ci_test_secret_api_key_for_github_actions_32"
-          ADMIN_PASSWORD: "admin"
+          ADMIN_PASSWORD_HASH: "pbkdf2_sha256$600000$966d916ee43dd2278a427101739ae460$2a2ad4dfee16755de4a4f89fe598abcd881f6627ebd7a5fb3f57685dd5704340"
         run: |
           python run_tests.py

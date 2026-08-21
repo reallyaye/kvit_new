@@ -29,7 +29,8 @@ def run_all():
     config.DB = db_file
     config.RECEIPTS_DIR = receipts_dir
     config.GRPC_API_KEY = "test_secure_grpc_key_for_testing"
-    config.ADMIN_PASSWORD = "admin"
+    from services.security.auth_service import hash_password
+    config.ADMIN_PASSWORD_HASH = hash_password("admin")
 
     import services.pdf.pdf_processor
     import services.receipts.receipt_service

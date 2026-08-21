@@ -60,21 +60,13 @@ class AuthService:
             pass
 
     def verify_password(self, password: str) -> bool:
-        """Безопасная проверка пароля администратора (по хешу или открытому значению с защитой от Timing Attacks)."""
+        """Безопасная проверка пароля администратора строго по криптостойкому PBKDF2 хешу."""
         if not isinstance(password, str) or not password or not password.strip():
             return False
 
-        # 1. Проверка по хешу пароля (рекомендуемый безопасный способ)
         stored_hash = (config.ADMIN_PASSWORD_HASH or '').strip()
         if stored_hash:
-            if verify_password_hash(password, stored_hash):
-                return True
-
-        # 2. Проверка по открытому паролю (совместимость)
-        stored_pass = (config.ADMIN_PASSWORD or '').strip()
-        if stored_pass:
-            if secrets.compare_digest(password, stored_pass):
-                return True
+            return verify_password_hash(password, stored_hash)
 
         return False
 

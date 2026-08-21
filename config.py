@@ -105,7 +105,6 @@ GRPC_CERT_PATH = os.environ.get('GRPC_CERT_PATH', '')
 GRPC_KEY_PATH = os.environ.get('GRPC_KEY_PATH', '')
 
 # ────────────────────── Аутентификация ──────────────────────
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '').strip()
 ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', '').strip()
 SESSION_LIFETIME = int(os.environ.get('SESSION_LIFETIME', str(24 * 60 * 60)))  # 24 часа
 

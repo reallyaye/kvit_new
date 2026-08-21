@@ -23,18 +23,21 @@ def main():
         logger.error("=" * 70)
         sys.exit(1)
 
-    # 2. Проверка обязательного пароля администратора
-    if not config.ADMIN_PASSWORD_HASH and not config.ADMIN_PASSWORD:
+    # 2. Проверка обязательного хеша пароля администратора (хранение открытых паролей запрещено)
+    if not config.ADMIN_PASSWORD_HASH:
         from services.security.auth_service import hash_password
-        sample_pass = secrets.token_urlsafe(12)
+        # Если случайно был передан открытый пароль, помогаем пользователю его захешировать
+        raw_pass = os.environ.get('ADMIN_PASSWORD', '').strip()
+        sample_pass = raw_pass if raw_pass else secrets.token_urlsafe(12)
         sample_hash = hash_password(sample_pass)
         logger.error("=" * 70)
-        logger.error("❌ ОШИБКА КОНФИГУРАЦИИ: Пароль администратора не задан!")
-        logger.error("Для безопасности укажите ADMIN_PASSWORD_HASH или ADMIN_PASSWORD в файле .env.")
-        logger.error("Сгенерирован рекомендуемый пароль и его безопасный хеш:")
-        logger.error(f"\n    Пароль: {sample_pass}")
+        logger.error("❌ ОШИБКА БЕЗОПАСНОСТИ: Переменная ADMIN_PASSWORD_HASH не задана!")
+        logger.error("Хранение паролей в открытом виде (ADMIN_PASSWORD) запрещено в продакшене.")
+        logger.error("Сгенерирован криптостойкий PBKDF2-хеш для вашего пароля:")
+        if not raw_pass:
+            logger.error(f"\n    Пароль: {sample_pass}")
         logger.error(f"    ADMIN_PASSWORD_HASH={sample_hash}\n")
-        logger.error("Добавьте ADMIN_PASSWORD_HASH в файл .env и перезапустите приложение.")
+        logger.error("Добавьте строку ADMIN_PASSWORD_HASH в файл .env и перезапустите приложение.")
         logger.error("=" * 70)
         sys.exit(1)
 
