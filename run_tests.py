@@ -178,6 +178,23 @@ def run_all():
         except Exception as e:
             print(f"  [FAIL] test_audit_comprehensive.{fn_name}: {e}")
             traceback.print_exc()
+    # 6. test_fuzzing (Фаззинг-тесты сетевых парсеров)
+    from tests import test_fuzzing
+    for fn_name in [
+        'test_fuzz_multipart_random_mutations',
+        'test_fuzz_multipart_giant_headers_and_path_traversal',
+        'test_fuzz_websocket_frames_random_garbage',
+        'test_fuzz_websocket_malicious_lengths_and_opcodes',
+        'test_fuzz_websocket_fragmented_delivery'
+    ]:
+        try:
+            reset_db()
+            getattr(test_fuzzing, fn_name)()
+            print(f"  [OK] test_fuzzing.{fn_name}")
+            passed += 1
+        except Exception as e:
+            print(f"  [FAIL] test_fuzzing.{fn_name}: {e}")
+            traceback.print_exc()
             failed += 1
 
     shutil.rmtree(test_dir, ignore_errors=True)

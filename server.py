@@ -425,6 +425,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
         buf = buf[first_delim_idx + len(delimiter):]
 
+        MAX_HEADER_SIZE = 64 * 1024  # 64 KB максимум на заголовки одной секции (защита от memory exhaustion)
+
         # 2. Потоковый разбор каждой части
         while True:
             # Если это завершающий разделитель '--'
@@ -437,8 +439,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             elif buf.startswith(b'\n'):
                 buf = buf[1:]
 
-            # Читаем заголовки секции до '\r\n\r\n' (или '\n\n')
+            # Читаем заголовки секции до '\r\n\r\n' (или '\n\n') с защитой от гигантских заголовков
             while b'\r\n\r\n' not in buf and b'\n\n' not in buf:
+                if len(buf) > MAX_HEADER_SIZE:
+                    # Превышен лимит размера заголовков (аномальный/вредоносный поток)
+                    break
                 try:
                     chunk = next(stream)
                 except StopIteration:
@@ -469,11 +474,17 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             tmp_path = None
             base_name = None
             if is_target_file:
-                base_name = file_name.rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
-                if not base_name:
-                    base_name = f'upload_{len(pdf_files):04d}.pdf'
+                # Санитизация имени файла: защита от Path Traversal, NUL байтов, спецсимволов ОС и абсолютных путей
+                cleaned_name = os.path.basename(file_name.replace('\\', '/')).replace('\x00', '').strip()
+                cleaned_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', cleaned_name).strip(' .')
+                base_name = cleaned_name if cleaned_name else f'upload_{len(pdf_files):04d}.pdf'
                 tmp_path = os.path.join(tmp_dir, f'{len(pdf_files):06d}_{base_name}')
-                out_file = open(tmp_path, 'wb')
+                try:
+                    out_file = open(tmp_path, 'wb')
+                except OSError:
+                    base_name = f'upload_{len(pdf_files):04d}.pdf'
+                    tmp_path = os.path.join(tmp_dir, f'{len(pdf_files):06d}_{base_name}')
+                    out_file = open(tmp_path, 'wb')
 
             # Потоковая запись данных секции на диск до следующего delimiter_crlf
             needle = delimiter_crlf

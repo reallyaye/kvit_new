@@ -182,6 +182,16 @@ class WebSocketManager:
                 payload_len = struct.unpack('!Q', state.buf[2:10])[0]
                 header_offset = 10
 
+            MAX_FRAME_SIZE = 16 * 1024 * 1024  # 16 MB лимит на размер одного WebSocket фрейма
+            if payload_len > MAX_FRAME_SIZE or payload_len < 0:
+                # Аномальный/вредоносный размер фрейма — принудительно отключаем сокет
+                try:
+                    state.sock.close()
+                except Exception:
+                    pass
+                self.unregister(state.sock)
+                return
+
             mask_len = 4 if masked else 0
             total_frame_len = header_offset + mask_len + payload_len
 
