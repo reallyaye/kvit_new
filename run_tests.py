@@ -92,7 +92,7 @@ def run_all():
 
     # 3. test_receipt_service
     from tests import test_receipt_service
-    for fn_name in ['test_get_account', 'test_get_receipts', 'test_get_pdf_by_token_valid', 'test_get_pdf_by_token_invalid_or_traversal', 'test_get_pdf_by_token_sharded', 'test_search_accounts_by_address', 'test_search_account_by_specific_address', 'test_privacy_search_view_no_personal_data', 'test_search_by_exact_receipt_address']:
+    for fn_name in ['test_get_account', 'test_get_receipts', 'test_get_pdf_by_token_valid', 'test_get_pdf_by_token_invalid_or_traversal', 'test_get_pdf_by_token_sharded', 'test_search_accounts_by_address', 'test_search_account_by_specific_address', 'test_privacy_search_view_no_personal_data', 'test_search_by_exact_receipt_address', 'test_api_stats_live_polling']:
         try:
             reset_db()
             import pathlib

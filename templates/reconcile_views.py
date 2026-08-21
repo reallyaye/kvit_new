@@ -77,10 +77,10 @@ def render_reconcile_page(data: dict):
         return ' active' if filt == key else ''
     orphan_tab_style = 'background:#f59e0b;color:#fff;border-color:#f59e0b' if filt == 'orphans' else 'border-color:#f59e0b'
     tabs_html = f'''<div style="display:flex;gap:8px;margin:20px 0;flex-wrap:wrap">
-        <a href="/reconcile?filter=all{period_param}" class="filter-tab{tab_cls('all')}">Все ({total_accounts})</a>
-        <a href="/reconcile?filter=with{period_param}" class="filter-tab{tab_cls('with')}">С квитанцией ({matched})</a>
-        <a href="/reconcile?filter=without{period_param}" class="filter-tab{tab_cls('without')}">Без квитанции ({unmatched_count})</a>
-        <a href="/reconcile?filter=orphans{period_param}" class="filter-tab{tab_cls('orphans')}" style="{orphan_tab_style}">Без лицевого счёта ({orphans})</a>
+        <a href="/reconcile?filter=all{period_param}" class="filter-tab{tab_cls('all')}">Все (<span id="tabCountAll">{total_accounts}</span>)</a>
+        <a href="/reconcile?filter=with{period_param}" class="filter-tab{tab_cls('with')}">С квитанцией (<span id="tabCountWith">{matched}</span>)</a>
+        <a href="/reconcile?filter=without{period_param}" class="filter-tab{tab_cls('without')}">Без квитанции (<span id="tabCountWithout">{unmatched_count}</span>)</a>
+        <a href="/reconcile?filter=orphans{period_param}" class="filter-tab{tab_cls('orphans')}" style="{orphan_tab_style}">Без лицевого счёта (<span id="tabCountOrphans">{orphans}</span>)</a>
     </div>'''
 
     table_rows = ''
@@ -126,14 +126,14 @@ def render_reconcile_page(data: dict):
     return f'''
     <div class="card">
         <h1>Сверка лицевых счетов и квитанций</h1>
-        <p class="subtitle">Покрытие квитанциями{period_label}: <b>{pct}%</b></p>
+        <p class="subtitle">Покрытие квитанциями{period_label}: <b id="recCoverageSubtitle">{pct}%</b></p>
         {period_select_html}
         <div class="stats">
-            <div class="stat-box blue"><div class="stat-num">{total_accounts}</div><div class="stat-label">Лицевых счетов</div></div>
-            <div class="stat-box green"><div class="stat-num">{matched}</div><div class="stat-label">С квитанцией</div></div>
-            <div class="stat-box red"><div class="stat-num">{unmatched_count}</div><div class="stat-label">Без квитанции</div></div>
-            <div class="stat-box"><div class="stat-num">{total_receipts}</div><div class="stat-label">Квитанций за период</div></div>
-            <div class="stat-box" style="border-color:#f59e0b"><div class="stat-num" style="color:#f59e0b">{orphans}</div><div class="stat-label">Без лицевого счёта</div></div>
+            <div class="stat-box blue"><div class="stat-num live-val" id="recTotalAccounts">{total_accounts}</div><div class="stat-label">Лицевых счетов</div></div>
+            <div class="stat-box green"><div class="stat-num live-val" id="recMatched">{matched}</div><div class="stat-label">С квитанцией</div></div>
+            <div class="stat-box red"><div class="stat-num live-val" id="recUnmatched">{unmatched_count}</div><div class="stat-label">Без квитанции</div></div>
+            <div class="stat-box"><div class="stat-num live-val" id="recTotalReceipts">{total_receipts}</div><div class="stat-label">Квитанций за период</div></div>
+            <div class="stat-box" style="border-color:#f59e0b"><div class="stat-num live-val" id="recOrphans" style="color:#f59e0b">{orphans}</div><div class="stat-label">Без лицевого счёта</div></div>
         </div>
     </div>
     <div class="card">

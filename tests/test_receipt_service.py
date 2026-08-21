@@ -177,3 +177,35 @@ def test_search_by_exact_receipt_address():
     assert 'дом № 5, к. 1' in acc_row['address']
 
 
+def test_api_stats_live_polling():
+    """Тестирует эндпоинт живого опроса базы /api/stats."""
+    con = get_db()
+    con.execute('INSERT OR IGNORE INTO accounts(account_number, address) VALUES (?, ?)', ('777001', 'ул. Тестовая, 1'))
+    con.execute('INSERT OR IGNORE INTO accounts(account_number, address) VALUES (?, ?)', ('777002', 'ул. Тестовая, 2'))
+    con.execute('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, access_token) VALUES (?,?,?,?,?)',
+                ('777001', '08.2026', '77/70/777001_h.pdf', 'h777001', 'tok77700100000000000000000000000'))
+    con.commit()
+    con.close()
+
+    from server import AppRequestHandler
+    class MockHandler(AppRequestHandler):
+        def __init__(self):
+            self.sent_json = None
+            self.status_code = None
+
+        def send_json(self, data, code=200, headers=None):
+            self.sent_json = data
+            self.status_code = code
+
+    h = MockHandler()
+    h._handle_api_stats({})
+    assert h.status_code == 200
+    res = h.sent_json
+    assert res['status'] == 'ok'
+    assert res['total_accounts'] >= 2
+    assert res['total_receipts'] >= 1
+    assert '08.2026' in res['periods']
+    assert res['matched'] >= 1
+    assert res['coverage_pct'] > 0
+
+

@@ -95,14 +95,28 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
 .address-info{{display:flex;flex-direction:column;gap:4px}}
 .address-text{{font-size:15px;font-weight:600;color:#1e293b}}
 .address-acc{{font-size:13px;color:#64748b}}
-.ws-indicator{{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:#0f172a;color:#94a3b8;margin-right:auto;border:1px solid #334155}}
+.ws-indicator{{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:#0f172a;color:#94a3b8;border:1px solid #334155}}
 .ws-dot{{width:8px;height:8px;border-radius:50%;background:#ef4444;transition:.3s;display:inline-block}}
 .ws-indicator.online .ws-dot{{background:#22c55e;box-shadow:0 0 8px #22c55e}}
 .ws-indicator.online{{color:#e2e8f0;border-color:#166534}}
+
+.live-sync-indicator{{display:inline-flex;align-items:center;gap:8px;padding:5px 14px;border-radius:20px;background:#0f172a99;border:1px solid #3b82f640;font-size:13px;color:#cbd5e1;backdrop-filter:blur(8px);transition:.3s;margin-right:auto}}
+.pulse-dot{{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;display:inline-block;animation:livePulse 2s infinite ease-in-out}}
+@keyframes livePulse{{0%,100%{{opacity:1;transform:scale(1);box-shadow:0 0 8px #22c55e}}50%{{opacity:.35;transform:scale(0.85);box-shadow:0 0 2px #22c55e}}}}
+.live-pulse-glow{{animation:highlightChange 1.2s ease-out}}
+@keyframes highlightChange{{0%{{transform:scale(1.1);color:#3b82f6;text-shadow:0 0 10px rgba(59,130,246,0.7)}}50%{{transform:scale(1.05);color:#16a34a;text-shadow:0 0 6px rgba(22,163,74,0.5)}}100%{{transform:scale(1)}}}}
+.live-sync-pulse{{background:#16a34a26!important;border-color:#22c55e!important}}
+.live-val{{display:inline-block;transition:all .3s ease}}
+
+@media(max-width:768px){{.topbar{{height:auto;padding:12px 16px;gap:12px}}.live-sync-indicator{{order:3;width:100%;margin-right:0;justify-content:center}}.ws-indicator{{order:2;margin-left:auto}}}}
 @media(max-width:600px){{.wrap{{margin:16px auto;padding:0 12px}}.card{{padding:20px 18px}}.stats{{grid-template-columns:1fr 1fr}}.period-card{{flex-direction:column;align-items:flex-start;gap:12px}}.period-card .period-actions{{width:100%}}.period-card .period-actions a{{flex:1;text-align:center}}.address-item{{flex-direction:column;align-items:flex-start;gap:12px}}.address-item .btn{{width:100%;text-align:center}}}}
 </style></head><body>
 <div class="topbar">
     <span class="logo">Квитанции</span>
+    <div class="live-sync-indicator" id="liveSyncStatus" title="Автоматический опрос базы данных каждые 3 секунды">
+        <span class="pulse-dot"></span>
+        <span class="live-sync-text">Live: <b id="liveAccHeader" class="live-num live-val">—</b> счетов · <b id="liveRecHeader" class="live-num live-val">—</b> квитанций</span>
+    </div>
     <span class="ws-indicator" id="wsIndicator" title="WebSocket статус соединения"><span class="ws-dot"></span><span id="wsLabel">WS Offline</span></span>
     {nav_html}
 </div>
@@ -110,6 +124,140 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
 
 <script>
 let appWS = null;
+let lastStatsState = null;
+let pollIntervalId = null;
+
+function formatNumber(num) {{
+    if (num === null || num === undefined) return '0';
+    return num.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, " ");
+}}
+
+function flashElement(el) {{
+    if (!el) return;
+    el.classList.remove('live-pulse-glow');
+    void el.offsetWidth;
+    el.classList.add('live-pulse-glow');
+}}
+
+async function pollDatabaseStats() {{
+    try {{
+        const params = new URLSearchParams(window.location.search);
+        const currentPeriod = params.get('period') || '';
+        const url = '/api/stats' + (currentPeriod ? '?period=' + encodeURIComponent(currentPeriod) : '');
+        const res = await fetch(url, {{ headers: {{ 'Accept': 'application/json' }}, cache: 'no-store' }});
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.status !== 'ok') return;
+
+        applyLiveStats(data);
+    }} catch (e) {{}}
+}}
+
+function applyLiveStats(data) {{
+    const isFirst = (lastStatsState === null);
+    const prev = lastStatsState || {{}};
+
+    // 1. Верхний бар
+    const hAcc = document.getElementById('liveAccHeader');
+    const hRec = document.getElementById('liveRecHeader');
+    if (hAcc && hAcc.textContent !== formatNumber(data.total_accounts)) {{
+        hAcc.textContent = formatNumber(data.total_accounts);
+        if (!isFirst) flashElement(hAcc);
+    }}
+    if (hRec && hRec.textContent !== formatNumber(data.total_receipts)) {{
+        hRec.textContent = formatNumber(data.total_receipts);
+        if (!isFirst) flashElement(hRec);
+    }}
+
+    // 2. Виджеты главной страницы (Поиск)
+    const stAcc = document.getElementById('statTotalAccounts');
+    if (stAcc && stAcc.textContent !== formatNumber(data.total_accounts)) {{
+        stAcc.textContent = formatNumber(data.total_accounts);
+        if (!isFirst) flashElement(stAcc);
+    }}
+    const stRec = document.getElementById('statTotalReceipts');
+    if (stRec && stRec.textContent !== formatNumber(data.total_receipts)) {{
+        stRec.textContent = formatNumber(data.total_receipts);
+        if (!isFirst) flashElement(stRec);
+    }}
+    const stPer = document.getElementById('statPeriodsCount');
+    if (stPer && stPer.textContent !== formatNumber(data.periods_count)) {{
+        stPer.textContent = formatNumber(data.periods_count);
+        if (!isFirst) flashElement(stPer);
+    }}
+    const stCov = document.getElementById('statCoveragePct');
+    if (stCov && stCov.textContent !== (data.coverage_pct + '%')) {{
+        stCov.textContent = data.coverage_pct + '%';
+        if (!isFirst) flashElement(stCov);
+    }}
+
+    // 3. Карточки страницы сверки (/reconcile)
+    const rAcc = document.getElementById('recTotalAccounts');
+    if (rAcc && rAcc.textContent !== formatNumber(data.total_accounts)) {{
+        rAcc.textContent = formatNumber(data.total_accounts);
+        if (!isFirst) flashElement(rAcc);
+    }}
+    const rMatch = document.getElementById('recMatched');
+    if (rMatch && rMatch.textContent !== formatNumber(data.matched)) {{
+        rMatch.textContent = formatNumber(data.matched);
+        if (!isFirst) flashElement(rMatch);
+    }}
+    const rUnmatch = document.getElementById('recUnmatched');
+    if (rUnmatch && rUnmatch.textContent !== formatNumber(data.unmatched)) {{
+        rUnmatch.textContent = formatNumber(data.unmatched);
+        if (!isFirst) flashElement(rUnmatch);
+    }}
+    const rRec = document.getElementById('recTotalReceipts');
+    if (rRec && rRec.textContent !== formatNumber(data.total_receipts)) {{
+        rRec.textContent = formatNumber(data.total_receipts);
+        if (!isFirst) flashElement(rRec);
+    }}
+    const rOrph = document.getElementById('recOrphans');
+    if (rOrph && rOrph.textContent !== formatNumber(data.orphans)) {{
+        rOrph.textContent = formatNumber(data.orphans);
+        if (!isFirst) flashElement(rOrph);
+    }}
+    const rCov = document.getElementById('recCoverageSubtitle');
+    if (rCov && rCov.textContent !== (data.coverage_pct + '%')) {{
+        rCov.textContent = data.coverage_pct + '%';
+        if (!isFirst) flashElement(rCov);
+    }}
+
+    // 4. Счетчики табов сверки
+    const tabAll = document.getElementById('tabCountAll');
+    if (tabAll) tabAll.textContent = formatNumber(data.total_accounts);
+    const tabWith = document.getElementById('tabCountWith');
+    if (tabWith) tabWith.textContent = formatNumber(data.matched);
+    const tabWithout = document.getElementById('tabCountWithout');
+    if (tabWithout) tabWithout.textContent = formatNumber(data.unmatched);
+    const tabOrphans = document.getElementById('tabCountOrphans');
+    if (tabOrphans) tabOrphans.textContent = formatNumber(data.orphans);
+
+    // 5. Динамическое обновление выпадающих списков периодов (если появились новые периоды)
+    if (data.periods && (!prev.periods || JSON.stringify(prev.periods) !== JSON.stringify(data.periods))) {{
+        document.querySelectorAll('select[name="period"], #period-select').forEach(sel => {{
+            const currentVal = sel.value;
+            const hasAll = sel.options.length > 0 && sel.options[0].value === '';
+            let html = hasAll ? '<option value="">Все периоды</option>' : '';
+            data.periods.forEach(p => {{
+                const s = (p === currentVal) ? ' selected' : '';
+                html += `<option value="${{p}}"${{s}}>${{p}}</option>`;
+            }});
+            sel.innerHTML = html;
+            if (currentVal) sel.value = currentVal;
+        }});
+    }}
+
+    // Индикация пульсации при изменении значений
+    const badge = document.getElementById('liveSyncStatus');
+    if (badge && !isFirst && (prev.total_receipts !== data.total_receipts || prev.total_accounts !== data.total_accounts)) {{
+        badge.classList.add('live-sync-pulse');
+        setTimeout(() => badge.classList.remove('live-sync-pulse'), 1200);
+    }}
+
+    lastStatsState = data;
+}}
+
 function initAppWebSocket() {{
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + location.host + '/ws';
@@ -120,6 +268,7 @@ function initAppWebSocket() {{
             const lbl = document.getElementById('wsLabel');
             if (ind) ind.classList.add('online');
             if (lbl) lbl.textContent = 'WS Live';
+            pollDatabaseStats();
         }};
         appWS.onclose = function() {{
             const ind = document.getElementById('wsIndicator');
@@ -135,12 +284,19 @@ function initAppWebSocket() {{
             try {{
                 const msg = JSON.parse(e.data);
                 window.dispatchEvent(new CustomEvent('app-ws-message', {{ detail: msg }}));
+                pollDatabaseStats();
             }} catch(err) {{}}
         }};
     }} catch(e) {{
         setTimeout(initAppWebSocket, 4000);
     }}
 }}
-document.addEventListener('DOMContentLoaded', initAppWebSocket);
+
+document.addEventListener('DOMContentLoaded', function() {{
+    initAppWebSocket();
+    pollDatabaseStats();
+    if (pollIntervalId) clearInterval(pollIntervalId);
+    pollIntervalId = setInterval(pollDatabaseStats, 3000);
+}});
 </script>
 </body></html>'''

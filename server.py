@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from http.cookies import SimpleCookie
 import os
+import time
 import re
 import tempfile
 import shutil
@@ -202,7 +203,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
         try:
             # 2. Rate Limit для API эндпоинтов (GET)
-            if path.startswith('/api/'):
+            if path.startswith('/api/') and path != '/api/stats':
                 allowed, retry_after, remaining = rate_limiter.is_allowed('api', client_ip, RATE_LIMIT_API, 60)
                 if not allowed:
                     self.send_json({
@@ -224,8 +225,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(layout(body, 'search', is_admin=is_admin), 429, {'Retry-After': str(retry_after)})
                     return
 
-            # Роутинг страниц
-            if path == '/':
+            # Роутинг API и страниц
+            if path == '/api/stats':
+                self._handle_api_stats(q)
+                return
+            elif path == '/':
                 tab = q.get('tab', ['account'])[0].strip()
                 periods = receipt_service.get_distinct_periods()
                 body = render_search_form(periods, active_tab=tab)
@@ -596,6 +600,60 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         finally:
             con.close()
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def _handle_api_stats(self, q: dict):
+        period_filter = q.get('period', [''])[0].strip()
+        con = get_db()
+        try:
+            total_accounts = con.execute('SELECT COUNT(*) FROM accounts').fetchone()[0]
+            if period_filter:
+                total_receipts = con.execute('SELECT COUNT(*) FROM receipts WHERE period = ?', (period_filter,)).fetchone()[0]
+                matched = con.execute('''
+                    SELECT COUNT(DISTINCT a.account_number)
+                    FROM accounts a
+                    JOIN receipts r ON a.account_number = r.account_number
+                    WHERE r.period = ?
+                ''', (period_filter,)).fetchone()[0]
+                orphans = con.execute('''
+                    SELECT COUNT(DISTINCT r.account_number)
+                    FROM receipts r
+                    LEFT JOIN accounts a ON r.account_number = a.account_number
+                    WHERE a.account_number IS NULL AND r.period = ?
+                ''', (period_filter,)).fetchone()[0]
+            else:
+                total_receipts = con.execute('SELECT COUNT(*) FROM receipts').fetchone()[0]
+                matched = con.execute('''
+                    SELECT COUNT(DISTINCT a.account_number)
+                    FROM accounts a
+                    JOIN receipts r ON a.account_number = r.account_number
+                ''').fetchone()[0]
+                orphans = con.execute('''
+                    SELECT COUNT(DISTINCT r.account_number)
+                    FROM receipts r
+                    LEFT JOIN accounts a ON r.account_number = a.account_number
+                    WHERE a.account_number IS NULL
+                ''').fetchone()[0]
+
+            unmatched = max(0, total_accounts - matched)
+            coverage_pct = round(matched / total_accounts * 100, 1) if total_accounts > 0 else 0.0
+            periods_rows = con.execute('SELECT DISTINCT period FROM receipts WHERE period IS NOT NULL AND period != "" ORDER BY period DESC').fetchall()
+            distinct_periods = [r['period'] for r in periods_rows]
+        finally:
+            con.close()
+
+        self.send_json({
+            'status': 'ok',
+            'timestamp': int(time.time()),
+            'total_accounts': total_accounts,
+            'total_receipts': total_receipts,
+            'matched': matched,
+            'unmatched': unmatched,
+            'orphans': orphans,
+            'coverage_pct': coverage_pct,
+            'periods': distinct_periods,
+            'periods_count': len(distinct_periods),
+            'selected_period': period_filter
+        }, headers={'Cache-Control': 'no-store, no-cache, must-revalidate'})
 
     def _handle_api_sync_receipts(self):
         if not self._is_admin():
