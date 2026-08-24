@@ -1,5 +1,6 @@
-import secrets
 import logging
+import secrets
+
 from database.connection import write_transaction
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ def migrate_db():
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_token ON receipts(access_token);
             ''')
     except Exception as e:
-        logger.critical(f"[Database] КРИТИЧЕСКИЙ СБОЙ ПРИМЕНЕНИЯ МИГРАЦИЙ: {e}", exc_info=True)
+        logger.exception("[DB] Migration failed: %s", e)
         raise DatabaseMigrationError(f"Database migration failed: {e}") from e
 
 def migrate_receipts_to_sharding():
@@ -111,7 +112,8 @@ def migrate_receipts_to_sharding():
     """
     import os
     import shutil
-    from config import RECEIPTS_DIR, get_receipt_shard_parts, get_sharded_receipt_rel_path
+
+    from config import RECEIPTS_DIR, get_receipt_shard_parts
 
     migrated_files = 0
     updated_db = 0
@@ -158,6 +160,7 @@ def sync_receipts_with_filesystem():
     Возвращает: (removed_ghost_records_count, remaining_valid_records_count)
     """
     import os
+
     from config import RECEIPTS_DIR, get_receipt_shard_parts
     from database.connection import get_db
 
