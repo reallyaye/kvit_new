@@ -1,11 +1,12 @@
 import os
-import sys
-import tempfile
 import shutil
 import sqlite3
+import sys
+import tempfile
 import traceback
+
 import config
-import builtins
+
 
 # Fallback pytest fixture для работы без установленного пакета pytest
 class _MockPytest:
@@ -74,9 +75,9 @@ def run_all():
     for fn_name in ['test_pdf_processor_extract_and_save', 'test_pdf_processor_address_extraction', 'test_pdf_processor_idempotency_and_duplicates', 'test_pdf_processor_missing_account', 'test_streaming_multipart_parser', 'test_pdf_processor_flexible_patterns_and_diagnostics', 'test_pdf_processor_multipage_receipt_grouping', 'test_pdf_processor_sharding_helpers', 'test_pdf_processor_ocr_fallback_and_handling', 'test_pdf_processor_ocr_budget_and_dos_protection', 'test_migrate_receipts_to_sharding', 'test_pdf_processor_file_vs_semantic_hash', 'test_atomic_importer_2phase_commit_and_rollback']:
         try:
             reset_db()
-            import pathlib
             # Check if function accepts arguments
             import inspect
+            import pathlib
             sig = inspect.signature(getattr(test_pdf_processor, fn_name))
             if len(sig.parameters) > 0:
                 getattr(test_pdf_processor, fn_name)(pathlib.Path(test_dir))
@@ -95,8 +96,8 @@ def run_all():
     for fn_name in ['test_get_account', 'test_get_receipts', 'test_get_pdf_by_token_valid', 'test_get_pdf_by_token_invalid_or_traversal', 'test_get_pdf_by_token_sharded', 'test_search_accounts_by_address', 'test_search_account_by_specific_address', 'test_privacy_search_view_no_personal_data', 'test_search_by_exact_receipt_address', 'test_api_stats_live_polling']:
         try:
             reset_db()
-            import pathlib
             import inspect
+            import pathlib
             sig = inspect.signature(getattr(test_receipt_service, fn_name))
             if len(sig.parameters) > 0:
                 fixture_res = test_receipt_service.seed_receipt_data(pathlib.Path(test_dir))
@@ -112,11 +113,17 @@ def run_all():
 
     # 4. test_reconcile_service
     from tests import test_reconcile_service
-    for fn_name in ['test_reconcile_metrics', 'test_reconcile_filter_without', 'test_reconcile_filter_orphans', 'test_reconcile_with_period_filter']:
+    for fn_name in ['test_reconcile_metrics', 'test_reconcile_filter_without', 'test_reconcile_filter_orphans', 'test_reconcile_with_period_filter', 'test_safe_sync_and_purge_lifecycle']:
         try:
             reset_db()
-            seed_res = test_reconcile_service.seed_reconcile_data()
-            getattr(test_reconcile_service, fn_name)(seed_res)
+            if fn_name == 'test_safe_sync_and_purge_lifecycle':
+                class DummyMonkeyPatch:
+                    def setattr(self, obj, name, val):
+                        setattr(obj, name, val)
+                test_reconcile_service.test_safe_sync_and_purge_lifecycle(test_dir, DummyMonkeyPatch())
+            else:
+                seed_res = test_reconcile_service.seed_reconcile_data()
+                getattr(test_reconcile_service, fn_name)(seed_res)
             print(f"  [OK] test_reconcile_service.{fn_name}")
             passed += 1
         except Exception as e:
@@ -137,8 +144,8 @@ def run_all():
     ]:
         try:
             reset_db()
-            import pathlib
             import inspect
+            import pathlib
             sig = inspect.signature(getattr(test_audit_comprehensive, fn_name))
             if len(sig.parameters) > 0:
                 getattr(test_audit_comprehensive, fn_name)(pathlib.Path(test_dir))
@@ -180,8 +187,8 @@ def run_all():
     ]:
         try:
             reset_db()
-            import pathlib
             import inspect
+            import pathlib
             sig = inspect.signature(getattr(test_telegram_bot, fn_name))
             if 'tmp_path' in sig.parameters:
                 getattr(test_telegram_bot, fn_name)(pathlib.Path(test_dir))

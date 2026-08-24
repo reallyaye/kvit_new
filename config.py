@@ -1,9 +1,8 @@
-import os
-import html
-import re
-import ipaddress
-
 import base64
+import html
+import ipaddress
+import os
+import re
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -149,8 +148,8 @@ SESSION_LIFETIME = int(os.environ.get('SESSION_LIFETIME', str(24 * 60 * 60)))  #
 COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'auto').strip().lower()  # 'true', 'false', или 'auto' (по HTTPS/X-Forwarded-Proto)
 CSRF_ENABLED = os.environ.get('CSRF_ENABLED', 'true').strip().lower() in ('true', '1', 'yes')
 
-PROTECTED_PATHS = {'/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/clear-receipts'}
-CSRF_PROTECTED_PATHS = {'/upload', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/clear-receipts'}
+PROTECTED_PATHS = {'/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts', '/api/clear-receipts'}
+CSRF_PROTECTED_PATHS = {'/upload', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts', '/api/clear-receipts'}
 
 
 # ────────────────────── WebSocket ──────────────────────

@@ -154,58 +154,89 @@ def migrate_receipts_to_sharding():
 
 def sync_receipts_with_filesystem():
     """
-    Синхронизирует записи в БД с реальными файлами на диске:
+    Синхронизирует записи в БД с реальными файлами на диске (БЕЗОПАСНАЯ И ОБРАТИМАЯ ОПЕРАЦИЯ):
     - Проверяет наличие каждого PDF-файла из таблицы receipts в директории RECEIPTS_DIR.
-    - Удаляет из БД записи о квитанциях, файлы которых физически отсутствуют на диске.
-    Возвращает: (removed_ghost_records_count, remaining_valid_records_count)
+    - Если файл отсутствует на диске, переводит статус записи в 'missing' (БЕЗ УДАЛЕНИЯ МЕТАДАННЫХ).
+    - Если файл снова появился на диске (например, смонтировали сетевой диск/хранилище), восстанавливает статус 'ready'.
+    Возвращает: (marked_missing_count, restored_ready_count, valid_ready_count)
     """
     import os
 
     from config import RECEIPTS_DIR, get_receipt_shard_parts
     from database.connection import get_db
 
-    removed_count = 0
-    valid_count = 0
-    ids_to_delete = []
+    marked_missing = 0
+    restored_ready = 0
+    valid_ready = 0
+
+    to_mark_missing = []
+    to_mark_ready = []
 
     con_read = get_db()
     try:
-        rows = con_read.execute('SELECT id, account_number, pdf_file FROM receipts').fetchall()
+        rows = con_read.execute('SELECT id, account_number, pdf_file, status FROM receipts').fetchall()
         for r in rows:
             rec_id = r['id']
             acc = r['account_number']
             pdf_file = r['pdf_file']
-            if not pdf_file:
-                ids_to_delete.append(rec_id)
-                continue
+            current_status = r['status'] if 'status' in r.keys() else 'ready'
 
-            fp = os.path.abspath(os.path.join(RECEIPTS_DIR, pdf_file))
-            if os.path.isfile(fp):
-                valid_count += 1
-                continue
+            file_exists = False
+            if pdf_file:
+                fp = os.path.abspath(os.path.join(RECEIPTS_DIR, pdf_file))
+                if os.path.isfile(fp):
+                    file_exists = True
+                else:
+                    # Fallback checks (sharded vs flat)
+                    base_filename = os.path.basename(pdf_file)
+                    s1, s2 = get_receipt_shard_parts(acc)
+                    sharded_fp = os.path.abspath(os.path.join(RECEIPTS_DIR, s1, s2, base_filename))
+                    flat_fp = os.path.abspath(os.path.join(RECEIPTS_DIR, base_filename))
+                    if os.path.isfile(sharded_fp) or os.path.isfile(flat_fp):
+                        file_exists = True
 
-            # Fallback checks (sharded vs flat)
-            base_filename = os.path.basename(pdf_file)
-            s1, s2 = get_receipt_shard_parts(acc)
-            sharded_fp = os.path.abspath(os.path.join(RECEIPTS_DIR, s1, s2, base_filename))
-            flat_fp = os.path.abspath(os.path.join(RECEIPTS_DIR, base_filename))
-
-            if os.path.isfile(sharded_fp) or os.path.isfile(flat_fp):
-                valid_count += 1
+            if file_exists:
+                valid_ready += 1
+                if current_status != 'ready':
+                    to_mark_ready.append(rec_id)
             else:
-                ids_to_delete.append(rec_id)
+                if current_status != 'missing':
+                    to_mark_missing.append(rec_id)
     finally:
         con_read.close()
 
-    if ids_to_delete:
+    if to_mark_missing or to_mark_ready:
         with write_transaction() as con_write:
-            for i in range(0, len(ids_to_delete), 500):
-                chunk = ids_to_delete[i:i+500]
-                placeholders = ','.join('?' * len(chunk))
-                con_write.execute(f'DELETE FROM receipts WHERE id IN ({placeholders})', chunk)  # nosec B608
-        removed_count = len(ids_to_delete)
+            if to_mark_missing:
+                for i in range(0, len(to_mark_missing), 500):
+                    chunk = to_mark_missing[i:i + 500]
+                    placeholders = ','.join('?' * len(chunk))
+                    con_write.execute(f"UPDATE receipts SET status = 'missing' WHERE id IN ({placeholders})", chunk)  # nosec B608
+                marked_missing = len(to_mark_missing)
 
-    return removed_count, valid_count
+            if to_mark_ready:
+                for i in range(0, len(to_mark_ready), 500):
+                    chunk = to_mark_ready[i:i + 500]
+                    placeholders = ','.join('?' * len(chunk))
+                    con_write.execute(f"UPDATE receipts SET status = 'ready' WHERE id IN ({placeholders})", chunk)  # nosec B608
+                restored_ready = len(to_mark_ready)
+
+    return marked_missing, restored_ready, valid_ready
+
+def purge_missing_receipts() -> int:
+    """
+    ЯВНАЯ АДМИНИСТРАТИВНАЯ ОПЕРАЦИЯ:
+    Физически удаляет из БД только те записи, которые имеют статус 'missing'.
+    Возвращает: количество удаленных записей.
+    """
+    with write_transaction() as con:
+        cur = con.execute("DELETE FROM receipts WHERE status = 'missing'")
+        deleted_count = cur.rowcount if hasattr(cur, 'rowcount') and cur.rowcount != -1 else 0
+        if deleted_count == 0:
+            changes = con.execute("SELECT changes()").fetchone()
+            deleted_count = changes[0] if changes else 0
+    return deleted_count
+
 
 
 

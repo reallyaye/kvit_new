@@ -2,6 +2,7 @@ import html
 
 from templates.icons import icon
 
+
 def render_reconcile_page(data: dict):
     filt = data['filt']
     period_filter = data['period_filter']
@@ -68,9 +69,12 @@ def render_reconcile_page(data: dict):
                 {period_options}
             </select>
         </div>
-        <div>
+        <div style="display:flex;gap:8px;align-items:center">
             <button type="button" class="btn btn-outline" id="btnSyncFs" onclick="syncWithFilesystem()" style="padding:7px 14px;font-size:13px;display:flex;align-items:center;gap:6px">
                 {icon('refresh', 14)} Синхронизировать с диском
+            </button>
+            <button type="button" class="btn btn-outline" id="btnPurgeMissing" onclick="purgeMissingReceipts()" style="padding:7px 14px;font-size:13px;display:flex;align-items:center;gap:6px;color:#ef4444;border-color:#fca5a5">
+                {icon('trash', 14)} Очистить отсутствующие
             </button>
         </div>
     </div>'''
@@ -117,29 +121,44 @@ def render_reconcile_page(data: dict):
 
     period_label = f' за {html.escape(period_filter)}' if period_filter else ''
     if filt == 'with':
-        list_title = f'Счета с квитанциями{period_label} <span style="font-size:15px;color:#64748b;font-weight:400">({matched} шт.)</span>'
+        list_title = f'Список лицевых счетов с квитанцией{period_label}'
     elif filt == 'without':
-        list_title = f'Счета без квитанций{period_label} <span style="font-size:15px;color:#64748b;font-weight:400">({unmatched_count} шт.)</span>'
+        list_title = f'Список лицевых счетов без квитанции{period_label}'
     elif filt == 'orphans':
-        list_title = f'Квитанции без лицевого счёта{period_label} <span style="font-size:15px;color:#64748b;font-weight:400">({orphans} шт.)</span>'
+        list_title = f'Квитанции без лицевого счёта в базе{period_label}'
     else:
-        list_title = f'Все лицевые счета{period_label} <span style="font-size:15px;color:#64748b;font-weight:400">({total_accounts} шт.)</span>'
+        list_title = f'Все лицевые счета{period_label}'
 
     return f'''
-    <div class="card">
-        <h1>Сверка лицевых счетов и квитанций</h1>
-        <p class="subtitle">Покрытие квитанциями{period_label}: <b id="recCoverageSubtitle">{pct}%</b></p>
-        {period_select_html}
-        <div class="stats">
-            <div class="stat-box blue"><div class="stat-num live-val" id="recTotalAccounts">{total_accounts}</div><div class="stat-label">Лицевых счетов</div></div>
-            <div class="stat-box green"><div class="stat-num live-val" id="recMatched">{matched}</div><div class="stat-label">С квитанцией</div></div>
-            <div class="stat-box red"><div class="stat-num live-val" id="recUnmatched">{unmatched_count}</div><div class="stat-label">Без квитанции</div></div>
-            <div class="stat-box"><div class="stat-num live-val" id="recTotalReceipts">{total_receipts}</div><div class="stat-label">Квитанций за период</div></div>
-            <div class="stat-box" style="border-color:#f59e0b"><div class="stat-num live-val" id="recOrphans" style="color:#f59e0b">{orphans}</div><div class="stat-label">Без лицевого счёта</div></div>
+    <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+        <div class="card stat-card">
+            <div class="num" id="statTotalAccounts">{total_accounts}</div>
+            <div class="lbl">Всего лицевых счетов</div>
+        </div>
+        <div class="card stat-card">
+            <div class="num" style="color:#16a34a" id="statMatched">{matched}</div>
+            <div class="lbl">Счетов с квитанцией</div>
+        </div>
+        <div class="card stat-card">
+            <div class="num" style="color:#ef4444" id="statUnmatched">{unmatched_count}</div>
+            <div class="lbl">Счетов без квитанции</div>
+        </div>
+        <div class="card stat-card">
+            <div class="num" id="statTotalReceipts">{total_receipts}</div>
+            <div class="lbl">Всего квитанций</div>
+        </div>
+        <div class="card stat-card">
+            <div class="num" style="color:#f59e0b" id="statOrphans">{orphans}</div>
+            <div class="lbl">Квитанций без счёта</div>
+        </div>
+        <div class="card stat-card">
+            <div class="num" style="color:#2563eb" id="statPercent">{pct}%</div>
+            <div class="lbl">Процент покрытия</div>
         </div>
     </div>
     <div class="card">
         <h1>{list_title}</h1>
+        {period_select_html}
         {tabs_html}
         {table_html}
     </div>
@@ -147,7 +166,7 @@ def render_reconcile_page(data: dict):
     async function syncWithFilesystem() {{
         const btn = document.getElementById('btnSyncFs');
         if (!btn) return;
-        if (!confirm('Проверить файлы на диске и удалить из базы записи об отсутствующих квитанциях?')) {{
+        if (!confirm('Выполнить безопасную синхронизацию с диском?\\n\\nСтатус отсутствующих файлов будет переведён в missing без удаления метаданных из БД.')) {{
             return;
         }}
         btn.disabled = true;
@@ -174,6 +193,39 @@ def render_reconcile_page(data: dict):
             alert('Ошибка сети: ' + e.message);
             btn.disabled = false;
             btn.textContent = '🔄 Синхронизировать с диском';
+        }}
+    }}
+
+    async function purgeMissingReceipts() {{
+        const btn = document.getElementById('btnPurgeMissing');
+        if (!btn) return;
+        if (!confirm('ВНИМАНИЕ: Вы действительно хотите безвозвратно удалить из базы все записи со статусом «missing»?\\n\\nЭту операцию следует выполнять только если файлы удалены с диска намеренно.')) {{
+            return;
+        }}
+        btn.disabled = true;
+        btn.textContent = '⏳ Очистка...';
+        try {{
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfVal = csrfMeta ? csrfMeta.content : '';
+            const headers = csrfVal ? {{ 'X-CSRF-Token': csrfVal }} : {{}};
+
+            const res = await fetch('/api/purge-missing-receipts', {{
+                method: 'POST',
+                headers: headers
+            }});
+            const data = await res.json();
+            if (data.success) {{
+                alert(data.message);
+                window.location.reload();
+            }} else {{
+                alert('Ошибка: ' + (data.error || 'Не удалось выполнить очистку'));
+                btn.disabled = false;
+                btn.textContent = '🗑️ Очистить отсутствующие';
+            }}
+        }} catch (e) {{
+            alert('Ошибка сети: ' + e.message);
+            btn.disabled = false;
+            btn.textContent = '🗑️ Очистить отсутствующие';
         }}
     }}
     </script>'''

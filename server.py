@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 import config
 from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, WS_GUID
-from database import get_db, sync_receipts_with_filesystem, write_transaction
+from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem, write_transaction
 from logger import logger
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
@@ -420,6 +420,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self._handle_api_upload_batch()
             elif u.path == '/api/sync-receipts':
                 self._handle_api_sync_receipts()
+            elif u.path == '/api/purge-missing-receipts':
+                self._handle_api_purge_missing_receipts()
             else:
                 self.send_html(layout(render_404_page(), is_admin=is_admin), 404)
         finally:
@@ -750,16 +752,35 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_json({'error': 'Forbidden', 'message': 'Недействительный или отсутствующий CSRF-токен (X-CSRF-Token)'}, 403)
             return
 
-        removed, valid = sync_receipts_with_filesystem()
+        marked_missing, restored_ready, valid = sync_receipts_with_filesystem()
         ws_manager.broadcast('receipts_synced', {
-            'removed': removed,
+            'marked_missing': marked_missing,
+            'restored_ready': restored_ready,
             'valid': valid
         })
         self.send_json({
             'success': True,
-            'removed': removed,
+            'marked_missing': marked_missing,
+            'restored_ready': restored_ready,
             'valid': valid,
-            'message': f'Синхронизация завершена: удалено отсутствующих записей — {removed}, актуальных файлов на диске — {valid}'
+            'message': f'Синхронизация завершена (обратимо): помечено missing — {marked_missing}, восстановлено — {restored_ready}, доступно на диске — {valid}'
+        })
+
+    def _handle_api_purge_missing_receipts(self):
+        if not self._is_admin():
+            self.send_json({'error': 'Unauthorized'}, 401)
+            return
+
+        if not self._verify_csrf():
+            self.send_json({'error': 'Forbidden', 'message': 'Недействительный или отсутствующий CSRF-токен (X-CSRF-Token)'}, 403)
+            return
+
+        purged_count = purge_missing_receipts()
+        ws_manager.broadcast('receipts_purged', {'purged': purged_count})
+        self.send_json({
+            'success': True,
+            'purged': purged_count,
+            'message': f'Очистка завершена: удалено {purged_count} записей со статусом missing.'
         })
 
     def _handle_import_folder(self):

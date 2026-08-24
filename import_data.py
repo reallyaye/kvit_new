@@ -1,13 +1,18 @@
 import argparse
 import os
-import re
 import sys
-import secrets
-import hashlib
-from config import BASE, DB, RECEIPTS_DIR
-from database import get_db, write_transaction, migrate_db, sync_receipts_with_filesystem
+
+from config import RECEIPTS_DIR
+from database import (
+    get_db,
+    migrate_db,
+    purge_missing_receipts,
+    sync_receipts_with_filesystem,
+    write_transaction,
+)
 from database.migrations import migrate_receipts_to_sharding
 from services.pdf import pdf_processor
+
 
 def load_excel_rows(file_path: str):
     """Считывает строки из Excel файла (.xlsx через openpyxl или .xls через xlrd)."""
@@ -49,20 +54,28 @@ def main():
     parser.add_argument('--receipts', help="Путь к PDF-файлу или папке с PDF-файлами квитанций")
     parser.add_argument('--reset', action='store_true', help="Сбросить существующие таблицы перед импортом")
     parser.add_argument('--migrate-sharding', action='store_true', help="Мигрировать существующие квитанции в 2-уровневую структуру папок")
-    parser.add_argument('--sync-fs', action='store_true', help="Синхронизировать базу данных с диском (удалить записи об отсутствующих файлах)")
+    parser.add_argument('--sync-fs', action='store_true', help="Безопасная синхронизация с диском (перевод отсутствующих в статус missing без удаления)")
+    parser.add_argument('--purge-missing', action='store_true', help="Явная очистка: безвозвратно удалить из БД все записи со статусом missing")
     args = parser.parse_args()
 
     if args.migrate_sharding:
         print("📂 Запуск миграции файлов квитанций в шардированную структуру...")
         migrated_files, updated_db = migrate_receipts_to_sharding()
         print(f"✅ Миграция завершена: перемещено файлов: {migrated_files}, обновлено записей в БД: {updated_db}")
-        if not args.accounts and not args.receipts and not args.sync_fs:
+        if not args.accounts and not args.receipts and not args.sync_fs and not args.purge_missing:
             sys.exit(0)
 
     if args.sync_fs:
-        print("🔄 Проверка и синхронизация БД с файловым хранилищем receipts/...")
-        removed, valid = sync_receipts_with_filesystem()
-        print(f"✅ Синхронизация завершена: удалено отсутствующих записей: {removed}, актуальных файлов: {valid}")
+        print("🔄 Проверка и безопасная синхронизация БД с файловым хранилищем receipts/...")
+        marked_missing, restored_ready, valid = sync_receipts_with_filesystem()
+        print(f"✅ Синхронизация завершена: помечено missing: {marked_missing}, восстановлено: {restored_ready}, актуальных на диске: {valid}")
+        if not args.accounts and not args.receipts and not args.purge_missing:
+            sys.exit(0)
+
+    if args.purge_missing:
+        print("🗑️ Очистка записей со статусом 'missing' из базы данных...")
+        purged = purge_missing_receipts()
+        print(f"✅ Очистка завершена: удалено {purged} записей.")
         if not args.accounts and not args.receipts:
             sys.exit(0)
 
