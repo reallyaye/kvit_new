@@ -417,6 +417,52 @@ def test_postgres_backend_wrapper_and_dialect():
         ("800111", "2026")
     )
 
+def test_cookie_secure_flags_and_scheme_detection():
+    """Тестирует генерацию атрибута Secure в Set-Cookie в зависимости от режима и протокола."""
+    from server import AppRequestHandler
+    import unittest.mock as mock
+    import config
+
+    handler = AppRequestHandler.__new__(AppRequestHandler)
+    handler.client_address = ("127.0.0.1", 12345)
+    handler.headers = {}
+
+    # 1. Режим COOKIE_SECURE='true' -> всегда Secure
+    with mock.patch.object(config, "COOKIE_SECURE", "true"):
+        hdr = handler._get_session_cookie_header("token123")
+        assert "Secure" in hdr
+        assert "HttpOnly" in hdr
+        assert "SameSite=Strict" in hdr
+
+    # 2. Режим COOKIE_SECURE='false' -> без Secure
+    with mock.patch.object(config, "COOKIE_SECURE", "false"):
+        hdr = handler._get_session_cookie_header("token123")
+        assert "Secure" not in hdr
+
+    # 3. Режим auto + USE_HTTPS=True -> Secure
+    with mock.patch.object(config, "COOKIE_SECURE", "auto"), mock.patch.object(config, "USE_HTTPS", True):
+        hdr = handler._get_session_cookie_header("token123")
+        assert "Secure" in hdr
+
+    # 4. Режим auto + Reverse Proxy (TRUST_PROXY=True + X-Forwarded-Proto: https) -> Secure
+    with mock.patch.object(config, "COOKIE_SECURE", "auto"), \
+         mock.patch.object(config, "USE_HTTPS", False), \
+         mock.patch.object(config, "TRUST_PROXY", True):
+        handler.headers = {"X-Forwarded-Proto": "https"}
+        assert handler._is_request_https() is True
+        hdr = handler._get_session_cookie_header("token123")
+        assert "Secure" in hdr
+
+    # 5. Режим auto + Plain HTTP без прокси -> нет Secure (локальный dev)
+    with mock.patch.object(config, "COOKIE_SECURE", "auto"), \
+         mock.patch.object(config, "USE_HTTPS", False), \
+         mock.patch.object(config, "TRUST_PROXY", False):
+        handler.headers = {}
+        assert handler._is_request_https() is False
+        hdr = handler._get_session_cookie_header("token123")
+        assert "Secure" not in hdr
+
+
 
 
 

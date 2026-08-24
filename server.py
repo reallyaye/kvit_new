@@ -91,6 +91,37 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
         return peer_ip
 
+    def _is_request_https(self) -> bool:
+        """Определяет, защищено ли соединение (TLS/HTTPS или доверенный заголовок X-Forwarded-Proto)."""
+        if getattr(config, 'USE_HTTPS', False):
+            return True
+        peer_ip = self.client_address[0] if self.client_address else '127.0.0.1'
+        if getattr(config, 'TRUST_PROXY', False) and self._is_trusted_proxy(peer_ip):
+            proto = self.headers.get('X-Forwarded-Proto', '').strip().lower()
+            if proto == 'https':
+                return True
+        return False
+
+    def _get_session_cookie_header(self, token: str, max_age: int = 86400) -> str:
+        """
+        Формирует заголовок Set-Cookie с атрибутами безопасности:
+        - HttpOnly: защита от XSS кражи токена
+        - SameSite=Strict: защита от CSRF атак
+        - Secure: защита от отправки cookie по открытому HTTP-каналу
+        """
+        mode = getattr(config, 'COOKIE_SECURE', 'auto').strip().lower()
+        use_secure = False
+        if mode in ('true', '1', 'yes'):
+            use_secure = True
+        elif mode in ('false', '0', 'no'):
+            use_secure = False
+        else:  # auto
+            if self._is_request_https() or os.environ.get('ENVIRONMENT', '').lower() == 'production':
+                use_secure = True
+
+        secure_flag = "; Secure" if use_secure else ""
+        return f"session={token}; Path=/; Max-Age={max_age}; HttpOnly; SameSite=Strict{secure_flag}"
+
     def _get_session_token(self):
         cookie_header = self.headers.get('Cookie')
         if not cookie_header:
@@ -273,7 +304,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 if token:
                     auth_service.destroy_session(token)
                 self._redirect('/', extra_headers={
-                    'Set-Cookie': 'session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'
+                    'Set-Cookie': self._get_session_cookie_header('', max_age=0)
                 })
             elif path in PROTECTED_PATHS:
                 if not is_admin:
@@ -381,7 +412,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if auth_service.verify_password(password):
             token = auth_service.create_session()
             self._redirect('/', extra_headers={
-                'Set-Cookie': f'session={token}; Path=/; Max-Age=86400; HttpOnly; SameSite=Strict'
+                'Set-Cookie': self._get_session_cookie_header(token, max_age=config.SESSION_LIFETIME)
             })
         else:
             body = render_login_form('Неверный пароль. Попробуйте ещё раз.')
