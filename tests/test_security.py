@@ -1,12 +1,14 @@
-import time
 import threading
+import time
+
 try:
     import pytest
 except ImportError:
     pytest = None
 from services.security.auth_service import auth_service
-from services.security.rate_limiter import rate_limiter
 from services.security.ip_throttler import ip_throttler
+from services.security.rate_limiter import rate_limiter
+
 
 def test_auth_service_lifecycle():
     import config
@@ -104,8 +106,8 @@ def test_ip_throttler_concurrency_and_burst():
     throttler.release(ip)
 
 def test_client_ip_anti_spoofing():
-    from server import AppRequestHandler
     import config
+    from server import AppRequestHandler
 
     class MockHandler(AppRequestHandler):
         def __init__(self, client_ip, headers):
@@ -136,10 +138,11 @@ def test_client_ip_anti_spoofing():
         config.TRUST_PROXY = orig_tp
 
 def test_safe_import_path_protection():
-    import config
     import os
-    import tempfile
     import shutil
+    import tempfile
+
+    import config
 
     test_base = tempfile.mkdtemp(prefix='kvit_sec_test_')
     inside_dir = os.path.join(test_base, 'allowed_folder')
@@ -177,8 +180,8 @@ def test_safe_import_path_protection():
 
 def test_grpc_rate_limiting_and_security():
     import grpc
-    from services.grpc_service import extract_peer_ip, RateLimitInterceptor
-    from services.security import rate_limiter
+
+    from services.grpc_service import RateLimitInterceptor, extract_peer_ip
 
     # 1. Проверка извлечения IP из peer
     assert extract_peer_ip("ipv4:192.168.1.100:54321") == "192.168.1.100"
@@ -238,9 +241,10 @@ def test_grpc_rate_limiting_and_security():
     assert ctx3.status_code == grpc.StatusCode.RESOURCE_EXHAUSTED
 
 def test_async_websocket_multiplexer():
-    import socket
     import json
+    import socket
     import struct
+
     from services.websocket.ws_manager import ws_manager
 
     # Создаем пару связанных сокетов для имитации клиента и сервера
@@ -283,8 +287,8 @@ def test_async_websocket_multiplexer():
 
 def test_concurrent_database_writes_with_retry():
     import threading
-    import sqlite3
-    from database import write_transaction, get_db
+
+    from database import get_db, write_transaction
 
     # Создаем тестовую таблицу
     with write_transaction() as con:
@@ -314,9 +318,9 @@ def test_concurrent_database_writes_with_retry():
         con_read.close()
 
 def test_persistent_state_and_session_sharing():
+    from database import migrate_db
     from services.security.auth_service import AuthService, auth_service
     from services.security.ip_throttler import IPThrottler
-    from database import migrate_db
     migrate_db()
 
     # 1. Тестирование персистентности и разделения сессий (AuthService)
@@ -359,8 +363,8 @@ def test_persistent_state_and_session_sharing():
     assert reason2 == 'ip_banned'
 
 def test_env_crypto_encode_decode():
-    from services.security.env_crypto import encode_val, decode_val, encode_env_content, decode_env_content
     from config import _decode_env_val
+    from services.security.env_crypto import decode_env_content, decode_val, encode_env_content, encode_val
 
     raw_secret = "super_secret_token_12345"
     encoded = encode_val(raw_secret)
@@ -377,7 +381,8 @@ def test_env_crypto_encode_decode():
 def test_database_migration_fail_fast():
     """Проверяет, что сбои в миграциях БД не глушатся, а выбрасывают DatabaseMigrationError."""
     import unittest.mock as mock
-    from database.migrations import migrate_db, DatabaseMigrationError
+
+    from database.migrations import DatabaseMigrationError, migrate_db
 
     # 1. Штатная миграция проходит успешно
     migrate_db()
@@ -392,8 +397,9 @@ def test_database_migration_fail_fast():
 
 def test_postgres_backend_wrapper_and_dialect():
     """Тестирует PostgresRowWrapper, PostgresCursorWrapper и трансляцию диалекта SQL."""
-    from database.postgres_backend import PostgresRowWrapper, PostgresCursorWrapper
     import unittest.mock as mock
+
+    from database.postgres_backend import PostgresCursorWrapper, PostgresRowWrapper
 
     # 1. Тест RowWrapper: доступ по ключу, индексу, .get(), итерация
     data = {"account_number": "800111", "period": "Август 2026", "address": "ул. Мира 5"}
@@ -419,9 +425,10 @@ def test_postgres_backend_wrapper_and_dialect():
 
 def test_cookie_secure_flags_and_scheme_detection():
     """Тестирует генерацию атрибута Secure в Set-Cookie в зависимости от режима и протокола."""
-    from server import AppRequestHandler
     import unittest.mock as mock
+
     import config
+    from server import AppRequestHandler
 
     handler = AppRequestHandler.__new__(AppRequestHandler)
     handler.client_address = ("127.0.0.1", 12345)
@@ -464,9 +471,9 @@ def test_cookie_secure_flags_and_scheme_detection():
 
 def test_csrf_token_lifecycle_and_validation():
     """Тестирует генерацию, криптографическую валидацию и аннулирование CSRF-токенов."""
-    from services.security.auth_service import auth_service
+
     from server import AppRequestHandler
-    import unittest.mock as mock
+    from services.security.auth_service import auth_service
 
     session_token = auth_service.create_session()
     csrf_token = auth_service.get_csrf_token(session_token)

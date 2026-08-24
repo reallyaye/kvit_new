@@ -1,13 +1,15 @@
 import json
-import os
-import ssl
-import urllib.request
-import urllib.parse
-import urllib.error
 import mimetypes
+import os
 import secrets
-from typing import Optional, Dict, Any, List, Union
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Any, Dict, List, Optional, Union
+
 from logger import logger
+
 
 class TelegramAPIError(Exception):
     """Исключение при ошибке ответа Telegram Bot API."""
@@ -58,14 +60,14 @@ class TelegramClient:
                 err_payload = json.loads(e.read().decode('utf-8'))
                 desc = err_payload.get('description', str(e))
                 code = err_payload.get('error_code', e.code)
-            except Exception:
+            except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
                 desc = str(e)
                 code = e.code
-            raise TelegramAPIError(desc, code)
+            raise TelegramAPIError(desc, code) from e
         except urllib.error.URLError as e:
-            raise TelegramAPIError(f"Сетевая ошибка: {e.reason}")
-        except TimeoutError:
-            raise TelegramAPIError("Превышен таймаут сетевого запроса")
+            raise TelegramAPIError(f"Сетевая ошибка: {e.reason}") from e
+        except TimeoutError as e:
+            raise TelegramAPIError("Превышен таймаут сетевого запроса") from e
 
     def get_me(self) -> Dict[str, Any]:
         """Возвращает информацию о боте."""

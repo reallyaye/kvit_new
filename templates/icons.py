@@ -7,7 +7,7 @@
 def icon(name: str, size: int = 16, color: str = 'currentColor', extra_class: str = '') -> str:
     """Возвращает строковый SVG для указанной иконки."""
     cls_attr = f' class="ui-icon {extra_class}".strip()' if extra_class else ' class="ui-icon"'
-    style_attr = f'style="vertical-align:-2px;display:inline-block;flex-shrink:0;"'
+    style_attr = 'style="vertical-align:-2px;display:inline-block;flex-shrink:0;"'
 
     icons = {
         'search': f'''<svg{cls_attr} {style_attr} width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>''',

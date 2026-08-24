@@ -1,11 +1,13 @@
+import json
 import selectors
 import socket
+import struct
 import threading
 import time
-import json
-import struct
+
 from config import WS_SOCKET_TIMEOUT
 from logger import logger
+
 
 class WebSocketClientState:
     def __init__(self, sock: socket.socket, client_ip: str):
@@ -276,11 +278,15 @@ class WebSocketManager:
         self._running = False
         with self._lock:
             for sock in list(self._clients.values()):
-                try: sock.sock.close()
-                except Exception: pass
+                try:
+                    sock.sock.close()
+                except OSError:
+                    pass
             self._clients.clear()
-            try: self._selector.close()
-            except Exception: pass
+            try:
+                self._selector.close()
+            except OSError:
+                pass
 
 ws_manager = WebSocketManager()
 

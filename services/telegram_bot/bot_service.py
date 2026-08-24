@@ -1,19 +1,22 @@
+import html
 import os
 import re
-import html
-import tempfile
 import shutil
+import tempfile
 import threading
 import time
 from typing import Optional, Set
+
 import config
 from database import get_db, write_transaction
+from logger import logger
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
 from services.security import auth_service
 from services.websocket import ws_manager
-from logger import logger
-from .telegram_client import TelegramClient, TelegramAPIError
+
+from .telegram_client import TelegramAPIError, TelegramClient
+
 
 class TelegramBotService:
     """Сервис Telegram-бота для обработки квитанций, поиска счетов и выдачи статистики."""
@@ -106,7 +109,7 @@ class TelegramBotService:
             return
 
         # Информируем пользователя о начале обработки
-        status_msg = self.client.send_message(
+        self.client.send_message(
             chat_id,
             f"⏳ <i>Загрузка и распознавание «{html.escape(file_name)}»...</i>",
             reply_to_message_id=message.get('message_id')

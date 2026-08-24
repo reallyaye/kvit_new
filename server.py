@@ -1,39 +1,41 @@
-from http.server import BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-from http.cookies import SimpleCookie
-import os
-import time
-import re
-import tempfile
-import shutil
-import hashlib
 import base64
-import struct
-import json
+import hashlib
 import html
 import ipaddress
+import json
+import os
+import re
+import shutil
+import tempfile
+import time
+from http.cookies import SimpleCookie
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs, urlparse
 
 import config
-from config import (
-    WS_GUID, PROTECTED_PATHS, WS_SOCKET_TIMEOUT,
-    RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH
-)
-from database import get_db, write_transaction, sync_receipts_with_filesystem
-from services.security import rate_limiter, ip_throttler, auth_service
-from services.websocket import ws_manager
+from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, WS_GUID
+from database import get_db, sync_receipts_with_filesystem, write_transaction
+from logger import logger
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
-from logger import logger
+from services.security import auth_service, ip_throttler, rate_limiter
+from services.websocket import ws_manager
 from templates import (
     layout,
-    render_search_form, render_search_result, render_address_search_results,
-    render_address_clarification_prompt, render_address_not_found,
-    render_upload_form,
+    render_404_page,
+    render_address_clarification_prompt,
+    render_address_not_found,
+    render_forbidden_page,
+    render_login_form,
+    render_rate_limit_page,
     render_reconcile_page,
-    render_login_form, render_rate_limit_page, render_throttled_page,
-    render_404_page, render_forbidden_page
+    render_search_form,
+    render_search_result,
+    render_throttled_page,
+    render_upload_form,
 )
+
 
 class AppRequestHandler(BaseHTTPRequestHandler):
     """Главный HTTP-шлюз и роутер приложения."""
@@ -150,8 +152,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if not session_token:
             return False
         csrf_token = (
-            self.headers.get('X-CSRF-Token') or 
-            self.headers.get('X-CSRFToken') or 
+            self.headers.get('X-CSRF-Token') or
+            self.headers.get('X-CSRFToken') or
             body_csrf
         )
         if not csrf_token:
