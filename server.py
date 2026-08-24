@@ -653,7 +653,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             'periods': distinct_periods,
             'periods_count': len(distinct_periods),
             'selected_period': period_filter
-        }, extra_headers={'Cache-Control': 'no-store, no-cache, must-revalidate'})
+        }, 200, extra_headers={'Cache-Control': 'no-store, no-cache, must-revalidate'})
 
     def _handle_api_sync_receipts(self):
         if not self._is_admin():

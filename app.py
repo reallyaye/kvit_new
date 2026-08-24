@@ -8,6 +8,7 @@ from database import migrate_db
 from server import AppRequestHandler
 from services.grpc_service import create_grpc_server
 from services.websocket import ws_manager
+from services.telegram_bot import telegram_bot_service
 from logger import logger
 
 def main():
@@ -51,7 +52,11 @@ def main():
     grpc_server = create_grpc_server(host=GRPC_HOST, port=GRPC_PORT)
     grpc_server.start()
 
-    # 5. Инициализация и запуск многопоточного HTTP/WebSocket сервера
+    # 5. Инициализация и запуск Telegram-бота (если задан TELEGRAM_BOT_TOKEN)
+    if config.TELEGRAM_ENABLED:
+        telegram_bot_service.start_in_thread()
+
+    # 6. Инициализация и запуск многопоточного HTTP/WebSocket сервера
     http_server = ThreadingHTTPServer((HOST, PORT), AppRequestHandler)
 
     protocol = "http"
@@ -71,6 +76,10 @@ def main():
     logger.info(f"Веб-сервер ({protocol.upper()}):     {protocol}://{HOST}:{PORT}")
     logger.info(f"WebSocket шлюз:      {'wss' if is_tls else 'ws'}://{HOST}:{PORT}/ws (Async Multiplexed)")
     logger.info(f"gRPC микросервис:    {GRPC_HOST}:{GRPC_PORT} (TLS={'ON' if config.GRPC_USE_TLS else 'OFF'})")
+    if config.TELEGRAM_ENABLED:
+        logger.info("Telegram-бот:        ВКЛЮЧЕН (фоновый поток Long Polling)")
+    else:
+        logger.info("Telegram-бот:        ВЫКЛЮЧЕН (не задан TELEGRAM_BOT_TOKEN в .env)")
     if config.TRUST_PROXY:
         logger.info("Режим Reverse Proxy: TLS терминируется внешним прокси (Nginx/IIS/Traefik).")
     elif not is_tls:
@@ -83,8 +92,10 @@ def main():
         logger.info("Остановка серверов по сигналу завершения...")
         http_server.server_close()
         ws_manager.stop()
+        telegram_bot_service.stop()
         grpc_server.stop(grace=2)
         logger.info("Все серверы успешно остановлены.")
+
 
 if __name__ == '__main__':
     main()

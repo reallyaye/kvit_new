@@ -193,7 +193,7 @@ def test_api_stats_live_polling():
             self.sent_json = None
             self.status_code = None
 
-        def send_json(self, data, code=200, headers=None):
+        def send_json(self, data, code=200, extra_headers=None, **kwargs):
             self.sent_json = data
             self.status_code = code
 

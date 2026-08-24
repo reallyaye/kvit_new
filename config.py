@@ -163,11 +163,33 @@ def is_safe_import_path(raw_path: str):
 
     return True, real_target, ''
 
+# ────────────────────── Telegram Bot ──────────────────────
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+TELEGRAM_ADMIN_IDS_RAW = os.environ.get('TELEGRAM_ADMIN_IDS', '').strip()
+TELEGRAM_POLLING_TIMEOUT = int(os.environ.get('TELEGRAM_POLLING_TIMEOUT', '30'))
+
+def _parse_telegram_admin_ids(raw: str) -> set[int]:
+    ids = set()
+    if not raw:
+        return ids
+    for part in raw.split(','):
+        part = part.strip()
+        if part.isdigit() or (part.startswith('-') and part[1:].isdigit()):
+            try:
+                ids.add(int(part))
+            except ValueError:
+                pass
+    return ids
+
+TELEGRAM_ADMIN_IDS = _parse_telegram_admin_ids(TELEGRAM_ADMIN_IDS_RAW)
+TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN)
+
 # ────────────────────── Логирование ──────────────────────
 LOG_FILE = os.environ.get('LOG_FILE', 'logs/app.log')
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', str(5 * 1024 * 1024))) # 5 МБ
 LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))            # 5 ротированных файлов
+
 
 
 

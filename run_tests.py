@@ -168,6 +168,31 @@ def run_all():
             traceback.print_exc()
             failed += 1
 
+    # 7. test_telegram_bot (Тесты Telegram-бота)
+    from tests import test_telegram_bot
+    for fn_name in [
+        'test_telegram_client_init_and_validation',
+        'test_bot_authorization_flow',
+        'test_bot_help_and_stats_commands',
+        'test_bot_search_account_and_receipt',
+        'test_bot_upload_pdf_receipt_flow'
+    ]:
+        try:
+            reset_db()
+            import pathlib
+            import inspect
+            sig = inspect.signature(getattr(test_telegram_bot, fn_name))
+            if 'tmp_path' in sig.parameters:
+                getattr(test_telegram_bot, fn_name)(pathlib.Path(test_dir))
+            else:
+                getattr(test_telegram_bot, fn_name)()
+            print(f"  [OK] test_telegram_bot.{fn_name}")
+            passed += 1
+        except Exception as e:
+            print(f"  [FAIL] test_telegram_bot.{fn_name}: {e}")
+            traceback.print_exc()
+            failed += 1
+
     shutil.rmtree(test_dir, ignore_errors=True)
 
     print("=" * 65)
