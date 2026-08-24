@@ -115,7 +115,7 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
     <span class="logo">Квитанции</span>
     <div class="live-sync-indicator" id="liveSyncStatus" title="Автоматический опрос базы данных каждые 3 секунды">
         <span class="pulse-dot"></span>
-        <span class="live-sync-text">Live: <b id="liveAccHeader" class="live-num live-val">—</b> счетов · <b id="liveRecHeader" class="live-num live-val">—</b> квитанций</span>
+        <span class="live-sync-text">Live: <b id="liveAccHeader" class="live-num live-val">—</b> счетов</span>
     </div>
     <span class="ws-indicator" id="wsIndicator" title="WebSocket статус соединения"><span class="ws-dot"></span><span id="wsLabel">WS Offline</span></span>
     {nav_html}

@@ -49,10 +49,6 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
             <div class="stat-num live-val" id="statTotalAccounts">—</div>
             <div class="stat-label">Абонентских счетов в базе</div>
         </div>
-        <div class="stat-box green">
-            <div class="stat-num live-val" id="statTotalReceipts">—</div>
-            <div class="stat-label">Загружено квитанций</div>
-        </div>
         <div class="stat-box">
             <div class="stat-num live-val" id="statPeriodsCount">—</div>
             <div class="stat-label">Расчетных периодов</div>
