@@ -25,6 +25,8 @@ def migrate_db():
                     account_number TEXT NOT NULL,
                     period TEXT NOT NULL,
                     pdf_file TEXT NOT NULL,
+                    file_hash TEXT,
+                    semantic_hash TEXT,
                     content_hash TEXT,
                     access_token TEXT,
                     address TEXT,
@@ -34,6 +36,8 @@ def migrate_db():
                 CREATE INDEX IF NOT EXISTS idx_receipts_account ON receipts(account_number);
                 CREATE INDEX IF NOT EXISTS idx_receipts_period ON receipts(period);
                 CREATE INDEX IF NOT EXISTS idx_receipts_address ON receipts(address);
+                CREATE INDEX IF NOT EXISTS idx_receipts_file_hash ON receipts(file_hash);
+                CREATE INDEX IF NOT EXISTS idx_receipts_semantic_hash ON receipts(semantic_hash);
 
                 CREATE TABLE IF NOT EXISTS app_sessions (
                     token TEXT PRIMARY KEY,
@@ -55,6 +59,12 @@ def migrate_db():
             if 'content_hash' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN content_hash TEXT')
                 con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_hash ON receipts(content_hash)')
+            if 'file_hash' not in cols:
+                con.execute('ALTER TABLE receipts ADD COLUMN file_hash TEXT')
+                con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_file_hash ON receipts(file_hash)')
+            if 'semantic_hash' not in cols:
+                con.execute('ALTER TABLE receipts ADD COLUMN semantic_hash TEXT')
+                con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_semantic_hash ON receipts(semantic_hash)')
             if 'access_token' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN access_token TEXT')
                 con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_token ON receipts(access_token)')

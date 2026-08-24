@@ -166,7 +166,7 @@ def main():
         # 2. Импорт PDF квитанций
         if args.receipts:
             known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {row[0] for row in con.execute('SELECT content_hash FROM receipts WHERE content_hash IS NOT NULL').fetchall()}
+            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
 
             pdf_files = []
             if os.path.isfile(args.receipts):
@@ -202,8 +202,8 @@ def main():
                 with write_transaction() as con_write:
                     con_write.executemany('''
                         INSERT OR IGNORE INTO receipts(
-                            account_number, period, pdf_file, content_hash, access_token, address
-                        ) VALUES (?, ?, ?, ?, ?, ?)
+                            account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', all_receipts)
 
             print(f"✅ Квитанций привязано к счетам: {total_added}")

@@ -154,9 +154,35 @@ class PDFProcessor:
 
         return documents, unattached_skipped
 
+    @staticmethod
+    def compute_file_hash(pdf_bytes: bytes) -> str:
+        """SHA-256 оригинальных байт PDF-файла (физический хеш документа)."""
+        return hashlib.sha256(pdf_bytes).hexdigest()
+
+    @staticmethod
+    def compute_semantic_hash(account: str, period: str, combined_text: str) -> str:
+        """
+        SHA-256 нормализованных значимых полей квитанции:
+        account_number + normalized period + normalized cleaned text.
+        Логический хеш для защиты от повторной загрузки той же квитанции.
+        """
+        normalized_acc = str(account).strip()
+        normalized_per = str(period).strip().lower()
+        normalized_text = " ".join(combined_text.split())
+        payload = f"{normalized_acc}|{normalized_per}|{normalized_text}"
+        return hashlib.sha256(payload.encode('utf-8')).hexdigest()
+
     @classmethod
-    def process_single_pdf(cls, pdf_path, original_filename, known_accounts, existing_hashes=None):
-        if fitz is None:
+    def process_single_pdf(cls, pdf_path: str, original_filename: str, known_accounts: set = None, existing_hashes: set = None):
+        """
+        Обрабатывает один PDF:
+        1. Распознаёт текст (и выполняет OCR при необходимости)
+        2. Группирует страницы по лицевому счёту и периоду
+        3. Разделяет file_hash (физический хеш байт) и semantic_hash (логический хеш данных)
+        4. Сохраняет квитанцию в шардированное хранилище receipts/{s1}/{s2}/{account}_{file_hash}_{semantic_hash}.pdf
+        5. Возвращает: (added, orphan, skipped, duplicates, details, receipts_to_insert)
+        """
+        if not fitz:
             return 0, 0, 1, 0, [f'📄 {original_filename}: ❌ PyMuPDF не установлен'], []
 
         try:
@@ -187,31 +213,48 @@ class PDFProcessor:
             page_range_str = f'Стр. {doc.pages[0]+1}' if len(doc.pages) == 1 else f'Стр. {doc.pages[0]+1}–{doc.pages[-1]+1} ({len(doc.pages)} стр.)'
 
             combined_text = "\n---PAGE---\n".join(doc.texts)
-            content_hash = hashlib.sha256(combined_text.encode('utf-8')).hexdigest()
 
-            if content_hash in existing_hashes:
+            # Выделяем бинарные байты страниц для физического хеша
+            new_pdf = fitz.open()
+            new_pdf.insert_pdf(pdf, from_page=doc.pages[0], to_page=doc.pages[-1])
+            extracted_pdf_bytes = new_pdf.tobytes()
+            new_pdf.close()
+
+            # 1. Физический хеш (SHA-256 бинарного содержимого PDF)
+            file_hash = cls.compute_file_hash(extracted_pdf_bytes)
+
+            # 2. Логический / семантический хеш (нормализованный счет + период + текст)
+            semantic_hash = cls.compute_semantic_hash(account, period, combined_text)
+            content_hash = semantic_hash
+
+            # Проверка дедупликации по обоим уровням
+            is_file_dup = file_hash in existing_hashes
+            is_semantic_dup = semantic_hash in existing_hashes
+
+            if is_file_dup or is_semantic_dup:
                 duplicates += 1
-                details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 дубликат, пропущен')
+                dup_type = "физический дубликат файла" if is_file_dup else "логический дубликат данных"
+                details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 {dup_type}, пропущен')
                 continue
 
+            existing_hashes.add(file_hash)
+            existing_hashes.add(semantic_hash)
             existing_hashes.add(content_hash)
 
-            # Двухуровневое шардирование: receipts/{s1}/{s2}/{account}_{hash}.pdf
+            # Двухуровневое шардирование: receipts/{s1}/{s2}/{account}_{file_hash[:12]}_{semantic_hash[:8]}.pdf
             s1, s2 = get_receipt_shard_parts(account)
             shard_dir = os.path.join(config.RECEIPTS_DIR, s1, s2)
             os.makedirs(shard_dir, exist_ok=True)
 
-            base_filename = f'{account}_{content_hash[:16]}.pdf'
+            base_filename = f'{account}_{file_hash[:12]}_{semantic_hash[:8]}.pdf'
             out_rel_path = f'{s1}/{s2}/{base_filename}'
             out_full_path = os.path.join(shard_dir, base_filename)
 
-            new_pdf = fitz.open()
-            new_pdf.insert_pdf(pdf, from_page=doc.pages[0], to_page=doc.pages[-1])
-            new_pdf.save(out_full_path)
-            new_pdf.close()
+            with open(out_full_path, 'wb') as f_out:
+                f_out.write(extracted_pdf_bytes)
 
             access_token = secrets.token_hex(16)
-            receipts_to_insert.append((account, period, out_rel_path, content_hash, access_token, address))
+            receipts_to_insert.append((account, period, out_rel_path, content_hash, file_hash, semantic_hash, access_token, address))
 
             if account in known_accounts:
                 added += 1
@@ -221,7 +264,6 @@ class PDFProcessor:
                 details.append(f'  {page_range_str}: счёт {account}, период «{period}» → ⚠ счёта нет в базе')
 
         pdf.close()
-        return added, orphan, skipped, duplicates, details, receipts_to_insert
         return added, orphan, skipped, duplicates, details, receipts_to_insert
 
 pdf_processor = PDFProcessor()

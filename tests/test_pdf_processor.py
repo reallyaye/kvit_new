@@ -48,11 +48,13 @@ def test_pdf_processor_extract_and_save(tmp_path):
     assert len(receipts) == 2
 
     # Проверка формата записей и двухуровневого шардирования
-    acc1, period1, out_file1, hash1, token1, addr1 = receipts[0]
+    acc1, period1, out_file1, hash1, file_hash1, sem_hash1, token1, addr1 = receipts[0]
     assert acc1 == "800146"
     assert period1 == "Январь 2026"
     assert out_file1.startswith("80/01/800146_")
     assert out_file1.endswith(".pdf")
+    assert len(file_hash1) == 64
+    assert len(sem_hash1) == 64
     assert len(token1) == 32
     assert os.path.isfile(os.path.join(RECEIPTS_DIR, out_file1))
 
@@ -67,7 +69,7 @@ def test_pdf_processor_address_extraction(tmp_path):
     )
     assert added == 1
     assert len(receipts) == 1
-    acc, per, path, h, tok, addr = receipts[0]
+    acc, per, path, h, f_h, s_h, tok, addr = receipts[0]
     assert acc == "800999"
     assert addr == "Нуринский район, с. Балыктыколь, ул. Балабиева, дом № 1А, к. 1"
 
@@ -291,6 +293,47 @@ def test_migrate_receipts_to_sharding(tmp_path):
     row = con.execute("SELECT pdf_file FROM receipts WHERE access_token = ?", (token,)).fetchone()
     assert row["pdf_file"] == "80/01/800199_flat_hash.pdf"
     con.close()
+
+def test_pdf_processor_file_vs_semantic_hash(tmp_path):
+    """
+    Проверяет различие между:
+    1. file_hash (бинарный SHA256 байтов PDF)
+    2. semantic_hash (логический SHA256 нормализованных полей квитанции)
+    """
+    pdf_path1 = str(tmp_path / "rec1.pdf")
+    pdf_path2 = str(tmp_path / "rec2.pdf")
+
+    # Две квитанции с одинаковыми смысловыми полями, но разным оформлением/шрифтом
+    text1 = "Жеке шот / Лицевой счёт 800146\nСчёт-извещение за Август 2026 г.\nСумма: 4500 тг\nАдрес: ул. Мира 5"
+    text2 = "Жеке шот / Лицевой счёт 800146\nСчёт-извещение за Август 2026 г.\nСумма: 4500 тг\nАдрес: ул. Мира 5\n\n"
+
+    create_sample_pdf(pdf_path1, [text1])
+    create_sample_pdf(pdf_path2, [text2])
+
+    sem1 = pdf_processor.compute_semantic_hash("800146", "Август 2026", text1)
+    sem2 = pdf_processor.compute_semantic_hash("800146", "Август 2026", text2)
+    assert sem1 == sem2  # Нормализованные данные идентичны!
+
+    with open(pdf_path1, 'rb') as f1, open(pdf_path2, 'rb') as f2:
+        f_hash1 = pdf_processor.compute_file_hash(f1.read())
+        f_hash2 = pdf_processor.compute_file_hash(f2.read())
+
+    assert len(f_hash1) == 64
+    assert len(f_hash2) == 64
+
+    # Дедупликация: загружаем первую
+    known = {"800146"}
+    hashes = set()
+    added1, _, _, dups1, _, recs1 = pdf_processor.process_single_pdf(pdf_path1, "rec1.pdf", known, hashes)
+    assert added1 == 1
+    assert dups1 == 0
+
+    # Загружаем вторую: семантический хеш совпадает -> определяется как логический дубликат
+    added2, _, _, dups2, details2, recs2 = pdf_processor.process_single_pdf(pdf_path2, "rec2.pdf", known, hashes)
+    assert added2 == 0
+    assert dups2 == 1
+    assert any("логический дубликат" in d for d in details2)
+
 
 
 

@@ -558,7 +558,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         con = get_db()
         try:
             known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {row[0] for row in con.execute('SELECT content_hash FROM receipts WHERE content_hash IS NOT NULL').fetchall()}
+            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
             total_added = 0
             total_skipped = 0
             total_orphan = 0
@@ -579,7 +579,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
             if all_receipts:
                 with write_transaction() as con_write:
-                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)', all_receipts)
+                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address) VALUES (?,?,?,?,?,?,?,?)', all_receipts)
                 ws_manager.broadcast('upload_batch_completed', {
                     'files_count': len(pdf_files),
                     'added': total_added,
@@ -709,7 +709,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         con = get_db()
         try:
             known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {row[0] for row in con.execute('SELECT content_hash FROM receipts WHERE content_hash IS NOT NULL').fetchall()}
+            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
             total_added = 0
             total_skipped = 0
             total_orphan = 0
@@ -731,7 +731,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
             if all_receipts:
                 with write_transaction() as con_write:
-                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)', all_receipts)
+                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address) VALUES (?,?,?,?,?,?,?,?)', all_receipts)
                 ws_manager.broadcast('folder_import_completed', {
                     'files_count': len(pdf_paths),
                     'added': total_added,
@@ -774,7 +774,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         con = get_db()
         try:
             known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {row[0] for row in con.execute('SELECT content_hash FROM receipts WHERE content_hash IS NOT NULL').fetchall()}
+            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
 
             for file_name, tmp_path in pdf_files:
                 added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(tmp_path, file_name, known_accounts, existing_hashes)
@@ -789,7 +789,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
             if all_receipts:
                 with write_transaction() as con_write:
-                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)', all_receipts)
+                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address) VALUES (?,?,?,?,?,?,?,?)', all_receipts)
         finally:
             con.close()
             shutil.rmtree(tmp_dir, ignore_errors=True)
