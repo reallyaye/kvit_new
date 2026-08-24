@@ -334,6 +334,67 @@ def test_pdf_processor_file_vs_semantic_hash(tmp_path):
     assert dups2 == 1
     assert any("логический дубликат" in d for d in details2)
 
+def test_atomic_importer_2phase_commit_and_rollback(tmp_path):
+    """
+    Тестирует двухфазный атомарный импортер:
+    1. Успешная фиксация: файлы создаются, запись в БД имеет статус 'READY'.
+    2. Сбой и откат: при исключении транзакции БД все временные и созданные файлы удаляются (0 висячих файлов).
+    """
+    from services.pdf.atomic_importer import AtomicReceiptImporter, StagedReceipt, ReceiptStatus
+    from database import get_db
+    from config import RECEIPTS_DIR
+    import unittest.mock as mock
+
+    account = "800777"
+    period = "Июль 2026"
+    test_pdf_bytes = b"%PDF-1.4 test atomic bytes content"
+
+    staged = AtomicReceiptImporter.stage_receipt(
+        account=account,
+        period=period,
+        pdf_bytes=test_pdf_bytes,
+        address="ул. Абая 10",
+        file_hash="filehash777",
+        semantic_hash="semhash777"
+    )
+
+    # 1. Успешный коммит
+    count, paths = AtomicReceiptImporter.commit_staged_batch([staged])
+    assert count == 1
+    assert os.path.isfile(staged.target_full_path)
+
+    con = get_db()
+    row = con.execute("SELECT status, account_number, period FROM receipts WHERE account_number = ?", (account,)).fetchone()
+    assert row is not None
+    assert row["status"] == ReceiptStatus.READY
+    con.close()
+
+    # 2. Имитация сбоя при записи в БД (Compensating Rollback)
+    fail_account = "800888"
+    fail_staged = AtomicReceiptImporter.stage_receipt(
+        account=fail_account,
+        period="Июль 2026",
+        pdf_bytes=b"%PDF-1.4 fail content",
+        address="ул. Сбойная 99",
+        file_hash="failfilehash888",
+        semantic_hash="failsemhash888"
+    )
+
+    with mock.patch("database.connection.sqlite3.connect", side_effect=Exception("Database lock/disk crash simulation")):
+        try:
+            AtomicReceiptImporter.commit_staged_batch([fail_staged])
+            assert False, "Должно было произойти исключение"
+        except Exception:
+            pass
+
+    # Проверяем, что файл НЕ остался на диске (0 висячих файлов)
+    assert not os.path.isfile(fail_staged.target_full_path)
+    shard_dir = os.path.dirname(fail_staged.target_full_path)
+    if os.path.isdir(shard_dir):
+        temp_files = [f for f in os.listdir(shard_dir) if f.startswith(".staged_")]
+        assert len(temp_files) == 0, f"Временные файлы не должны оставаться: {temp_files}"
+
+
 
 
 
