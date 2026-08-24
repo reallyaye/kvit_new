@@ -1,5 +1,7 @@
 import html
 
+from templates.icons import icon
+
 def render_reconcile_page(data: dict):
     filt = data['filt']
     period_filter = data['period_filter']
@@ -68,7 +70,7 @@ def render_reconcile_page(data: dict):
         </div>
         <div>
             <button type="button" class="btn btn-outline" id="btnSyncFs" onclick="syncWithFilesystem()" style="padding:7px 14px;font-size:13px;display:flex;align-items:center;gap:6px">
-                🔄 Синхронизировать с диском
+                {icon('refresh', 14)} Синхронизировать с диском
             </button>
         </div>
     </div>'''

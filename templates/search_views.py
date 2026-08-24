@@ -1,4 +1,6 @@
+# -*- coding: utf-8 -*-
 import html
+from templates.icons import icon
 
 def render_search_form(periods, active_tab='account', default_account='', default_address='', default_period=''):
     period_options = '<option value="">Все периоды</option>'
@@ -18,8 +20,8 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         <p class="subtitle">Найдите квитанцию по номеру лицевого счёта или по адресу объекта.</p>
 
         <div class="mode-tabs search-tabs">
-            <button type="button" class="mode-tab{tab_acc_cls}" id="tabBtnAccount" onclick="switchSearchTab('account')">🔢 По лицевому счёту</button>
-            <button type="button" class="mode-tab{tab_addr_cls}" id="tabBtnAddress" onclick="switchSearchTab('address')">📍 По адресу</button>
+            <button type="button" class="mode-tab{tab_acc_cls}" id="tabBtnAccount" onclick="switchSearchTab('account')">{icon('hash', 15)} По лицевому счёту</button>
+            <button type="button" class="mode-tab{tab_addr_cls}" id="tabBtnAddress" onclick="switchSearchTab('address')">{icon('map_pin', 15)} По адресу</button>
         </div>
 
         <form id="searchAccountForm" action="/search" method="get" style="{form_acc_style}">
@@ -29,18 +31,18 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
             <select name="period">
                 {period_options}
             </select>
-            <button class="btn">Найти квитанцию</button>
+            <button class="btn">{icon('search', 15)} Найти квитанцию</button>
         </form>
 
         <form id="searchAddressForm" action="/search" method="get" style="{form_addr_style}">
             <label>Точный адрес объекта</label>
             <input name="address" type="search" placeholder="Например: станц. Шокай, ул. Автобаза, дом 1" value="{html.escape(default_address)}" required>
-            <p style="color:#64748b;font-size:12px;margin:-4px 0 12px">🔒 Укажите улицу, номер дома и квартиру. В целях безопасности поиск открывает квитанцию только при указании конкретного адреса.</p>
+            <p style="color:#64748b;font-size:12px;margin:4px 0 12px;display:flex;align-items:center;gap:5px">{icon('shield', 13)} Укажите улицу, номер дома и квартиру. В целях безопасности поиск открывает квитанцию только при указании конкретного адреса.</p>
             <label>Период</label>
             <select name="period">
                 {period_options}
             </select>
-            <button class="btn">Найти по адресу</button>
+            <button class="btn">{icon('search', 15)} Найти по адресу</button>
         </form>
     </div>
 
@@ -74,7 +76,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
 def render_search_result(account: str, period_filter: str, account_row, receipts):
     if not account_row:
         return f'''<div class="card">
-            <h1>❌ Лицевой счёт не найден</h1>
+            <h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{icon('x_circle', 22, '#dc2626')} Лицевой счёт не найден</span></h1>
             <div class="err">
                 <b>Лицевой счёт <span style="font-size:18px">{html.escape(account)}</span> отсутствует в базе данных.</b><br><br>
                 Возможные причины:<br>
@@ -83,8 +85,8 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
             </div>
             <p style="color:#64748b;font-size:14px">Проверьте правильность введённого номера или попробуйте найти квитанцию по адресу.</p>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <a class="btn-outline btn" href="/">← Поиск по номеру</a>
-                <a class="btn-outline btn" href="/?tab=address" style="border-color:#64748b;color:#64748b">📍 Поиск по адресу</a>
+                <a class="btn-outline btn" href="/">{icon('arrow_left', 14)} Поиск по номеру</a>
+                <a class="btn-outline btn" href="/?tab=address" style="border-color:#64748b;color:#64748b">{icon('map_pin', 14)} Поиск по адресу</a>
             </div>
         </div>'''
 
@@ -94,9 +96,9 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
     if not receipts:
         if period_filter:
             return f'''<div class="card">
-                <h1>⚠️ Квитанция за период не найдена</h1>
+                <h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{icon('alert_triangle', 22, '#d97706')} Квитанция за период не найдена</span></h1>
                 <div class="ok" style="background:#f0fdf4;border-color:#bbf7d0">
-                    <b>✅ Лицевой счёт найден в базе</b><br><br>
+                    <b style="color:#166534;display:inline-flex;align-items:center;gap:5px">{icon('check_circle', 15, '#166534')} Лицевой счёт найден в базе</b><br><br>
                     <b>Лицевой счёт:</b> {acct}<br>
                     <b>Адрес:</b> {addr}
                 </div>
@@ -105,15 +107,15 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
                     Лицевой счёт зарегистрирован в системе, но квитанция за указанный период ещё не загружена.
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-                    <a class="btn-outline btn" href="/search?account={acct}">📋 Показать все периоды</a>
-                    <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">← Новый поиск</a>
+                    <a class="btn-outline btn" href="/search?account={acct}">{icon('list', 14)} Показать все периоды</a>
+                    <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">{icon('arrow_left', 14)} Новый поиск</a>
                 </div>
             </div>'''
         else:
             return f'''<div class="card">
-                <h1>⚠️ Квитанции не загружены</h1>
+                <h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{icon('alert_triangle', 22, '#d97706')} Квитанции не загружены</span></h1>
                 <div class="ok" style="background:#f0fdf4;border-color:#bbf7d0">
-                    <b>✅ Лицевой счёт найден в базе</b><br><br>
+                    <b style="color:#166534;display:inline-flex;align-items:center;gap:5px">{icon('check_circle', 15, '#166534')} Лицевой счёт найден в базе</b><br><br>
                     <b>Лицевой счёт:</b> {acct}<br>
                     <b>Адрес:</b> {addr}
                 </div>
@@ -121,7 +123,7 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
                     <b>Для данного лицевого счёта квитанции ещё не загружены.</b><br><br>
                     Лицевой счёт зарегистрирован в системе, но ни одной квитанции пока не было добавлено.
                 </div>
-                <a class="btn-outline btn" href="/">← Новый поиск</a>
+                <a class="btn-outline btn" href="/">{icon('arrow_left', 14)} Новый поиск</a>
             </div>'''
 
     if len(receipts) == 1:
@@ -129,18 +131,18 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
         period_esc = html.escape(r['period'])
         token = r['access_token']
         return f'''<div class="card">
-            <h1>Квитанция найдена</h1>
+            <h1><span style="display:inline-flex;align-items:center;gap:6px">{icon('check_circle', 22, '#16a34a')} Квитанция найдена</span></h1>
             <div class="ok">
                 <b>Лицевой счёт:</b> {acct}<br>
                 <b>Период:</b> {period_esc}<br>
                 <b>Адрес:</b> {addr}
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
-                <a class="btn" href="/receipt?token={token}" target="_blank">Открыть PDF</a>
-                <a class="btn btn-green" href="/download?token={token}">Скачать PDF</a>
+                <a class="btn" href="/receipt?token={token}" target="_blank">{icon('file_text', 15)} Открыть PDF</a>
+                <a class="btn btn-green" href="/download?token={token}">{icon('upload', 15)} Скачать PDF</a>
             </div>
             <br>
-            <a class="back-link" href="/">← Новый поиск</a>
+            <a class="back-link" href="/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
         </div>'''
     else:
         periods_html = ''
@@ -148,7 +150,7 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
             period_esc = html.escape(r['period'])
             token = r['access_token']
             periods_html += f'''<div class="period-card">
-                <span class="period-name">📄 {period_esc}</span>
+                <span class="period-name" style="display:inline-flex;align-items:center;gap:6px">{icon('file_text', 16, '#3b82f6')} {period_esc}</span>
                 <div class="period-actions">
                     <a class="btn btn-sm" href="/receipt?token={token}" target="_blank">Открыть</a>
                     <a class="btn btn-green btn-sm" href="/download?token={token}">Скачать</a>
@@ -156,7 +158,7 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
             </div>'''
 
         return f'''<div class="card">
-            <h1>Квитанции найдены</h1>
+            <h1><span style="display:inline-flex;align-items:center;gap:6px">{icon('check_circle', 22, '#16a34a')} Квитанции найдены</span></h1>
             <div class="ok">
                 <b>Лицевой счёт:</b> {acct}<br>
                 <b>Адрес:</b> {addr}<br>
@@ -165,7 +167,7 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
             <h2 style="font-size:17px;margin:24px 0 12px;color:#334155">Выберите период:</h2>
             {periods_html}
             <br>
-            <a class="back-link" href="/">← Новый поиск</a>
+            <a class="back-link" href="/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
         </div>'''
 
 def render_address_clarification_prompt(address_query: str, period_filter: str, message: str, periods=None):
@@ -178,10 +180,10 @@ def render_address_clarification_prompt(address_query: str, period_filter: str, 
             period_options += f'<option value="{html.escape(p_val)}"{selected}>{html.escape(p_val)}</option>'
 
     return f'''<div class="card">
-        <h1>📍 Требуется уточнить адрес</h1>
+        <h1><span style="display:inline-flex;align-items:center;gap:6px">{icon('map_pin', 22, '#3b82f6')} Требуется уточнить адрес</span></h1>
         <div class="warn">
             <b>{html.escape(message)}</b><br><br>
-            🔒 <b>Конфиденциальность:</b> список чужих адресов и лицевых счетов соседей не отображается. Для получения квитанции укажите конкретный номер дома (и квартиру при наличии).
+            <span style="display:inline-flex;align-items:center;gap:5px">{icon('shield', 14)} <b>Конфиденциальность:</b></span> список чужих адресов и лицевых счетов соседей не отображается. Для получения квитанции укажите конкретный номер дома (и квартиру при наличии).
         </div>
 
         <form action="/search" method="get" style="margin-top:16px">
@@ -191,11 +193,11 @@ def render_address_clarification_prompt(address_query: str, period_filter: str, 
             <select name="period">
                 {period_options}
             </select>
-            <button class="btn">Найти квитанцию</button>
+            <button class="btn">{icon('search', 15)} Найти квитанцию</button>
         </form>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">🔢 Поиск по номеру счёта</a>
+            <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по номеру счёта</a>
         </div>
     </div>'''
 
@@ -209,7 +211,7 @@ def render_address_not_found(address_query: str, period_filter: str, message: st
             period_options += f'<option value="{html.escape(p_val)}"{selected}>{html.escape(p_val)}</option>'
 
     return f'''<div class="card">
-        <h1>❌ Квитанция не найдена</h1>
+        <h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{icon('x_circle', 22, '#dc2626')} Квитанция не найдена</span></h1>
         <div class="err">
             <b>{html.escape(message)}</b><br><br>
             Рекомендации:<br>
@@ -225,11 +227,11 @@ def render_address_not_found(address_query: str, period_filter: str, message: st
             <select name="period">
                 {period_options}
             </select>
-            <button class="btn">Искать снова</button>
+            <button class="btn">{icon('search', 15)} Искать снова</button>
         </form>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">🔢 Поиск по лицевому счёту</a>
+            <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по лицевому счёту</a>
         </div>
     </div>'''
 

@@ -1,20 +1,22 @@
+from templates.icons import icon
+
 def layout(body, active='search', is_admin=False):
     nav_items = [
-        ('search',  '/',          'Поиск квитанции', False),
-        ('upload',  '/upload',    'Загрузка PDF', True),
-        ('reconcile', '/reconcile', 'Сверка', True),
+        ('search',  '/',          'Поиск квитанции', False, 'search'),
+        ('upload',  '/upload',    'Загрузка PDF', True, 'upload'),
+        ('reconcile', '/reconcile', 'Сверка', True, 'reconcile'),
     ]
     nav_html = ''
-    for key, href, label, protected in nav_items:
+    for key, href, label, protected, icon_name in nav_items:
         cls = ' active' if key == active else ''
-        icon = '🔒 ' if protected and not is_admin else ''
-        nav_html += f'<a class="nav-link{cls}" href="{href}">{icon}{label}</a>'
+        sec_icon = f"{icon('lock', 13)} " if protected and not is_admin else f"{icon(icon_name, 15)} "
+        nav_html += f'<a class="nav-link{cls}" href="{href}">{sec_icon}{label}</a>'
 
     # Кнопка входа/выхода
     if is_admin:
-        nav_html += '<a class="nav-link nav-auth" href="/logout">🚪 Выход</a>'
+        nav_html += f'<a class="nav-link nav-auth" href="/logout">{icon("logout", 15)} Выход</a>'
     else:
-        nav_html += '<a class="nav-link nav-auth" href="/login">🔑 Вход</a>'
+        nav_html += f'<a class="nav-link nav-auth" href="/login">{icon("login", 15)} Вход</a>'
 
     return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -24,7 +26,7 @@ def layout(body, active='search', is_admin=False):
 body{{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e}}
 .topbar{{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:0 24px;display:flex;align-items:center;gap:32px;height:56px;box-shadow:0 2px 8px #00000030;flex-wrap:wrap}}
 .topbar .logo{{color:#e2e8f0;font-weight:700;font-size:18px;white-space:nowrap}}
-.nav-link{{color:#94a3b8;text-decoration:none;font-size:15px;padding:16px 4px;border-bottom:3px solid transparent;transition:.2s}}
+.nav-link{{color:#94a3b8;text-decoration:none;font-size:15px;padding:16px 4px;border-bottom:3px solid transparent;transition:.2s;display:inline-flex;align-items:center;gap:6px}}
 .nav-link:hover{{color:#e2e8f0}}
 .nav-link.active{{color:#fff;border-bottom-color:#3b82f6}}
 .nav-auth{{margin-left:auto}}

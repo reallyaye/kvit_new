@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+from templates.icons import icon
+
 def render_upload_form(message=None):
     msg_html = message if message else ''
 
@@ -7,14 +10,14 @@ def render_upload_form(message=None):
         {msg_html}
 
         <div class="mode-tabs">
-            <button type="button" class="mode-tab active" id="tabBrowserBtn" onclick="switchTab('browser')">📁 Загрузка через браузер</button>
-            <button type="button" class="mode-tab" id="tabLocalBtn" onclick="switchTab('local')">💻 Импорт из папки на диске</button>
+            <button type="button" class="mode-tab active" id="tabBrowserBtn" onclick="switchTab('browser')">{icon('upload', 15)} Загрузка через браузер</button>
+            <button type="button" class="mode-tab" id="tabLocalBtn" onclick="switchTab('local')">{icon('hard_drive', 15)} Импорт из папки на диске</button>
         </div>
 
         <!-- Вкладка 1: Загрузка файлов/папки через браузер -->
         <div id="tabBrowser">
             <div class="upload-zone" id="dropzone">
-                <div class="icon">📁</div>
+                <div class="icon" style="color:#3b82f6;display:flex;justify-content:center;margin-bottom:12px">{icon('upload_cloud_large', 54, '#3b82f6')}</div>
                 <div id="dropLabel"><b>Выберите PDF-файлы или папку</b> или перетащите сюда</div>
                 <div style="margin-top:8px;font-size:13px;color:#94a3b8">Поддерживаются как отдельные PDF, так и целые папки (включая вложенные)</div>
                 <input type="file" id="fileInput" accept=".pdf" multiple style="display:none">
@@ -22,8 +25,8 @@ def render_upload_form(message=None):
             </div>
 
             <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-                <button type="button" class="btn btn-outline" id="btnChooseFiles" style="flex:1;text-align:center">📄 Выбрать файлы</button>
-                <button type="button" class="btn btn-outline" id="btnChooseFolder" style="flex:1;text-align:center">📁 Выбрать папку</button>
+                <button type="button" class="btn btn-outline" id="btnChooseFiles" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('files', 15)} Выбрать файлы</button>
+                <button type="button" class="btn btn-outline" id="btnChooseFolder" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('folder', 15)} Выбрать папку</button>
             </div>
 
             <div id="progressArea" style="display:none;margin-top:20px">
@@ -37,8 +40,8 @@ def render_upload_form(message=None):
 
             <div id="resultArea" style="margin-top:20px"></div>
 
-            <button type="button" class="btn btn-green" id="btnStartUpload" style="margin-top:16px;width:100%;text-align:center" disabled>
-                Загрузить и обработать
+            <button type="button" class="btn btn-green" id="btnStartUpload" style="margin-top:16px;width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px" disabled>
+                {icon('upload', 16)} Загрузить и обработать
             </button>
         </div>
 
@@ -48,7 +51,7 @@ def render_upload_form(message=None):
                 <label>Полный путь к папке с PDF на компьютере</label>
                 <input type="text" name="folder_path" placeholder="Например, C:\\\\Users\\\\zhunis\\\\Desktop\\\\квитанции" required>
                 <p style="font-size:13px;color:#64748b;margin:6px 0 16px">Сервер напрямую и быстро прочитает все .pdf файлы из указанной папки без ожидания загрузки по сети.</p>
-                <button class="btn btn-green" style="width:100%;text-align:center">Импортировать из папки</button>
+                <button class="btn btn-green" style="width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('hard_drive', 16)} Импортировать из папки</button>
             </form>
         </div>
     </div>
@@ -100,7 +103,7 @@ def render_upload_form(message=None):
         }} else {{
             dropLabel.innerHTML = '<b>Выбрано PDF-файлов: ' + selectedPdfFiles.length + '</b>';
             btnStartUpload.disabled = false;
-            btnStartUpload.textContent = 'Загрузить и обработать (' + selectedPdfFiles.length + ' файлов)';
+            btnStartUpload.innerHTML = `{icon('upload', 16)} Загрузить и обработать (` + selectedPdfFiles.length + ' файлов)';
         }}
     }}
 
@@ -199,7 +202,7 @@ def render_upload_form(message=None):
                 }});
 
                 if (!res.ok) {{
-                    log('❌ Ошибка при отправке пакета файлов: ' + res.statusText);
+                    log('[Ошибка] При отправке пакета файлов: ' + res.statusText);
                     totalSkipped += batch.length;
                 }} else {{
                     const json = await res.json();
@@ -213,7 +216,7 @@ def render_upload_form(message=None):
                     }}
                 }}
             }} catch (err) {{
-                log('❌ Ошибка соединения: ' + err.message);
+                log('[Ошибка] Соединения: ' + err.message);
                 totalSkipped += batch.length;
             }}
 
@@ -223,7 +226,7 @@ def render_upload_form(message=None):
             progressText.textContent = percent + '% (' + Math.min(processed, total) + '/' + total + ')';
         }}
 
-        statusLabel.textContent = '✅ Загрузка и обработка завершена!';
+        statusLabel.innerHTML = '<span style="color:#16a34a;display:inline-flex;align-items:center;gap:6px">{icon("check_circle", 16, "#16a34a")} Загрузка и обработка завершена!</span>';
         btnStartUpload.disabled = false;
         btnChooseFiles.disabled = false;
         btnChooseFolder.disabled = false;
