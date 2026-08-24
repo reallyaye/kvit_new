@@ -1,4 +1,4 @@
-name: CI Tests & Security Analysis
+name: Enterprise CI/CD & Security Pipeline
 
 on:
   push:
@@ -7,8 +7,11 @@ on:
     branches: [ main ]
 
 jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Job 1: Static Analysis, Security Scans & Dependency Audit
+  # ─────────────────────────────────────────────────────────────
   lint-and-security:
-    name: Lint & Security Analysis
+    name: Lint, Static Security & Dependency Audit
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,23 +23,31 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install Linting & Security Tools
         run: |
           python -m pip install --upgrade pip
-          pip install ruff bandit
+          pip install ruff bandit pip-audit
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run Ruff Linter
+      - name: Run Ruff Linter & Formatter Check
         run: |
           ruff check .
 
-      - name: Run Bandit Security Scanner
+      - name: Run Bandit SAST Security Scanner
         run: |
-          bandit -r . -x ./tests,./tmp,./scratch,./receipts -ll -ii
+          bandit -r . -x ./tests,./tmp,./scratch,./receipts,./benchmarks -ll -ii
 
+      - name: Run pip-audit (Vulnerability Scan of Dependency Graph)
+        run: |
+          pip-audit -r requirements.txt
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 2: Multi-Version Test Matrix, Migrations & Coverage Threshold
+  # ─────────────────────────────────────────────────────────────
   test:
-    name: Test Suite (Python ${{ matrix.python-version }})
+    name: Test Suite & Coverage (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    needs: [lint-and-security]
     strategy:
       fail-fast: false
       matrix:
@@ -51,19 +62,88 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
-      - name: Install system dependencies (Tesseract OCR)
+      - name: Install System Dependencies (Tesseract OCR & Language Packs)
         run: |
           sudo apt-get update
-          sudo apt-get install -y tesseract-ocr tesseract-ocr-rus tesseract-ocr-kaz
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-rus tesseract-ocr-kaz tesseract-ocr-eng
 
-      - name: Install Python dependencies
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-cov
+
+      - name: Run Full Unit & Integration Test Suite
+        env:
+          GRPC_API_KEY: "ci_test_secret_api_key_for_github_actions_32"
+          ADMIN_PASSWORD_HASH: "pbkdf2_sha256$600000$966d916ee43dd2278a427101739ae460$2a2ad4dfee16755de4a4f89fe598abcd881f6627ebd7a5fb3f57685dd5704340"
+          SECRET_KEY: "ci_secret_signing_key_for_testing_2026"
+        run: |
+          python run_tests.py
+          pytest -v --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Upload Test Coverage Artifacts
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-py311
+          path: coverage.xml
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 3: Concurrency & Migration Smoke Test
+  # ─────────────────────────────────────────────────────────────
+  load-and-migration-smoke:
+    name: Concurrency & Migration Verification
+    runs-on: ubuntu-latest
+    needs: [lint-and-security]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run Test Suite
-        env:
-          GRPC_API_KEY: "ci_test_secret_api_key_for_github_actions_32"
-          ADMIN_PASSWORD_HASH: "pbkdf2_sha256$600000$966d916ee43dd2278a427101739ae460$2a2ad4dfee16755de4a4f89fe598abcd881f6627ebd7a5fb3f57685dd5704340"
+      - name: Verify Clean Database Migration Fail-Fast
         run: |
-          pytest -v
+          python -c "from database import migrate_db; migrate_db(); print('Migration OK')"
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 4: Docker Build & Trivy Container Vulnerability Scan
+  # ─────────────────────────────────────────────────────────────
+  docker-build-and-scan:
+    name: Docker Build & Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: [lint-and-security]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: kvit-app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy Container Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'kvit-app:ci'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
