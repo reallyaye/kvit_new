@@ -44,20 +44,6 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         </form>
     </div>
 
-    <div class="stats" style="margin-top:20px">
-        <div class="stat-box blue">
-            <div class="stat-num live-val" id="statTotalAccounts">—</div>
-            <div class="stat-label">Абонентских счетов в базе</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-num live-val" id="statPeriodsCount">—</div>
-            <div class="stat-label">Расчетных периодов</div>
-        </div>
-        <div class="stat-box" style="border-color:#3b82f640">
-            <div class="stat-num live-val" id="statCoveragePct" style="color:#2563eb">—</div>
-            <div class="stat-label">Покрытие квитанциями</div>
-        </div>
-    </div>
 
     <script>
     function switchSearchTab(tab) {{
