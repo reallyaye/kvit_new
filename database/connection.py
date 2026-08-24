@@ -9,8 +9,23 @@ from logger import logger
 # Глобальный мьютекс для строгой сериализации параллельных операций записи в SQLite
 _DB_WRITE_LOCK = threading.Lock()
 
+def is_postgres_configured() -> bool:
+    """Проверяет, настроена ли работа через PostgreSQL."""
+    db_url = getattr(config, 'DATABASE_URL', '') or ''
+    return db_url.startswith(('postgresql://', 'postgres://'))
+
 def get_db():
-    """Создаёт и возвращает оптимизированное соединение с SQLite (WAL, busy timeout, mmap, кэш страниц)."""
+    """
+    Создаёт и возвращает соединение с базой данных:
+    - PostgreSQL: соединение из пула ThreadedConnectionPool с адаптером строк и плейсхолдеров
+    - SQLite: оптимизированное соединение (WAL, busy_timeout=60s, mmap_size=256MB, кэш 64MB)
+    """
+    if is_postgres_configured():
+        from database.postgres_backend import get_postgres_db, init_postgres_pool, _PG_POOL
+        if _PG_POOL is None:
+            init_postgres_pool(config.DATABASE_URL)
+        return get_postgres_db()
+
     con = sqlite3.connect(config.DB, timeout=60.0, check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute('PRAGMA journal_mode = WAL;')
@@ -25,11 +40,15 @@ def get_db():
 def write_transaction(max_retries: int = 10, base_delay: float = 0.05):
     """
     Потокобезопасный контекстный менеджер для выполнения транзакций записи:
-    - Сериализует запись через threading.Lock, исключая взаимные блокировки между потоками приложения;
-    - Использует BEGIN IMMEDIATE для мгновенной фиксации монопольного намерения записи;
-    - Реализует экспоненциальный jitter-backoff при межпроцессных коллизиях блокировок;
-    - Гарантирует авто-rollback при ошибках и корректное закрытие сокета БД.
+    - PostgreSQL: полноценные параллельные транзакции MVCC с row-level блокировками без bottleneck
+    - SQLite: строгая сериализация через мьютекс и BEGIN IMMEDIATE с jitter-backoff
     """
+    if is_postgres_configured():
+        from database.postgres_backend import postgres_write_transaction
+        with postgres_write_transaction() as con:
+            yield con
+        return
+
     attempt = 0
     while True:
         try:

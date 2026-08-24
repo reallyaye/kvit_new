@@ -390,6 +390,34 @@ def test_database_migration_fail_fast():
         except DatabaseMigrationError as e:
             assert "Database migration failed" in str(e)
 
+def test_postgres_backend_wrapper_and_dialect():
+    """Тестирует PostgresRowWrapper, PostgresCursorWrapper и трансляцию диалекта SQL."""
+    from database.postgres_backend import PostgresRowWrapper, PostgresCursorWrapper
+    import unittest.mock as mock
+
+    # 1. Тест RowWrapper: доступ по ключу, индексу, .get(), итерация
+    data = {"account_number": "800111", "period": "Август 2026", "address": "ул. Мира 5"}
+    cols = ["account_number", "period", "address"]
+    row = PostgresRowWrapper(data, cols)
+
+    assert row["account_number"] == "800111"
+    assert row[0] == "800111"
+    assert row[1] == "Август 2026"
+    assert row.get("address") == "ул. Мира 5"
+    assert row.get("non_existent", "default") == "default"
+    assert list(row) == ["800111", "Август 2026", "ул. Мира 5"]
+    assert row.keys() == cols
+
+    # 2. Тест CursorWrapper: трансляция плейсхолдеров '?' -> '%s'
+    mock_raw_cur = mock.MagicMock()
+    cur = PostgresCursorWrapper(mock_raw_cur)
+    cur.execute("SELECT * FROM receipts WHERE account_number = ? AND period = ?", ("800111", "2026"))
+    mock_raw_cur.execute.assert_called_once_with(
+        "SELECT * FROM receipts WHERE account_number = %s AND period = %s",
+        ("800111", "2026")
+    )
+
+
 
 
 
