@@ -152,6 +152,14 @@ RATE_LIMIT_GRPC_RECONCILE = int(os.environ.get('RATE_LIMIT_GRPC_RECONCILE', '30'
 THROTTLE_MAX_CONCURRENT = int(os.environ.get('THROTTLE_MAX_CONCURRENT', '5')) # Макс. 5 одновременных запросов с одного IP
 THROTTLE_BURST_RPS = int(os.environ.get('THROTTLE_BURST_RPS', '10'))          # Макс. 10 запросов в секунду с одного IP (всплеск)
 
+# ────────────────────── Лимиты загрузки и PDF (DoS Protection) ──────────────────────
+MAX_UPLOAD_BYTES = int(os.environ.get('MAX_UPLOAD_BYTES', 100 * 1024 * 1024))  # 100 MB максимум на весь multipart запрос
+MAX_FILES_PER_REQUEST = int(os.environ.get('MAX_FILES_PER_REQUEST', '500'))   # Максимум 500 файлов в одной пачке
+MAX_PDF_PAGES = int(os.environ.get('MAX_PDF_PAGES', '2000'))                  # Максимум 2000 страниц в одном PDF (PDF Bomb protection)
+MAX_PDF_OUTPUT_SIZE = int(os.environ.get('MAX_PDF_OUTPUT_SIZE', 25 * 1024 * 1024)) # 25 MB максимум на одну сохраненную квитанцию
+MAX_OCR_TIME = float(os.environ.get('MAX_OCR_TIME', '30.0'))                 # 30 сек таймаут OCR на одну страницу/документ
+
+
 # ────────────────────── Безопасность импорта из папки ──────────────────────
 # Каталоги, из которых разрешён импорт (по умолчанию: корень приложения)
 ALLOWED_IMPORT_DIRS_RAW = os.environ.get('ALLOWED_IMPORT_DIRS', BASE)

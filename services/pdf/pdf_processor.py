@@ -191,6 +191,12 @@ class PDFProcessor:
         except Exception:
             return 0, 0, 1, 0, [f'📄 {original_filename}: ❌ не удалось открыть как PDF'], []
 
+        # Защита от PDF-бомб и исчерпания памяти
+        total_pages = len(pdf)
+        if total_pages > config.MAX_PDF_PAGES:
+            pdf.close()
+            return 0, 0, 1, 0, [f'📄 {original_filename}: ❌ Превышен лимит страниц ({total_pages} > {config.MAX_PDF_PAGES})'], []
+
         if existing_hashes is None:
             existing_hashes = set()
 
@@ -220,6 +226,12 @@ class PDFProcessor:
             new_pdf.insert_pdf(pdf, from_page=doc.pages[0], to_page=doc.pages[-1])
             extracted_pdf_bytes = new_pdf.tobytes()
             new_pdf.close()
+
+            # Защита от гигантского размера одной квитанции
+            if len(extracted_pdf_bytes) > config.MAX_PDF_OUTPUT_SIZE:
+                skipped += 1
+                details.append(f'  {page_range_str}: счёт {account} ❌ Превышен лимит размера одной квитанции ({len(extracted_pdf_bytes) // 1024} KB > {config.MAX_PDF_OUTPUT_SIZE // 1024} KB)')
+                continue
 
             # 1. Физический хеш (SHA-256 бинарного содержимого PDF)
             file_hash = cls.compute_file_hash(extracted_pdf_bytes)

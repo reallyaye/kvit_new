@@ -388,9 +388,23 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_html(layout(body, 'login', is_admin=False))
 
     def _parse_multipart_to_disk(self):
-        """Потоковый разбор multipart/form-data на диск с константным потреблением памяти O(1)."""
+        """
+        Потоковый разбор multipart/form-data на диск с константным потреблением памяти O(1).
+        Включает жесткие лимиты безопасности уровня приложения:
+        - MAX_UPLOAD_BYTES: ограничение общего размера тела запроса (защита от DoS)
+        - MAX_FILES_PER_REQUEST: ограничение количества файлов в одной пачке
+        - MAX_HEADER_SIZE: ограничение размера заголовков одной секции (64 KB)
+        """
         content_type = self.headers.get('Content-Type', '')
-        content_length = int(self.headers.get('Content-Length', 0))
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+        except (ValueError, TypeError):
+            content_length = 0
+
+        # Защита от DoS: проверка размера тела запроса по заголовку
+        if content_length > config.MAX_UPLOAD_BYTES:
+            logger.warning(f"[Upload] Отклонен запрос: Content-Length ({content_length} байт) > MAX_UPLOAD_BYTES ({config.MAX_UPLOAD_BYTES} байт)")
+            return None, "PAYLOAD_TOO_LARGE"
 
         boundary = None
         for part in content_type.split(';'):
@@ -409,14 +423,19 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         pdf_files = []
 
         remaining = content_length
+        total_read = 0
         read_chunk_size = 64 * 1024  # 64 KB буфер чтения
 
         def read_stream():
-            nonlocal remaining
+            nonlocal remaining, total_read
             while remaining > 0:
                 to_read = min(read_chunk_size, remaining)
                 chunk = self.rfile.read(to_read)
                 if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > config.MAX_UPLOAD_BYTES:
+                    logger.warning(f"[Upload] Превышен лимит байт при чтении потока ({total_read} > {config.MAX_UPLOAD_BYTES})")
                     break
                 remaining -= len(chunk)
                 yield chunk
@@ -533,6 +552,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 out_file.close()
                 if os.path.getsize(tmp_path) > 0:
                     pdf_files.append((base_name, tmp_path))
+                    if len(pdf_files) >= config.MAX_FILES_PER_REQUEST:
+                        logger.warning(f"[Upload] Достигнут лимит файлов в одном запросе ({config.MAX_FILES_PER_REQUEST})")
+                        break
                 else:
                     try:
                         os.unlink(tmp_path)
@@ -551,6 +573,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return
 
         tmp_dir, pdf_files = self._parse_multipart_to_disk()
+        if pdf_files == "PAYLOAD_TOO_LARGE":
+            max_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
+            self.send_json({'error': f'Превышен максимальный размер загрузки ({max_mb} MB)'}, 413)
+            return
+
         if tmp_dir is None or not pdf_files:
             self.send_json({'error': 'Файлы не получены'}, 400)
             return
@@ -758,6 +785,12 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_upload(self):
         tmp_dir, pdf_files = self._parse_multipart_to_disk()
+        if pdf_files == "PAYLOAD_TOO_LARGE":
+            max_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
+            body = render_upload_form(f'<div class="err">❌ Превышен максимальный размер загрузки ({max_mb} MB). Уменьшите объем файлов или загрузите их частями.</div>')
+            self.send_html(layout(body, 'upload', is_admin=True), status=413)
+            return
+
         if tmp_dir is None or not pdf_files:
             body = render_upload_form('<div class="err">Файлы не выбраны или не удалось разобрать запрос.</div>')
             self.send_html(layout(body, 'upload', is_admin=True))

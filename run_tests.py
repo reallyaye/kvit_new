@@ -132,7 +132,8 @@ def run_all():
         'test_audit_sharding_and_security_traversal',
         'test_audit_pdf_processor_corrupt_and_edge_cases',
         'test_audit_auth_and_throttler_concurrency',
-        'test_audit_websocket_frames_and_multiplexing'
+        'test_audit_websocket_frames_and_multiplexing',
+        'test_application_level_resource_limits'
     ]:
         try:
             reset_db()

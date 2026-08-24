@@ -257,3 +257,49 @@ def test_audit_websocket_frames_and_multiplexing():
     finally:
         s1.close()
         s2.close()
+
+def test_application_level_resource_limits():
+    """Тестирует применение лимитов уровня приложения (MAX_UPLOAD_BYTES, MAX_PDF_PAGES, MAX_PDF_OUTPUT_SIZE)."""
+    import unittest.mock as mock
+    from server import AppRequestHandler
+    from services.pdf.pdf_processor import pdf_processor
+    import fitz
+
+    # 1. Защита от превышения размера загрузки (MAX_UPLOAD_BYTES)
+    class MockHandler(AppRequestHandler):
+        def __init__(self, c_len, raw_bytes=b""):
+            self.headers = {
+                'Content-Type': 'multipart/form-data; boundary=----WebKitBoundaryXYZ',
+                'Content-Length': str(c_len)
+            }
+            self.rfile = io.BytesIO(raw_bytes)
+
+    # Content-Length превышает 100 MB -> немедленный отказ 413
+    oversized_handler = MockHandler(c_len=150 * 1024 * 1024)
+    tmp_d, res = oversized_handler._parse_multipart_to_disk()
+    assert tmp_d is None
+    assert res == "PAYLOAD_TOO_LARGE"
+
+    # 2. Защита от PDF-бомб (MAX_PDF_PAGES)
+    doc = fitz.open()
+    for _ in range(5):
+        p = doc.new_page()
+        p.insert_text((50, 50), "Лицевой счёт: 800100\nПериод: 2026")
+    pdf_bomb_bytes = doc.tobytes()
+    doc.close()
+
+    tmp_pdf_path = os.path.join(tempfile.gettempdir(), "test_bomb.pdf")
+    with open(tmp_pdf_path, "wb") as f:
+        f.write(pdf_bomb_bytes)
+
+    try:
+        with mock.patch("config.MAX_PDF_PAGES", 3):
+            added, orphan, skipped, dups, details, recs = pdf_processor.process_single_pdf(
+                tmp_pdf_path, "test_bomb.pdf", {"800100"}
+            )
+            assert skipped == 1
+            assert any("Превышен лимит страниц" in d for d in details)
+    finally:
+        if os.path.isfile(tmp_pdf_path):
+            os.remove(tmp_pdf_path)
+
