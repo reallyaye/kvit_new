@@ -62,10 +62,20 @@ RECEIPTS_PATH = os.environ.get('RECEIPTS_DIR', 'receipts')
 RECEIPTS_DIR = RECEIPTS_PATH if os.path.isabs(RECEIPTS_PATH) else os.path.join(BASE, RECEIPTS_PATH)
 
 # ────────────────────── OCR Настройки ──────────────────────
+# ────────────────────── OCR Настройки и Защита от DoS ──────────────────────
 OCR_ENABLED = os.environ.get('OCR_ENABLED', 'true').lower() in ('true', '1', 'yes')
 OCR_LANGUAGES = os.environ.get('OCR_LANGUAGES', 'rus+kaz+eng')
-OCR_DPI = int(os.environ.get('OCR_DPI', '200'))
+OCR_DPI = int(os.environ.get('OCR_DPI', '150'))
+MAX_OCR_DPI = int(os.environ.get('MAX_OCR_DPI', '200'))  # Жесткий потолок DPI
 OCR_FALLBACK_ON_NO_TEXT = os.environ.get('OCR_FALLBACK_ON_NO_TEXT', 'true').lower() in ('true', '1', 'yes')
+
+# Бюджет ресурсов на OCR (Защита от исчерпания CPU / RAM)
+MAX_OCR_PAGES_PER_DOC = int(os.environ.get('MAX_OCR_PAGES_PER_DOC', '50'))          # Макс. 50 страниц на OCR в одном PDF
+MAX_OCR_DOC_TIME_BUDGET = float(os.environ.get('MAX_OCR_DOC_TIME_BUDGET', '60.0'))    # 60 сек суммарно на один документ
+MAX_OCR_PAGE_TIME = float(os.environ.get('MAX_OCR_PAGE_TIME', '10.0'))             # 10 сек макс. на одну страницу
+MAX_OCR_IMAGE_PIXELS = int(os.environ.get('MAX_OCR_IMAGE_PIXELS', '16000000'))       # 16 Мегапикселей макс. на страницу
+MAX_OCR_CONCURRENT_WORKERS = int(os.environ.get('MAX_OCR_CONCURRENT_WORKERS', '2'))  # Макс. 2 параллельных потока OCR на сервере
+
 
 # ────────────────────── Шардирование квитанций ──────────────────────
 

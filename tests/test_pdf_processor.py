@@ -251,16 +251,46 @@ def test_pdf_processor_ocr_fallback_and_handling(tmp_path):
     page.insert_text((50, 50), "Лицевой счет: 998877\nПериод: Май 2026")
 
     # Обычный векторный текст
-    text, used_ocr = pdf_processor.extract_page_text(page)
+    text, used_ocr, status = pdf_processor.extract_page_text(page)
     assert "998877" in text
     assert used_ocr is False
 
     # Пустая страница без OCR
     blank_page = doc.new_page()
-    b_text, b_ocr = pdf_processor.extract_page_text(blank_page)
+    b_text, b_ocr, b_status = pdf_processor.extract_page_text(blank_page)
     assert b_text == ""
     assert b_ocr is False
     doc.close()
+
+def test_pdf_processor_ocr_budget_and_dos_protection(tmp_path):
+    """Тестирует лимиты бюджета OCR (страницы, таймаут, разрешение, семафор)."""
+    import unittest.mock as mock
+    from services.pdf.pdf_processor import pdf_processor
+    import config
+
+    doc = fitz.open()
+    blank = doc.new_page()
+
+    # 1. Лимит по количеству OCR страниц на документ
+    ctx = {'pages_done': config.MAX_OCR_PAGES_PER_DOC, 'total_time': 0.0}
+    t1, ocr1, s1 = pdf_processor.extract_page_text(blank, ctx)
+    assert ocr1 is False
+    assert "OCR_LIMIT_PAGES_EXCEEDED" in s1
+
+    # 2. Лимит по суммарному времени OCR на документ
+    ctx2 = {'pages_done': 0, 'total_time': config.MAX_OCR_DOC_TIME_BUDGET + 1.0}
+    t2, ocr2, s2 = pdf_processor.extract_page_text(blank, ctx2)
+    assert ocr2 is False
+    assert "OCR_LIMIT_TIME_EXCEEDED" in s2
+
+    # 3. Лимит по мегапикселям (Pixel Bomb)
+    with mock.patch("config.MAX_OCR_IMAGE_PIXELS", 100):
+        t3, ocr3, s3 = pdf_processor.extract_page_text(blank, {'pages_done': 0, 'total_time': 0.0})
+        assert ocr3 is False
+        assert "OCR_IMAGE_TOO_LARGE" in s3
+
+    doc.close()
+
 
 def test_migrate_receipts_to_sharding(tmp_path):
     from config import RECEIPTS_DIR

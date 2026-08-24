@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 import os
 import re
+import time
+import threading
 import hashlib
 import secrets
 import config
 from config import OCR_ENABLED, OCR_LANGUAGES, OCR_DPI, get_receipt_shard_parts, get_sharded_receipt_rel_path
 from services.pdf.atomic_importer import AtomicReceiptImporter, StagedReceipt, ReceiptStatus
+
+# Глобальный семафор для ограничения одновременных OCR процессов на уровне сервера (DoS protection)
+_OCR_SEMAPHORE = threading.Semaphore(config.MAX_OCR_CONCURRENT_WORKERS)
 
 try:
     import pymupdf as fitz
@@ -82,13 +87,18 @@ class PDFProcessor:
         return None
 
     @classmethod
-    def extract_page_text(cls, page) -> tuple[str, bool]:
+    def extract_page_text(cls, page, ocr_context: dict = None) -> tuple[str, bool, str]:
         """
         Извлекает текст со страницы:
         1. Сначала пробует быстрый векторный текстовый слой (page.get_text()).
         2. Если текст пуст или не содержит лицевого счёта, и на странице есть изображения (растр),
-           пробует выполнить OCR через PyMuPDF get_textpage_ocr() при включенном OCR.
-        Возвращает (text, used_ocr: bool).
+           пробует выполнить OCR с проверкой бюджета ресурсов и лимитов DoS:
+           - MAX_OCR_PAGES_PER_DOC: ограничение количества страниц на OCR в документе
+           - MAX_OCR_DOC_TIME_BUDGET: суммарный таймаут времени OCR на документ
+           - MAX_OCR_PAGE_TIME: таймаут на одну страницу
+           - MAX_OCR_DPI и MAX_OCR_IMAGE_PIXELS: защита от гигантских разрешений и потребления RAM
+           - _OCR_SEMAPHORE: ограничение глобальной параллельности OCR на сервер
+        Возвращает (text, used_ocr: bool, ocr_status: str).
         """
         raw_text = ""
         try:
@@ -98,22 +108,52 @@ class PDFProcessor:
 
         # Если векторный текст содержит распознанный номер лицевого счёта, сразу возвращаем его
         if raw_text.strip() and cls.extract_account_number(raw_text):
-            return raw_text, False
+            return raw_text, False, 'OK'
 
-        # Если векторный текст не дал Л/С или пуст — пробуем OCR распознавание скана
-        if OCR_ENABLED and hasattr(page, 'get_textpage_ocr'):
-            try:
-                # full=True включает распознавание всей страницы, включая изображения
-                textpage = page.get_textpage_ocr(language=OCR_LANGUAGES, dpi=OCR_DPI, full=True)
-                ocr_text = page.get_text(textpage=textpage).replace('\xa0', ' ').replace('\xad', '-')
-                if ocr_text.strip():
-                    if cls.extract_account_number(ocr_text) or not raw_text.strip():
-                        return ocr_text, True
-            except Exception:
-                # OCR недоступен (например, не установлен Tesseract/tessdata) - fallback на сырой текст
-                pass
+        # Если OCR отключен
+        if not OCR_ENABLED or not hasattr(page, 'get_textpage_ocr'):
+            return raw_text, False, 'OCR_DISABLED'
 
-        return raw_text, False
+        # ─── Проверка бюджета ресурсов OCR для текущего документа ───
+        if ocr_context is not None:
+            if ocr_context.get('pages_done', 0) >= config.MAX_OCR_PAGES_PER_DOC:
+                return raw_text, False, f"OCR_LIMIT_PAGES_EXCEEDED ({config.MAX_OCR_PAGES_PER_DOC} стр.)"
+            if ocr_context.get('total_time', 0.0) >= config.MAX_OCR_DOC_TIME_BUDGET:
+                return raw_text, False, f"OCR_LIMIT_TIME_EXCEEDED ({config.MAX_OCR_DOC_TIME_BUDGET}с)"
+
+        # ─── Проверка геометрических размеров страницы (Pixel Bomb Protection) ───
+        rect = getattr(page, 'rect', None)
+        effective_dpi = min(config.OCR_DPI, config.MAX_OCR_DPI)
+        if rect:
+            est_pixels = (rect.width / 72.0 * effective_dpi) * (rect.height / 72.0 * effective_dpi)
+            if est_pixels > config.MAX_OCR_IMAGE_PIXELS:
+                return raw_text, False, f"OCR_IMAGE_TOO_LARGE ({int(est_pixels)} px > {config.MAX_OCR_IMAGE_PIXELS} px)"
+
+        # ─── Контроль параллельности OCR через семафор ───
+        acquired = _OCR_SEMAPHORE.acquire(timeout=config.MAX_OCR_PAGE_TIME)
+        if not acquired:
+            return raw_text, False, "OCR_WORKERS_BUSY"
+
+        try:
+            t_start = time.monotonic()
+            textpage = page.get_textpage_ocr(language=OCR_LANGUAGES, dpi=effective_dpi, full=True)
+            ocr_text = page.get_text(textpage=textpage).replace('\xa0', ' ').replace('\xad', '-')
+            elapsed = time.monotonic() - t_start
+
+            if ocr_context is not None:
+                ocr_context['pages_done'] = ocr_context.get('pages_done', 0) + 1
+                ocr_context['total_time'] = ocr_context.get('total_time', 0.0) + elapsed
+
+            if ocr_text.strip():
+                if cls.extract_account_number(ocr_text) or not raw_text.strip():
+                    return ocr_text, True, 'OK'
+        except Exception as e:
+            # Fallback на сырой текст при ошибке Tesseract
+            return raw_text, False, f'OCR_ERROR ({e})'
+        finally:
+            _OCR_SEMAPHORE.release()
+
+        return raw_text, False, 'NO_TEXT'
 
     @classmethod
     def group_pages_into_documents(cls, pdf):
@@ -125,10 +165,11 @@ class PDFProcessor:
         documents = []
         current_doc = None
         unattached_skipped = []
+        ocr_context = {'pages_done': 0, 'total_time': 0.0}
 
         for i in range(len(pdf)):
             page = pdf[i]
-            text, used_ocr = cls.extract_page_text(page)
+            text, used_ocr, ocr_status = cls.extract_page_text(page, ocr_context)
             account = cls.extract_account_number(text)
             period = cls.extract_period(text)
             address = cls.extract_address(text)
@@ -147,7 +188,10 @@ class PDFProcessor:
                         current_doc.address = address
                 else:
                     if not text.strip():
-                        reason = "Текст не извлечен (страница пуста или содержит растровый скан без OCR-слоя / Tesseract не настроен)"
+                        if 'EXCEEDED' in ocr_status:
+                            reason = f"Текст не извлечен (исчерпан лимит OCR для документа: {ocr_status})"
+                        else:
+                            reason = "Текст не извлечен (страница пуста или содержит растровый скан без OCR-слоя / Tesseract не настроен)"
                     else:
                         sample = text[:80].replace('\n', ' ').strip()
                         reason = f'Лицевой счет не распознан. Образец текста: "{sample}..."'
