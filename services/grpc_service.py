@@ -1,17 +1,16 @@
-import grpc
 import os
 import secrets
 from concurrent import futures
 
-from config import (
-    GRPC_API_KEY, GRPC_USE_TLS, GRPC_CERT_PATH, GRPC_KEY_PATH,
-    RATE_LIMIT_GRPC, RATE_LIMIT_GRPC_RECONCILE
-)
+import grpc
+
+from config import GRPC_API_KEY, GRPC_CERT_PATH, GRPC_KEY_PATH, GRPC_USE_TLS, RATE_LIMIT_GRPC, RATE_LIMIT_GRPC_RECONCILE
+from logger import logger
 from proto import receipts_pb2, receipts_pb2_grpc
 from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
 from services.security import rate_limiter
-from logger import logger
+
 
 def extract_peer_ip(peer_str: str) -> str:
     """Извлекает чистый IP-адрес клиента из строки peer gRPC соединения."""

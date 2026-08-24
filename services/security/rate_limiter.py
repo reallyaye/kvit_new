@@ -1,6 +1,7 @@
-import time
 import threading
+import time
 from collections import defaultdict, deque
+
 
 class RateLimiter:
     """Потокобезопасный ограничитель частоты запросов методом скользящего окна (Sliding Window)."""

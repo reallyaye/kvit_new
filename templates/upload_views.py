@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from templates.icons import icon
 
+
 def render_upload_form(message=None, csrf_token=''):
     msg_html = message if message else ''
     csrf_input = f'<input type="hidden" name="csrf_token" value="{csrf_token}">' if csrf_token else ''

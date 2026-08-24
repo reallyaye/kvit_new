@@ -4,14 +4,13 @@
 высокой конкурентной нагрузки (одновременное чтение, поиск, сверка и параллельная запись).
 """
 import os
-import sys
-import time
-import secrets
 import random
-import threading
-import tempfile
+import secrets
 import statistics
-import sqlite3
+import sys
+import tempfile
+import threading
+import time
 
 # Подключаем корневую директорию проекта
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,8 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from database.connection import get_db, write_transaction
 from database.migrations import migrate_db
-from services.reconciliation.reconcile_service import reconcile_service
-from services.receipts.receipt_service import receipt_service
+
 
 def run_sqlite_load_test(num_accounts=100_000, num_receipts=200_000, concurrent_threads=30, test_duration=10.0):
     print("=" * 75)

@@ -1,11 +1,10 @@
-import os
 import io
-import tempfile
+import os
 import shutil
-import time
-import struct
 import socket
-import threading
+import struct
+import tempfile
+
 try:
     import pymupdf as fitz
 except ImportError:
@@ -14,14 +13,15 @@ except ImportError:
     except ImportError:
         fitz = None
 
-from database import get_db, write_transaction
+from config import get_receipt_shard_parts
+from database import get_db
+from server import AppRequestHandler
 from services.pdf.pdf_processor import pdf_processor
 from services.receipts.receipt_service import receipt_service
 from services.reconciliation.reconcile_service import reconcile_service
-from services.security import rate_limiter, ip_throttler, auth_service
+from services.security import auth_service, ip_throttler
 from services.websocket import ws_manager
-from server import AppRequestHandler
-from config import get_receipt_shard_parts, get_sharded_receipt_rel_path, RECEIPTS_DIR
+
 
 def create_test_pdf(file_path: str, pages_data: list):
     doc = fitz.open()
@@ -261,9 +261,11 @@ def test_audit_websocket_frames_and_multiplexing():
 def test_application_level_resource_limits():
     """Тестирует применение лимитов уровня приложения (MAX_UPLOAD_BYTES, MAX_PDF_PAGES, MAX_PDF_OUTPUT_SIZE)."""
     import unittest.mock as mock
+
+    import fitz
+
     from server import AppRequestHandler
     from services.pdf.pdf_processor import pdf_processor
-    import fitz
 
     # 1. Защита от превышения размера загрузки (MAX_UPLOAD_BYTES)
     class MockHandler(AppRequestHandler):

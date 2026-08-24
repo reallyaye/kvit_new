@@ -7,10 +7,11 @@
     python encrypt_env.py --decode   # Декодировать .env в исходный открытый вид
 """
 
-import sys
-import os
 import argparse
-from services.security.env_crypto import encode_env_content, decode_env_content
+import os
+import sys
+
+from services.security.env_crypto import decode_env_content, encode_env_content
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE, '.env')

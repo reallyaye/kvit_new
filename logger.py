@@ -1,8 +1,10 @@
+import logging
 import os
 import sys
-import logging
 from logging.handlers import RotatingFileHandler
-from config import BASE, LOG_FILE, LOG_LEVEL, LOG_MAX_BYTES, LOG_BACKUP_COUNT
+
+from config import BASE, LOG_BACKUP_COUNT, LOG_FILE, LOG_LEVEL, LOG_MAX_BYTES
+
 
 def setup_logger(name: str = "kvit") -> logging.Logger:
     """Создаёт и конфигурирует централизованный логер с выводом в консоль и ротируемый файл."""

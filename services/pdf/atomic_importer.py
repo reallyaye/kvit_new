@@ -7,12 +7,12 @@
 - Никаких записей в БД без существующих файлов на диске
 """
 
+import logging
 import os
 import secrets
-import hashlib
-import logging
 from dataclasses import dataclass
-from typing import List, Tuple, Set, Optional
+from typing import List, Optional, Tuple
+
 import config
 from config import get_receipt_shard_parts
 from database.connection import write_transaction
@@ -118,7 +118,7 @@ class AtomicReceiptImporter:
                 ]
 
                 con.executemany('''
-                    INSERT OR REPLACE INTO receipts(
+                    INSERT INTO receipts(
                         account_number, period, pdf_file, content_hash, file_hash, semantic_hash, status, access_token, address
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', insert_rows)

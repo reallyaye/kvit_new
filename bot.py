@@ -6,13 +6,14 @@
     python bot.py
 """
 
-import sys
-import os
 import signal
+import sys
+
 import config
-from logger import logger
 from database import migrate_db
+from logger import logger
 from services.telegram_bot import telegram_bot_service
+
 
 def main():
     if not config.TELEGRAM_BOT_TOKEN:

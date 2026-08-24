@@ -1,5 +1,6 @@
 from database import get_db
 
+
 class ReconcileService:
     """Сервис для сверки реестра лицевых счетов и загруженных квитанций."""
 

@@ -1,10 +1,12 @@
 import os
+
 try:
     import pytest
 except ImportError:
     pytest = None
 from database import get_db
 from services.receipts.receipt_service import receipt_service
+
 
 @pytest.fixture
 def seed_receipt_data(tmp_path):
@@ -119,7 +121,9 @@ def test_search_account_by_specific_address(seed_receipt_data):
 
 def test_privacy_search_view_no_personal_data(seed_receipt_data):
     from templates.search_views import (
-        render_search_result, render_address_clarification_prompt, render_address_not_found
+        render_address_clarification_prompt,
+        render_address_not_found,
+        render_search_result,
     )
 
     acc = receipt_service.get_account('800100')

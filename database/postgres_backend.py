@@ -8,17 +8,15 @@ PostgreSQL драйвер и пул соединений для высокона
 - ACID транзакции с авто-откатом и возвратом соединений в пул
 """
 
-import os
-import re
 import logging
-from typing import Optional, Any, List, Dict
 from contextlib import contextmanager
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 try:
     import psycopg2
-    from psycopg2 import pool, extras
+    from psycopg2 import extras, pool
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     psycopg2 = None

@@ -1,12 +1,14 @@
-import time
-import secrets
-import threading
 import hashlib
 import hmac
+import secrets
+import threading
+import time
+
 import config
 from config import SESSION_LIFETIME
 from database.connection import get_db, write_transaction
 from logger import logger
+
 
 def hash_password(password: str, iterations: int = 600_000) -> str:
     """Генерирует криптостойкий PBKDF2-HMAC-SHA256 хеш с уникальной солью."""

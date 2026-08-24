@@ -211,14 +211,6 @@ def main():
                 total_duplicates += dups
                 all_receipts.extend(receipts)
 
-            if all_receipts:
-                with write_transaction() as con_write:
-                    con_write.executemany('''
-                        INSERT OR IGNORE INTO receipts(
-                            account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', all_receipts)
-
             print(f"✅ Квитанций привязано к счетам: {total_added}")
             if total_orphan > 0:
                 print(f"⚠  Квитанций без счёта в базе (сироты): {total_orphan}")

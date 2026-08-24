@@ -3,8 +3,10 @@
 Использование: python grpc_client.py
 """
 import grpc
+
+from config import GRPC_API_KEY, GRPC_HOST, GRPC_PORT
 from proto import receipts_pb2, receipts_pb2_grpc
-from config import GRPC_HOST, GRPC_PORT, GRPC_API_KEY
+
 
 def run():
     if not GRPC_API_KEY:

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import html
+
 from templates.icons import icon
+
 
 def render_login_form(error_msg: str = None):
     err_html = f'<div class="err">{html.escape(error_msg)}</div>' if error_msg else ''

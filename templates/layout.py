@@ -1,5 +1,6 @@
 from templates.icons import icon
 
+
 def layout(body, active='search', is_admin=False, csrf_token=''):
     nav_items = [
         ('search',  '/',          'Поиск квитанции', False, 'search'),

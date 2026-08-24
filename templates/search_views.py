@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import html
+
 from templates.icons import icon
+
 
 def render_search_form(periods, active_tab='account', default_account='', default_address='', default_period=''):
     period_options = '<option value="">Все периоды</option>'

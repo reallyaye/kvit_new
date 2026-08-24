@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
+import hashlib
 import os
 import re
-import time
 import threading
-import hashlib
-import secrets
+import time
+
 import config
-from config import OCR_ENABLED, OCR_LANGUAGES, OCR_DPI, get_receipt_shard_parts, get_sharded_receipt_rel_path
-from services.pdf.atomic_importer import AtomicReceiptImporter, StagedReceipt, ReceiptStatus
+from config import OCR_ENABLED, OCR_LANGUAGES
+from services.pdf.atomic_importer import AtomicReceiptImporter
 
 # Глобальный семафор для ограничения одновременных OCR процессов на уровне сервера (DoS protection)
 _OCR_SEMAPHORE = threading.Semaphore(config.MAX_OCR_CONCURRENT_WORKERS)
@@ -250,6 +250,7 @@ class PDFProcessor:
         duplicates = 0
         details = []
         receipts_to_insert = []
+        batch_account_periods = set()
 
         documents, unattached_skipped = cls.group_pages_into_documents(pdf)
 
@@ -284,7 +285,13 @@ class PDFProcessor:
             semantic_hash = cls.compute_semantic_hash(account, period, combined_text)
             content_hash = semantic_hash
 
-            # Проверка дедупликации по обоим уровням
+            # Проверка дубликатов внутри текущей пачки
+            if (account, period) in batch_account_periods:
+                duplicates += 1
+                details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 дубликат в текущем запросе, пропущен')
+                continue
+
+            # Проверка дедупликации по хешам
             is_file_dup = file_hash in existing_hashes
             is_semantic_dup = semantic_hash in existing_hashes
 
@@ -294,6 +301,34 @@ class PDFProcessor:
                 details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 {dup_type}, пропущен')
                 continue
 
+            # Проверка существования записи в БД для (account, period) ДО создания файла на диске
+            from database.connection import get_db
+            con_check = get_db()
+            try:
+                existing_rec = con_check.execute(
+                    "SELECT id, content_hash, file_hash, semantic_hash, pdf_file FROM receipts WHERE account_number = ? AND period = ?",
+                    (account, period)
+                ).fetchone()
+            finally:
+                con_check.close()
+
+            if existing_rec:
+                existing_file_hash = existing_rec['file_hash'] if 'file_hash' in existing_rec.keys() else None
+                existing_semantic_hash = existing_rec['semantic_hash'] if 'semantic_hash' in existing_rec.keys() else None
+                existing_content_hash = existing_rec['content_hash'] if 'content_hash' in existing_rec.keys() else None
+
+                if (file_hash and file_hash == existing_file_hash) or \
+                   (semantic_hash and semantic_hash == existing_semantic_hash) or \
+                   (content_hash and content_hash == existing_content_hash):
+                    duplicates += 1
+                    details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 дубликат (уже в базе), пропущен')
+                    continue
+                else:
+                    duplicates += 1
+                    details.append(f'  {page_range_str}: счёт {account}, период «{period}» → ⚠ конфликт: квитанция за этот период уже существует с другим содержимым, пропущен')
+                    continue
+
+            batch_account_periods.add((account, period))
             existing_hashes.add(file_hash)
             existing_hashes.add(semantic_hash)
             existing_hashes.add(content_hash)

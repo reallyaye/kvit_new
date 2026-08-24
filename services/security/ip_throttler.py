@@ -1,9 +1,11 @@
-import time
 import threading
+import time
 from collections import defaultdict, deque
-from config import THROTTLE_MAX_CONCURRENT, THROTTLE_BURST_RPS
+
+from config import THROTTLE_BURST_RPS, THROTTLE_MAX_CONCURRENT
 from database.connection import get_db, write_transaction
 from logger import logger
+
 
 class IPThrottler:
     """

@@ -1,10 +1,12 @@
 import os
-import tempfile
 import shutil
+import tempfile
+
 import config
 from database import get_db, migrate_db
 from services.security.auth_service import hash_password
-from services.telegram_bot import TelegramClient, TelegramBotService, TelegramAPIError
+from services.telegram_bot import TelegramAPIError, TelegramBotService, TelegramClient
+
 
 def _seed_test_bot_data():
     migrate_db()

@@ -1,15 +1,17 @@
-import sys
-import secrets
 import os
+import secrets
+import sys
 from http.server import ThreadingHTTPServer
+
 import config
-from config import HOST, PORT, GRPC_HOST, GRPC_PORT
+from config import GRPC_HOST, GRPC_PORT, HOST, PORT
 from database import migrate_db
+from logger import logger
 from server import AppRequestHandler
 from services.grpc_service import create_grpc_server
-from services.websocket import ws_manager
 from services.telegram_bot import telegram_bot_service
-from logger import logger
+from services.websocket import ws_manager
+
 
 def main():
     logger.info("Запуск приложения...")

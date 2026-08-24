@@ -1,8 +1,9 @@
+import random
 import sqlite3
 import threading
 import time
-import random
 from contextlib import contextmanager
+
 import config
 from logger import logger
 
@@ -21,7 +22,7 @@ def get_db():
     - SQLite: оптимизированное соединение (WAL, busy_timeout=60s, mmap_size=256MB, кэш 64MB)
     """
     if is_postgres_configured():
-        from database.postgres_backend import get_postgres_db, init_postgres_pool, _PG_POOL
+        from database.postgres_backend import _PG_POOL, get_postgres_db, init_postgres_pool
         if _PG_POOL is None:
             init_postgres_pool(config.DATABASE_URL)
         return get_postgres_db()

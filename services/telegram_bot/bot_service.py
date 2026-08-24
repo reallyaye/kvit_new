@@ -8,7 +8,7 @@ import time
 from typing import Optional, Set
 
 import config
-from database import get_db, write_transaction
+from database import get_db
 from logger import logger
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
@@ -142,12 +142,7 @@ class TelegramBotService:
                 tmp_path, file_name, known_accounts, existing_hashes
             )
 
-            if receipts_to_insert:
-                with write_transaction() as con_write:
-                    con_write.executemany(
-                        'INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address) VALUES (?,?,?,?,?,?,?,?)',
-                        receipts_to_insert
-                    )
+            if added > 0 or orphan > 0:
                 # Оповещаем подключенные веб-клиенты через WebSocket
                 try:
                     ws_manager.broadcast('upload_batch_completed', {

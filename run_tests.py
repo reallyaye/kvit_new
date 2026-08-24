@@ -72,7 +72,7 @@ def run_all():
 
     # 2. test_pdf_processor
     from tests import test_pdf_processor
-    for fn_name in ['test_pdf_processor_extract_and_save', 'test_pdf_processor_address_extraction', 'test_pdf_processor_idempotency_and_duplicates', 'test_pdf_processor_missing_account', 'test_streaming_multipart_parser', 'test_pdf_processor_flexible_patterns_and_diagnostics', 'test_pdf_processor_multipage_receipt_grouping', 'test_pdf_processor_sharding_helpers', 'test_pdf_processor_ocr_fallback_and_handling', 'test_pdf_processor_ocr_budget_and_dos_protection', 'test_migrate_receipts_to_sharding', 'test_pdf_processor_file_vs_semantic_hash', 'test_atomic_importer_2phase_commit_and_rollback']:
+    for fn_name in ['test_pdf_processor_extract_and_save', 'test_pdf_processor_address_extraction', 'test_pdf_processor_idempotency_and_duplicates', 'test_pdf_processor_missing_account', 'test_streaming_multipart_parser', 'test_pdf_processor_flexible_patterns_and_diagnostics', 'test_pdf_processor_multipage_receipt_grouping', 'test_pdf_processor_sharding_helpers', 'test_pdf_processor_ocr_fallback_and_handling', 'test_pdf_processor_ocr_budget_and_dos_protection', 'test_migrate_receipts_to_sharding', 'test_pdf_processor_file_vs_semantic_hash', 'test_atomic_importer_2phase_commit_and_rollback', 'test_pdf_processor_account_period_conflict_and_no_orphan_files']:
         try:
             reset_db()
             # Check if function accepts arguments

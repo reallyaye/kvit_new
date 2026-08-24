@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 import config
 from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, WS_GUID
-from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem, write_transaction
+from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem
 from logger import logger
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
@@ -665,9 +665,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 all_details.extend(details)
                 all_receipts.extend(receipts)
 
-            if all_receipts:
-                with write_transaction() as con_write:
-                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address) VALUES (?,?,?,?,?,?,?,?)', all_receipts)
+            if total_added > 0 or total_orphan > 0:
                 ws_manager.broadcast('upload_batch_completed', {
                     'files_count': len(pdf_files),
                     'added': total_added,
@@ -849,9 +847,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 all_details.extend(details)
                 all_receipts.extend(receipts)
 
-            if all_receipts:
-                with write_transaction() as con_write:
-                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address) VALUES (?,?,?,?,?,?,?,?)', all_receipts)
+            if total_added > 0 or total_orphan > 0:
                 ws_manager.broadcast('folder_import_completed', {
                     'files_count': len(pdf_paths),
                     'added': total_added,
@@ -920,9 +916,14 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 all_details.extend(details)
                 all_receipts.extend(receipts)
 
-            if all_receipts:
-                with write_transaction() as con_write:
-                    con_write.executemany('INSERT OR IGNORE INTO receipts(account_number, period, pdf_file, content_hash, file_hash, semantic_hash, access_token, address) VALUES (?,?,?,?,?,?,?,?)', all_receipts)
+            if total_added > 0 or total_orphan > 0:
+                ws_manager.broadcast('upload_completed', {
+                    'files_count': len(pdf_files),
+                    'added': total_added,
+                    'orphan': total_orphan,
+                    'duplicates': total_duplicates,
+                    'skipped': total_skipped
+                })
         finally:
             con.close()
             shutil.rmtree(tmp_dir, ignore_errors=True)

@@ -425,6 +425,62 @@ def test_atomic_importer_2phase_commit_and_rollback(tmp_path):
         assert len(temp_files) == 0, f"Временные файлы не должны оставаться: {temp_files}"
 
 
+def test_pdf_processor_account_period_conflict_and_no_orphan_files(tmp_path):
+    """
+    Тестирует защиту от создания orphan-файлов при конфликтах и дубликатах:
+    1. Если (account, period) уже существует в БД с тем же хешем -> duplicate, файл не создается повторно.
+    2. Если (account, period) уже существует в БД с другим хешем -> conflict, новый файл НЕ создается на диске!
+    """
+    from database import get_db, migrate_db
+    from services.pdf import pdf_processor
+
+    migrate_db()
+
+    # 1. Создаем первый PDF документ
+    pdf1_path = str(tmp_path / "receipt_original.pdf")
+    create_sample_pdf(pdf1_path, ["Жеке шот / Лицевой счёт 800999\nСчёт-извещение за Август 2026 г.\nСумма: 1000 тенге\nАдрес: ул. Ленина 5"])
+
+    # Загружаем первый раз
+    added, orphan, skipped, dups, details, _ = pdf_processor.process_single_pdf(
+        pdf1_path, "receipt_original.pdf", known_accounts={"800999"}
+    )
+    assert added == 1
+    assert dups == 0
+
+    con = get_db()
+    original_row = con.execute("SELECT id, pdf_file, content_hash, file_hash FROM receipts WHERE account_number='800999' AND period='Август 2026'").fetchone()
+    con.close()
+    assert original_row is not None
+    original_pdf_file = original_row["pdf_file"]
+
+    # 2. Пытаемся загрузить точно такой же PDF повторно (тот же хеш)
+    added2, orphan2, skipped2, dups2, details2, _ = pdf_processor.process_single_pdf(
+        pdf1_path, "receipt_original.pdf", known_accounts={"800999"}
+    )
+    assert added2 == 0
+    assert dups2 == 1
+    assert any("дубликат" in d for d in details2)
+
+    # 3. Создаем второй PDF документ для ТОГО ЖЕ счета и периода, но с ДРУГИМ содержимым (Конфликт)
+    pdf2_path = str(tmp_path / "receipt_conflict.pdf")
+    create_sample_pdf(pdf2_path, ["Жеке шот / Лицевой счёт 800999\nСчёт-извещение за Август 2026 г.\nСумма: 9999 тенге (ДРУГОЙ ДОКУМЕНТ)\nАдрес: ул. Ленина 5"])
+
+    # Загружаем конфликтующий документ
+    added3, orphan3, skipped3, dups3, details3, _ = pdf_processor.process_single_pdf(
+        pdf2_path, "receipt_conflict.pdf", known_accounts={"800999"}
+    )
+    assert added3 == 0
+    assert dups3 == 1
+    assert any("конфликт" in d for d in details3)
+
+    # Проверяем, что в БД осталась исходная запись и не было создано лишних записей/файлов
+    con = get_db()
+    rows = con.execute("SELECT id, pdf_file FROM receipts WHERE account_number='800999'").fetchall()
+    con.close()
+    assert len(rows) == 1
+    assert rows[0]["pdf_file"] == original_pdf_file
+
+
 
 
 
