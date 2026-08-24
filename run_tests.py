@@ -59,7 +59,7 @@ def run_all():
     # 1. test_security
     from tests import test_security
     reset_db()
-    for fn_name in ['test_auth_service_lifecycle', 'test_auth_service_concurrency', 'test_rate_limiter_sliding_window', 'test_ip_throttler_concurrency_and_burst', 'test_client_ip_anti_spoofing', 'test_safe_import_path_protection', 'test_grpc_rate_limiting_and_security', 'test_async_websocket_multiplexer', 'test_concurrent_database_writes_with_retry', 'test_persistent_state_and_session_sharing', 'test_env_crypto_encode_decode', 'test_database_migration_fail_fast', 'test_postgres_backend_wrapper_and_dialect', 'test_cookie_secure_flags_and_scheme_detection']:
+    for fn_name in ['test_auth_service_lifecycle', 'test_auth_service_concurrency', 'test_rate_limiter_sliding_window', 'test_ip_throttler_concurrency_and_burst', 'test_client_ip_anti_spoofing', 'test_safe_import_path_protection', 'test_grpc_rate_limiting_and_security', 'test_async_websocket_multiplexer', 'test_concurrent_database_writes_with_retry', 'test_persistent_state_and_session_sharing', 'test_env_crypto_encode_decode', 'test_database_migration_fail_fast', 'test_postgres_backend_wrapper_and_dialect', 'test_cookie_secure_flags_and_scheme_detection', 'test_csrf_token_lifecycle_and_validation']:
         try:
             getattr(test_security, fn_name)()
             print(f"  [OK] test_security.{fn_name}")

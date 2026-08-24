@@ -153,7 +153,14 @@ def render_reconcile_page(data: dict):
         btn.disabled = true;
         btn.textContent = '⏳ Проверка файлов...';
         try {{
-            const res = await fetch('/api/sync-receipts', {{ method: 'POST' }});
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfVal = csrfMeta ? csrfMeta.content : '';
+            const headers = csrfVal ? {{ 'X-CSRF-Token': csrfVal }} : {{}};
+
+            const res = await fetch('/api/sync-receipts', {{
+                method: 'POST',
+                headers: headers
+            }});
             const data = await res.json();
             if (data.success) {{
                 alert(data.message);

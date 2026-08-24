@@ -139,6 +139,25 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         token = self._get_session_token()
         return auth_service.is_valid_session(token)
 
+    def _verify_csrf(self, body_csrf: str = None) -> bool:
+        """
+        Проверяет CSRF-токен для защищенных административных POST запросов.
+        Токен считывается из заголовка X-CSRF-Token / X-CSRFToken или поля формы csrf_token.
+        """
+        if not getattr(config, 'CSRF_ENABLED', True):
+            return True
+        session_token = self._get_session_token()
+        if not session_token:
+            return False
+        csrf_token = (
+            self.headers.get('X-CSRF-Token') or 
+            self.headers.get('X-CSRFToken') or 
+            body_csrf
+        )
+        if not csrf_token:
+            return False
+        return auth_service.verify_csrf_token(session_token, csrf_token)
+
     def send_html(self, text: str, code: int = 200, extra_headers: dict = None):
         try:
             data = text.encode('utf-8')
@@ -310,9 +329,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 if not is_admin:
                     self._redirect('/login')
                     return
+                session_token = self._get_session_token()
+                csrf_tok = auth_service.get_csrf_token(session_token) if is_admin else ''
                 if path == '/upload':
-                    body = render_upload_form()
-                    self.send_html(layout(body, 'upload', is_admin=True))
+                    body = render_upload_form(csrf_token=csrf_tok)
+                    self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/reconcile':
                     filt = q.get('filter', ['without'])[0]
                     if filt not in ('all', 'with', 'without', 'orphans'):
@@ -321,12 +342,13 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     page_num = max(1, int(q.get('page', ['1'])[0]))
                     data = reconcile_service.get_reconciliation_data(filt, period_filter, page_num)
                     body = render_reconcile_page(data)
-                    self.send_html(layout(body, 'reconcile', is_admin=True))
+                    self.send_html(layout(body, 'reconcile', is_admin=True, csrf_token=csrf_tok))
             elif path in ('/receipt', '/download'):
                 self._serve_pdf(path, q)
             else:
+                csrf_tok = auth_service.get_csrf_token(self._get_session_token()) if is_admin else ''
                 body = render_404_page()
-                self.send_html(layout(body, 'search', is_admin=is_admin), 404)
+                self.send_html(layout(body, 'search', is_admin=is_admin, csrf_token=csrf_tok), 404)
         finally:
             ip_throttler.release(client_ip)
 
@@ -603,6 +625,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_json({'error': 'Unauthorized'}, 401)
             return
 
+        if not self._verify_csrf():
+            self.send_json({'error': 'Forbidden', 'message': 'Недействительный или отсутствующий CSRF-токен (X-CSRF-Token)'}, 403)
+            return
+
         tmp_dir, pdf_files = self._parse_multipart_to_disk()
         if pdf_files == "PAYLOAD_TOO_LARGE":
             max_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
@@ -718,6 +744,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_json({'error': 'Unauthorized'}, 401)
             return
 
+        if not self._verify_csrf():
+            self.send_json({'error': 'Forbidden', 'message': 'Недействительный или отсутствующий CSRF-токен (X-CSRF-Token)'}, 403)
+            return
+
         removed, valid = sync_receipts_with_filesystem()
         ws_manager.broadcast('receipts_synced', {
             'removed': removed,
@@ -734,13 +764,22 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         body_bytes = self.rfile.read(content_length)
         params = parse_qs(body_bytes.decode('utf-8', errors='replace'))
+        csrf_token = params.get('csrf_token', [''])[0].strip()
         folder_path = params.get('folder_path', [''])[0].strip()
+
+        # 0. Проверка CSRF токена
+        if not self._verify_csrf(body_csrf=csrf_token):
+            csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+            body = render_forbidden_page('Недействительный или отсутствующий CSRF-токен.')
+            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok), 403)
+            return
 
         # 1. Проверка безопасности пути (whitelist, jail, path traversal)
         is_safe, real_folder_path, error_msg = config.is_safe_import_path(folder_path)
         if not is_safe:
-            body = render_upload_form(f'<div class="err">{error_msg}</div>')
-            self.send_html(layout(body, 'upload', is_admin=True))
+            csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+            body = render_upload_form(f'<div class="err">{error_msg}</div>', csrf_token=csrf_tok)
+            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
             return
 
         # 2. Безопасное сканирование с ограничением глубины и максимального числа файлов
@@ -815,11 +854,18 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             con.close()
 
     def _handle_upload(self):
+        if not self._verify_csrf():
+            csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+            body = render_forbidden_page('Недействительный или отсутствующий CSRF-токен.')
+            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok), 403)
+            return
+
         tmp_dir, pdf_files = self._parse_multipart_to_disk()
         if pdf_files == "PAYLOAD_TOO_LARGE":
             max_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
-            body = render_upload_form(f'<div class="err">❌ Превышен максимальный размер загрузки ({max_mb} MB). Уменьшите объем файлов или загрузите их частями.</div>')
-            self.send_html(layout(body, 'upload', is_admin=True), status=413)
+            csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+            body = render_upload_form(f'<div class="err">❌ Превышен максимальный размер загрузки ({max_mb} MB). Уменьшите объем файлов или загрузите их частями.</div>', csrf_token=csrf_tok)
+            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok), status=413)
             return
 
         if tmp_dir is None or not pdf_files:

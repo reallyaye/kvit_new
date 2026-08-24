@@ -2,6 +2,7 @@ import time
 import secrets
 import threading
 import hashlib
+import hmac
 import config
 from config import SESSION_LIFETIME
 from database.connection import get_db, write_transaction
@@ -148,12 +149,31 @@ class AuthService:
                 self._sessions.pop(t, None)
             self._last_cleanup = now
 
-            try:
-                with write_transaction() as con:
-                    con.execute('DELETE FROM app_sessions WHERE expires_at <= ?', (now,))
-            except Exception:
-                pass
+    def get_csrf_token(self, session_token: str) -> str:
+        """
+        Генерирует криптографически стойкий CSRF-токен, привязанный к текущей сессии (HMAC-SHA256).
+        При смене/инвалидации сессии CSRF-токен автоматически аннулируется.
+        """
+        if not session_token or not isinstance(session_token, str):
+            return ""
+        secret = (getattr(config, 'SECRET_KEY', '') or 'kvit_secret_signing_key_2026').encode('utf-8')
+        message = f"csrf:{session_token}".encode('utf-8')
+        return hmac.new(secret, message, hashlib.sha256).hexdigest()
+
+    def verify_csrf_token(self, session_token: str, csrf_token: str) -> bool:
+        """
+        Проверяет CSRF-токен с защитой от атак по времени (Timing Attack Resistant).
+        """
+        if not session_token or not csrf_token:
+            return False
+        if not self.is_valid_session(session_token):
+            return False
+        expected = self.get_csrf_token(session_token)
+        if not expected:
+            return False
+        return secrets.compare_digest(str(csrf_token).strip(), expected)
 
 auth_service = AuthService()
+
 
 

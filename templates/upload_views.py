@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from templates.icons import icon
 
-def render_upload_form(message=None):
+def render_upload_form(message=None, csrf_token=''):
     msg_html = message if message else ''
+    csrf_input = f'<input type="hidden" name="csrf_token" value="{csrf_token}">' if csrf_token else ''
 
     return f'''<div class="card">
         <h1>Загрузка квитанций</h1>
@@ -48,6 +49,7 @@ def render_upload_form(message=None):
         <!-- Вкладка 2: Импорт напрямую из локальной папки -->
         <div id="tabLocal" style="display:none">
             <form action="/import-folder" method="post">
+                {csrf_input}
                 <label>Полный путь к папке с PDF на компьютере</label>
                 <input type="text" name="folder_path" placeholder="Например, C:\\\\Users\\\\zhunis\\\\Desktop\\\\квитанции" required>
                 <p style="font-size:13px;color:#64748b;margin:6px 0 16px">Сервер напрямую и быстро прочитает все .pdf файлы из указанной папки без ожидания загрузки по сети.</p>
@@ -196,8 +198,13 @@ def render_upload_form(message=None):
             statusLabel.textContent = 'Обработка: ' + (i + 1) + '-' + Math.min(i + batchSize, total) + ' из ' + total + ' файлов...';
 
             try {{
+                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfVal = csrfMeta ? csrfMeta.content : '';
+                const headers = csrfVal ? {{ 'X-CSRF-Token': csrfVal }} : {{}};
+
                 const res = await fetch('/api/upload-batch', {{
                     method: 'POST',
+                    headers: headers,
                     body: formData
                 }});
 

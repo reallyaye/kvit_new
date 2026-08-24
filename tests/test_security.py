@@ -462,6 +462,44 @@ def test_cookie_secure_flags_and_scheme_detection():
         hdr = handler._get_session_cookie_header("token123")
         assert "Secure" not in hdr
 
+def test_csrf_token_lifecycle_and_validation():
+    """Тестирует генерацию, криптографическую валидацию и аннулирование CSRF-токенов."""
+    from services.security.auth_service import auth_service
+    from server import AppRequestHandler
+    import unittest.mock as mock
+
+    session_token = auth_service.create_session()
+    csrf_token = auth_service.get_csrf_token(session_token)
+
+    # 1. Валидный токен
+    assert auth_service.verify_csrf_token(session_token, csrf_token) is True
+
+    # 2. Невалидный токен (подделка)
+    assert auth_service.verify_csrf_token(session_token, "forged_csrf_token_12345") is False
+
+    # 3. Пустой / чужой токен
+    assert auth_service.verify_csrf_token(session_token, "") is False
+    other_session = auth_service.create_session()
+    assert auth_service.verify_csrf_token(other_session, csrf_token) is False
+
+    # 4. Проверка через AppRequestHandler._verify_csrf (из заголовка X-CSRF-Token)
+    handler = AppRequestHandler.__new__(AppRequestHandler)
+    handler.headers = {
+        'Cookie': f'session={session_token}',
+        'X-CSRF-Token': csrf_token
+    }
+    assert handler._verify_csrf() is True
+
+    # 5. Проверка через форму (body_csrf)
+    handler.headers = {'Cookie': f'session={session_token}'}
+    assert handler._verify_csrf(body_csrf=csrf_token) is True
+    assert handler._verify_csrf(body_csrf="invalid") is False
+
+    # 6. Аннулирование сессии инвалидирует и CSRF токен
+    auth_service.destroy_session(session_token)
+    assert auth_service.verify_csrf_token(session_token, csrf_token) is False
+
+
 
 
 

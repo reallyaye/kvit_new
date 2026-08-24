@@ -142,13 +142,16 @@ GRPC_USE_TLS = os.environ.get('GRPC_USE_TLS', 'false').lower() in ('true', '1', 
 GRPC_CERT_PATH = os.environ.get('GRPC_CERT_PATH', '')
 GRPC_KEY_PATH = os.environ.get('GRPC_KEY_PATH', '')
 
-# ────────────────────── Аутентификация ──────────────────────
+# ────────────────────── Аутентификация и CSRF ──────────────────────
+SECRET_KEY = os.environ.get('SECRET_KEY', '').strip() or 'kvit_secret_signing_key_2026'
 ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', '').strip()
 SESSION_LIFETIME = int(os.environ.get('SESSION_LIFETIME', str(24 * 60 * 60)))  # 24 часа
 COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'auto').strip().lower()  # 'true', 'false', или 'auto' (по HTTPS/X-Forwarded-Proto)
-
+CSRF_ENABLED = os.environ.get('CSRF_ENABLED', 'true').strip().lower() in ('true', '1', 'yes')
 
 PROTECTED_PATHS = {'/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/clear-receipts'}
+CSRF_PROTECTED_PATHS = {'/upload', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/clear-receipts'}
+
 
 # ────────────────────── WebSocket ──────────────────────
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"

@@ -1,6 +1,6 @@
 from templates.icons import icon
 
-def layout(body, active='search', is_admin=False):
+def layout(body, active='search', is_admin=False, csrf_token=''):
     nav_items = [
         ('search',  '/',          'Поиск квитанции', False, 'search'),
         ('upload',  '/upload',    'Загрузка PDF', True, 'upload'),
@@ -18,9 +18,11 @@ def layout(body, active='search', is_admin=False):
     else:
         nav_html += f'<a class="nav-link nav-auth" href="/login">{icon("login", 15)} Вход</a>'
 
+    csrf_meta = f'<meta name="csrf-token" content="{csrf_token}">\n' if csrf_token else ''
+
     return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Квитанции</title>
+{csrf_meta}<title>Квитанции</title>
 <style>
 *{{box-sizing:border-box}}
 body{{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e}}
