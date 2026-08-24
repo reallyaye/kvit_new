@@ -374,6 +374,23 @@ def test_env_crypto_encode_decode():
     decoded_env = decode_env_content(encoded_env)
     assert "SECRET_KEY=my_secret" in decoded_env
 
+def test_database_migration_fail_fast():
+    """Проверяет, что сбои в миграциях БД не глушатся, а выбрасывают DatabaseMigrationError."""
+    import unittest.mock as mock
+    from database.migrations import migrate_db, DatabaseMigrationError
+
+    # 1. Штатная миграция проходит успешно
+    migrate_db()
+
+    # 2. Имитация критического сбоя (например, повреждение структуры или ошибка доступа)
+    with mock.patch("database.connection.sqlite3.connect", side_effect=Exception("Disk I/O failure or permission denied")):
+        try:
+            migrate_db()
+            assert False, "Миграция обязана выбросить DatabaseMigrationError при сбое"
+        except DatabaseMigrationError as e:
+            assert "Database migration failed" in str(e)
+
+
 
 
 

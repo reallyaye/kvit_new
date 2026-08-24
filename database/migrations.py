@@ -1,11 +1,28 @@
 import secrets
+import logging
 from database.connection import write_transaction
 
+logger = logging.getLogger(__name__)
+
+class DatabaseMigrationError(RuntimeError):
+    """Критическая ошибка применения миграций базы данных (Fail-Fast)."""
+    pass
+
 def migrate_db():
-    """Гарантирует инициализацию схемы и миграции (receipts, app_sessions, security_blocks)."""
+    """
+    Гарантирует инициализацию схемы и миграции (accounts, receipts, app_sessions, security_blocks).
+    При любой ошибке выбрасывает DatabaseMigrationError и останавливает запуск приложения.
+    """
     try:
         with write_transaction() as con:
+            # 1. Создание базовых таблиц
             con.executescript('''
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    applied_at REAL NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS accounts (
                     id INTEGER PRIMARY KEY,
                     account_number TEXT NOT NULL UNIQUE,
@@ -33,13 +50,6 @@ def migrate_db():
                     address TEXT,
                     UNIQUE(account_number, period)
                 );
-                CREATE INDEX IF NOT EXISTS idx_receipts_account_period ON receipts(account_number, period);
-                CREATE INDEX IF NOT EXISTS idx_receipts_account ON receipts(account_number);
-                CREATE INDEX IF NOT EXISTS idx_receipts_period ON receipts(period);
-                CREATE INDEX IF NOT EXISTS idx_receipts_address ON receipts(address);
-                CREATE INDEX IF NOT EXISTS idx_receipts_file_hash ON receipts(file_hash);
-                CREATE INDEX IF NOT EXISTS idx_receipts_semantic_hash ON receipts(semantic_hash);
-                CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
 
                 CREATE TABLE IF NOT EXISTS app_sessions (
                     token TEXT PRIMARY KEY,
@@ -56,32 +66,40 @@ def migrate_db():
                 CREATE INDEX IF NOT EXISTS idx_blocks_until ON security_blocks(blocked_until);
             ''')
 
-            # Проверка и добавление недостающих колонок
+            # 2. Проверка и динамическое добавление недостающих колонок
             cols = [row[1] for row in con.execute('PRAGMA table_info(receipts)').fetchall()]
             if 'content_hash' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN content_hash TEXT')
-                con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_hash ON receipts(content_hash)')
             if 'file_hash' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN file_hash TEXT')
-                con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_file_hash ON receipts(file_hash)')
             if 'semantic_hash' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN semantic_hash TEXT')
-                con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_semantic_hash ON receipts(semantic_hash)')
             if 'status' not in cols:
                 con.execute("ALTER TABLE receipts ADD COLUMN status TEXT NOT NULL DEFAULT 'READY'")
-                con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status)')
             if 'access_token' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN access_token TEXT')
-                con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_token ON receipts(access_token)')
                 rows = con.execute('SELECT rowid FROM receipts WHERE access_token IS NULL').fetchall()
                 for row in rows:
                     con.execute('UPDATE receipts SET access_token=? WHERE rowid=?',
                                 (secrets.token_hex(16), row[0]))
             if 'address' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN address TEXT')
-                con.execute('CREATE INDEX IF NOT EXISTS idx_receipts_address ON receipts(address)')
-    except Exception:
-        pass
+
+            # 3. Создание индексов (после гарантированного наличия колонок)
+            con.executescript('''
+                CREATE INDEX IF NOT EXISTS idx_receipts_account_period ON receipts(account_number, period);
+                CREATE INDEX IF NOT EXISTS idx_receipts_account ON receipts(account_number);
+                CREATE INDEX IF NOT EXISTS idx_receipts_period ON receipts(period);
+                CREATE INDEX IF NOT EXISTS idx_receipts_address ON receipts(address);
+                CREATE INDEX IF NOT EXISTS idx_receipts_file_hash ON receipts(file_hash);
+                CREATE INDEX IF NOT EXISTS idx_receipts_semantic_hash ON receipts(semantic_hash);
+                CREATE INDEX IF NOT EXISTS idx_receipts_hash ON receipts(content_hash);
+                CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_token ON receipts(access_token);
+            ''')
+    except Exception as e:
+        logger.critical(f"[Database] КРИТИЧЕСКИЙ СБОЙ ПРИМЕНЕНИЯ МИГРАЦИЙ: {e}", exc_info=True)
+        raise DatabaseMigrationError(f"Database migration failed: {e}") from e
 
 def migrate_receipts_to_sharding():
     """

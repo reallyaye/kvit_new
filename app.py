@@ -45,8 +45,15 @@ def main():
         sys.exit(1)
 
     # 3. Автоматические миграции базы данных
-    migrate_db()
-    logger.info("Миграции базы данных проверены.")
+    try:
+        migrate_db()
+        logger.info("Миграции базы данных проверены.")
+    except Exception as e:
+        logger.critical("=" * 70)
+        logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Сбой применения миграций БД: {e}")
+        logger.critical("Запуск приложения остановлен во избежание повреждения данных.")
+        logger.critical("=" * 70)
+        sys.exit(1)
 
     # 4. Инициализация и запуск gRPC сервера
     grpc_server = create_grpc_server(host=GRPC_HOST, port=GRPC_PORT)
