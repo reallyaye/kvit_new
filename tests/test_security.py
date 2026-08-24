@@ -358,6 +358,23 @@ def test_persistent_state_and_session_sharing():
     assert allowed2 is False
     assert reason2 == 'ip_banned'
 
+def test_env_crypto_encode_decode():
+    from services.security.env_crypto import encode_val, decode_val, encode_env_content, decode_env_content
+    from config import _decode_env_val
+
+    raw_secret = "super_secret_token_12345"
+    encoded = encode_val(raw_secret)
+    assert encoded.startswith("B64:")
+    assert decode_val(encoded) == raw_secret
+    assert _decode_env_val(encoded) == raw_secret
+
+    sample_env = "PORT=8000\nSECRET_KEY=my_secret\n# Comment line\nFLAG=true"
+    encoded_env = encode_env_content(sample_env)
+    assert "SECRET_KEY=B64:" in encoded_env
+    decoded_env = decode_env_content(encoded_env)
+    assert "SECRET_KEY=my_secret" in decoded_env
+
+
 
 
 

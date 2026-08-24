@@ -3,10 +3,37 @@ import html
 import re
 import ipaddress
 
+import base64
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 
+def _decode_env_val(val: str) -> str:
+    """Декодирует значение, если оно закодировано в формате B64:... или ENC(...)."""
+    if not val or not isinstance(val, str):
+        return val
+
+    clean_val = val.strip().strip("'\"")
+    if clean_val.startswith('ENC(') and clean_val.endswith(')'):
+        inner = clean_val[4:-1].strip()
+        if inner.lower().startswith(('b64:', 'base64:')):
+            inner = inner.split(':', 1)[1].strip()
+        try:
+            return base64.b64decode(inner.encode('ascii')).decode('utf-8')
+        except Exception:
+            return clean_val
+
+    for prefix in ('B64:', 'b64:', 'BASE64:', 'base64:', 'ENC:b64:', 'enc:b64:'):
+        if clean_val.startswith(prefix):
+            encoded = clean_val[len(prefix):].strip()
+            try:
+                return base64.b64decode(encoded.encode('ascii')).decode('utf-8')
+            except Exception:
+                return clean_val
+
+    return clean_val
+
 def _load_env():
-    """Загружает переменные окружения из файла .env, если он существует."""
+    """Загружает переменные окружения из файла .env, поддерживая автоматическое декодирование."""
     env_path = os.path.join(BASE, '.env')
     if os.path.isfile(env_path):
         try:
@@ -17,10 +44,10 @@ def _load_env():
                         continue
                     key, val = line.split('=', 1)
                     key = key.strip()
-                    val = val.strip().strip("'\"")
+                    decoded_val = _decode_env_val(val)
                     # Устанавливаем только если не переопределено системным окружением
                     if key not in os.environ:
-                        os.environ[key] = val
+                        os.environ[key] = decoded_val
         except Exception:
             pass
 
