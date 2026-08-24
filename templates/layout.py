@@ -95,12 +95,11 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
 .address-info{{display:flex;flex-direction:column;gap:4px}}
 .address-text{{font-size:15px;font-weight:600;color:#1e293b}}
 .address-acc{{font-size:13px;color:#64748b}}
-.ws-indicator{{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:#0f172a;color:#94a3b8;border:1px solid #334155}}
+.ws-indicator{{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:#0f172a;color:#94a3b8;border:1px solid #334155;margin-left:auto}}
 .ws-dot{{width:8px;height:8px;border-radius:50%;background:#ef4444;transition:.3s;display:inline-block}}
 .ws-indicator.online .ws-dot{{background:#22c55e;box-shadow:0 0 8px #22c55e}}
 .ws-indicator.online{{color:#e2e8f0;border-color:#166534}}
 
-.live-sync-indicator{{display:inline-flex;align-items:center;gap:8px;padding:5px 14px;border-radius:20px;background:#0f172a99;border:1px solid #3b82f640;font-size:13px;color:#cbd5e1;backdrop-filter:blur(8px);transition:.3s;margin-right:auto}}
 .pulse-dot{{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;display:inline-block;animation:livePulse 2s infinite ease-in-out}}
 @keyframes livePulse{{0%,100%{{opacity:1;transform:scale(1);box-shadow:0 0 8px #22c55e}}50%{{opacity:.35;transform:scale(0.85);box-shadow:0 0 2px #22c55e}}}}
 .live-pulse-glow{{animation:highlightChange 1.2s ease-out}}
@@ -108,15 +107,11 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
 .live-sync-pulse{{background:#16a34a26!important;border-color:#22c55e!important}}
 .live-val{{display:inline-block;transition:all .3s ease}}
 
-@media(max-width:768px){{.topbar{{height:auto;padding:12px 16px;gap:12px}}.live-sync-indicator{{order:3;width:100%;margin-right:0;justify-content:center}}.ws-indicator{{order:2;margin-left:auto}}}}
+@media(max-width:768px){{.topbar{{height:auto;padding:12px 16px;gap:12px}}.ws-indicator{{order:2;margin-left:auto}}}}
 @media(max-width:600px){{.wrap{{margin:16px auto;padding:0 12px}}.card{{padding:20px 18px}}.stats{{grid-template-columns:1fr 1fr}}.period-card{{flex-direction:column;align-items:flex-start;gap:12px}}.period-card .period-actions{{width:100%}}.period-card .period-actions a{{flex:1;text-align:center}}.address-item{{flex-direction:column;align-items:flex-start;gap:12px}}.address-item .btn{{width:100%;text-align:center}}}}
 </style></head><body>
 <div class="topbar">
     <span class="logo">Квитанции</span>
-    <div class="live-sync-indicator" id="liveSyncStatus" title="Автоматический опрос базы данных каждые 3 секунды">
-        <span class="pulse-dot"></span>
-        <span class="live-sync-text">Live: <b id="liveAccHeader" class="live-num live-val">—</b> счетов</span>
-    </div>
     <span class="ws-indicator" id="wsIndicator" title="WebSocket статус соединения"><span class="ws-dot"></span><span id="wsLabel">WS Offline</span></span>
     {nav_html}
 </div>
