@@ -1,29 +1,27 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Скрипт первоначальной настройки и деплоя KREC & Kvit-App на сервере (Debian/Ubuntu)
+# Скрипт первоначальной настройки и деплоя единого портала КРЭК на Python (Debian/Ubuntu)
 # ==============================================================================
 
 set -euo pipefail
 
 echo "========================================================="
 echo "   Развертывание портала КРЭК и сервиса квитанций"
+echo "   (Единый стек Python + Nginx)"
 echo "========================================================="
 
 PROJECT_DIR="/var/www"
-SITE_DIR="$PROJECT_DIR/krec"
 KVIT_DIR="$PROJECT_DIR/kvit_test"
-NGINX_CONF_SRC="$SITE_DIR/../nginx_kvit.conf"
+NGINX_CONF_SRC="$PROJECT_DIR/deploy/nginx_kvit.conf"
 
 # 1. Установка системных зависимостей
 echo "[*] Обновление пакетов и установка зависимостей..."
 apt-get update -y
-apt-get install -y nginx php8.1-fpm php8.1-cli tesseract-ocr tesseract-ocr-rus tesseract-ocr-kaz python3 python3-venv python3-pip
+apt-get install -y nginx tesseract-ocr tesseract-ocr-rus tesseract-ocr-kaz python3 python3-venv python3-pip
 
 # 2. Настройка прав и каталогов
 echo "[*] Настройка прав доступа к файлам веб-сервера..."
-chown -R www-data:www-data "$SITE_DIR"
 chown -R www-data:www-data "$KVIT_DIR"
-chmod 755 "$SITE_DIR"
 chmod 755 "$KVIT_DIR"
 
 # 3. Настройка виртуального окружения Python

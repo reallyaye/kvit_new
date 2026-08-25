@@ -12,6 +12,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
+import mimetypes
 import config
 from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, WS_GUID
 from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem
@@ -35,6 +36,7 @@ from templates import (
     render_throttled_page,
     render_upload_form,
 )
+from templates.portal_views import PORTAL_PAGES, DOCUMENTS_REGISTRY, render_page as render_portal_page, render_document as render_portal_document
 
 
 class AppRequestHandler(BaseHTTPRequestHandler):
@@ -160,10 +162,19 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return False
         return auth_service.verify_csrf_token(session_token, csrf_token)
 
+    def _send_security_headers(self):
+        """Внедрение обязательных заголовков безопасности."""
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'SAMEORIGIN')
+        self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
+        self.send_header('X-XSS-Protection', '1; mode=block')
+        self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
     def send_html(self, text: str, code: int = 200, extra_headers: dict = None):
         try:
             data = text.encode('utf-8')
             self.send_response(code)
+            self._send_security_headers()
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.send_header('Content-Length', str(len(data)))
             if extra_headers:
@@ -178,6 +189,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         try:
             body = json.dumps(data, ensure_ascii=False).encode('utf-8')
             self.send_response(code)
+            self._send_security_headers()
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
             if extra_headers:
@@ -187,6 +199,34 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
             pass
+
+    def _serve_static(self, path: str):
+        """Безопасная отдача статических файлов (CSS, JS, изображения, PDF)."""
+        rel_path = path.lstrip('/')
+        target_file = os.path.join(config.STATIC_DIR, rel_path)
+        try:
+            abs_target = os.path.abspath(target_file)
+            abs_static = os.path.abspath(config.STATIC_DIR)
+            if os.path.commonpath([abs_target, abs_static]) != abs_static or not os.path.isfile(abs_target):
+                self.send_html(render_portal_page('404'), 404)
+                return
+
+            mime_type, _ = mimetypes.guess_type(abs_target)
+            if not mime_type:
+                mime_type = 'application/octet-stream'
+
+            with open(abs_target, 'rb') as f:
+                data = f.read()
+
+            self.send_response(200)
+            self._send_security_headers()
+            self.send_header('Content-Type', mime_type)
+            self.send_header('Content-Length', str(len(data)))
+            self.send_header('Cache-Control', 'public, max-age=604800')
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception:
+            self.send_html(render_portal_page('404'), 404)
 
     def _redirect(self, location: str, extra_headers: dict = None):
         self.send_response(302)
@@ -235,6 +275,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self._handle_websocket()
             return
 
+        # Статические файлы (CSS, JS, изображения, PDF, favicon, robots, sitemap)
+        if path.startswith(('/css/', '/images/', '/files/')) or path in ('/favicon.ico', '/robots.txt', '/sitemap.xml'):
+            self._serve_static(path)
+            return
+
         # 1. IP Throttling (ограничение одновременных запросов и всплесков)
         throttle_allowed, throttle_reason, throttle_retry = ip_throttler.acquire(client_ip)
         if not throttle_allowed:
@@ -277,18 +322,19 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(layout(body, 'search', is_admin=is_admin), 429, {'Retry-After': str(retry_after)})
                     return
 
-            # Роутинг API и страниц
+            # ── 4. Роутинг API и сервиса квитанций ───────────────────────────
             if path == '/api/stats':
                 self._handle_api_stats(q)
                 return
             elif path == '/api/search':
                 self._handle_api_search(q)
                 return
-            elif path == '/':
+            elif path in ('/kvit', '/kvit/'):
                 tab = q.get('tab', ['account'])[0].strip()
                 periods = receipt_service.get_distinct_periods()
                 body = render_search_form(periods, active_tab=tab)
                 self.send_html(layout(body, 'search', is_admin=is_admin))
+                return
             elif path == '/search':
                 account = q.get('account', [''])[0].strip()
                 address_query = q.get('address', [''])[0].strip()
@@ -336,10 +382,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         body = render_address_clarification_prompt(address_query, period_filter, prompt_msg, periods)
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                 else:
-                    self._redirect('/')
+                    self._redirect('/kvit/')
             elif path == '/login':
                 if is_admin:
-                    self._redirect('/')
+                    self._redirect('/kvit/')
                 else:
                     body = render_login_form()
                     self.send_html(layout(body, 'login', is_admin=False))
@@ -370,10 +416,25 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(layout(body, 'reconcile', is_admin=True, csrf_token=csrf_tok))
             elif path in ('/receipt', '/download'):
                 self._serve_pdf(path, q)
+
+            # ── 5. Роутинг информационного портала КРЭК ─────────────────────
+            elif path in ('/', '/index.php', '/index.html'):
+                self.send_html(render_portal_page('home'))
             else:
-                csrf_tok = auth_service.get_csrf_token(self._get_session_token()) if is_admin else ''
-                body = render_404_page()
-                self.send_html(layout(body, 'search', is_admin=is_admin, csrf_token=csrf_tok), 404)
+                clean_name = path.rstrip('.php').lstrip('/')
+                if clean_name in PORTAL_PAGES:
+                    self.send_html(render_portal_page(clean_name))
+                    return
+
+                doc_key = os.path.basename(path)
+                if not doc_key.endswith('.php'):
+                    doc_key += '.php'
+                if doc_key in DOCUMENTS_REGISTRY:
+                    self.send_html(render_portal_document(DOCUMENTS_REGISTRY[doc_key]))
+                    return
+
+                # 404 Not Found
+                self.send_html(render_portal_page('404'), 404)
         finally:
             ip_throttler.release(client_ip)
 

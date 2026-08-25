@@ -204,6 +204,26 @@ def run_all():
             traceback.print_exc()
             failed += 1
 
+    # 8. test_portal (Тесты портала и реестра документов)
+    from tests import test_portal
+    for fn_name in [
+        'test_portal_pages_loaded',
+        'test_documents_registry_loaded',
+        'test_render_home_page',
+        'test_render_contacts_page',
+        'test_render_document_invest',
+        'test_render_document_iframe_ktp',
+        'test_render_404'
+    ]:
+        try:
+            getattr(test_portal, fn_name)()
+            print(f"  [OK] test_portal.{fn_name}")
+            passed += 1
+        except Exception as e:
+            print(f"  [FAIL] test_portal.{fn_name}: {e}")
+            traceback.print_exc()
+            failed += 1
+
     shutil.rmtree(test_dir, ignore_errors=True)
 
     print("=" * 65)

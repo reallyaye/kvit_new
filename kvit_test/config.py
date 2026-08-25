@@ -60,6 +60,9 @@ DB = DB_PATH if os.path.isabs(DB_PATH) else os.path.join(BASE, DB_PATH)
 RECEIPTS_PATH = os.environ.get('RECEIPTS_DIR', 'receipts')
 RECEIPTS_DIR = RECEIPTS_PATH if os.path.isabs(RECEIPTS_PATH) else os.path.join(BASE, RECEIPTS_PATH)
 
+STATIC_PATH = os.environ.get('STATIC_DIR', 'static')
+STATIC_DIR = STATIC_PATH if os.path.isabs(STATIC_PATH) else os.path.join(BASE, STATIC_PATH)
+
 # ────────────────────── OCR Настройки ──────────────────────
 # ────────────────────── OCR Настройки и Защита от DoS ──────────────────────
 OCR_ENABLED = os.environ.get('OCR_ENABLED', 'true').lower() in ('true', '1', 'yes')
