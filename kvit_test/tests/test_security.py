@@ -1,5 +1,6 @@
 import threading
 import time
+import config
 
 try:
     import pytest
@@ -505,6 +506,20 @@ def test_csrf_token_lifecycle_and_validation():
     # 6. Аннулирование сессии инвалидирует и CSRF токен
     auth_service.destroy_session(session_token)
     assert auth_service.verify_csrf_token(session_token, csrf_token) is False
+
+    # 7. Проверка строгости SECRET_KEY: если секрет отсутствует, get_csrf_token должен падать с ошибкой
+    new_session = auth_service.create_session()
+    old_secret = config.SECRET_KEY
+    try:
+        config.SECRET_KEY = ""
+        try:
+            auth_service.get_csrf_token(new_session)
+            assert False, "Ожидалось исключение ValueError при отсутствии SECRET_KEY"
+        except ValueError:
+            pass
+        assert auth_service.verify_csrf_token(new_session, "any_token") is False
+    finally:
+        config.SECRET_KEY = old_secret
 
 
 

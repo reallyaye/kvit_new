@@ -16,7 +16,19 @@ from services.websocket import ws_manager
 def main():
     logger.info("Запуск приложения...")
 
-    # 1. Проверка обязательного секрета gRPC
+    # 1. Проверка обязательного ключа подписи сессий и CSRF-токенов
+    if not config.SECRET_KEY:
+        suggested_secret = secrets.token_hex(32)
+        logger.error("=" * 70)
+        logger.error("❌ ОШИБКА БЕЗОПАСНОСТИ: Переменная SECRET_KEY не задана!")
+        logger.error("Ключ SECRET_KEY обязателен для безопасной криптографической подписи CSRF-токенов и сессий.")
+        logger.error("Сгенерирован криптостойкий ключ для вашего файла .env:\n")
+        logger.error(f"    SECRET_KEY={suggested_secret}\n")
+        logger.error("Добавьте эту строку в файл .env и перезапустите приложение.")
+        logger.error("=" * 70)
+        sys.exit(1)
+
+    # 2. Проверка обязательного секрета gRPC
     if not config.GRPC_API_KEY:
         suggested_key = secrets.token_hex(32)
         logger.error("=" * 70)
@@ -28,7 +40,7 @@ def main():
         logger.error("=" * 70)
         sys.exit(1)
 
-    # 2. Проверка обязательного хеша пароля администратора (хранение открытых паролей запрещено)
+    # 3. Проверка обязательного хеша пароля администратора (хранение открытых паролей запрещено)
     if not config.ADMIN_PASSWORD_HASH:
         from services.security.auth_service import hash_password
         # Если случайно был передан открытый пароль, помогаем пользователю его захешировать

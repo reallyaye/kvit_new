@@ -37,11 +37,13 @@ if [ ! -f "$KVIT_DIR/.env" ]; then
     echo "[*] Создание .env из шаблона..."
     cp "$KVIT_DIR/.env.example" "$KVIT_DIR/.env"
     
-    # Генерация боевого ключа gRPC
+    # Генерация боевых ключей SECRET_KEY и gRPC
+    SECRET_KEY_VAL=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     GRPC_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY_VAL/" "$KVIT_DIR/.env"
     sed -i "s/^GRPC_API_KEY=.*/GRPC_API_KEY=$GRPC_KEY/" "$KVIT_DIR/.env"
     
-    echo "[!] Сгенерирован GRPC_API_KEY. Не забудьте задать ADMIN_PASSWORD_HASH!"
+    echo "[!] Сгенерированы SECRET_KEY и GRPC_API_KEY. Не забудьте задать ADMIN_PASSWORD_HASH!"
 fi
 chmod 600 "$KVIT_DIR/.env"
 

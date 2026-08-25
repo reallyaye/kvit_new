@@ -35,6 +35,7 @@ def run_all():
 
     config.DB = db_file
     config.RECEIPTS_DIR = receipts_dir
+    config.SECRET_KEY = "test_secure_secret_key_for_testing"
     config.GRPC_API_KEY = "test_secure_grpc_key_for_testing"
     from services.security.auth_service import hash_password
     config.ADMIN_PASSWORD_HASH = hash_password("admin")

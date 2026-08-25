@@ -158,7 +158,10 @@ class AuthService:
         """
         if not session_token or not isinstance(session_token, str):
             return ""
-        secret = (getattr(config, 'SECRET_KEY', '') or 'kvit_secret_signing_key_2026').encode('utf-8')
+        secret_key = (getattr(config, 'SECRET_KEY', '') or '').strip()
+        if not secret_key:
+            raise ValueError("Критическая ошибка безопасности: SECRET_KEY не задан в конфигурации.")
+        secret = secret_key.encode('utf-8')
         message = f"csrf:{session_token}".encode('utf-8')
         return hmac.new(secret, message, hashlib.sha256).hexdigest()
 
@@ -170,7 +173,10 @@ class AuthService:
             return False
         if not self.is_valid_session(session_token):
             return False
-        expected = self.get_csrf_token(session_token)
+        try:
+            expected = self.get_csrf_token(session_token)
+        except ValueError:
+            return False
         if not expected:
             return False
         return secrets.compare_digest(str(csrf_token).strip(), expected)

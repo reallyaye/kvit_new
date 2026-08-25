@@ -145,7 +145,7 @@ GRPC_CERT_PATH = os.environ.get('GRPC_CERT_PATH', '')
 GRPC_KEY_PATH = os.environ.get('GRPC_KEY_PATH', '')
 
 # ────────────────────── Аутентификация и CSRF ──────────────────────
-SECRET_KEY = os.environ.get('SECRET_KEY', '').strip() or 'kvit_secret_signing_key_2026'
+SECRET_KEY = os.environ.get('SECRET_KEY', '').strip()
 ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', '').strip()
 SESSION_LIFETIME = int(os.environ.get('SESSION_LIFETIME', str(24 * 60 * 60)))  # 24 часа
 COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'auto').strip().lower()  # 'true', 'false', или 'auto' (по HTTPS/X-Forwarded-Proto)
