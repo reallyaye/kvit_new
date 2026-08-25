@@ -1,0 +1,33 @@
+```html
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ru" lang="ru">
+<head>
+<meta name="description" content="ТОО КРЭК (Карагандинская Региональная Энергетическая Компания) - Отчет инвестиционной программы за 2 квартал 2026 года"/>
+<title>Отчет инвестиционной программы за 2 квартал 2026 года</title>
+
+<?php
+  include ('header.html');
+?>
+
+<h1>Отчет инвестиционной программы и тарифной сметы за 1 квартал 2026 года</h1>
+
+<div class="line"></div>
+<div class="buttom">
+    <a href="../files/invest-1-2026.pdf">Посмотреть отчет</a>
+</div>
+
+<p></p>
+
+<!--
+<div class="buttom">
+    <a href="../files/objects.zip">Фото объектов</a>
+</div>
+<p></p>
+-->
+
+<?php
+  include ('footer.html');
+?>
+```

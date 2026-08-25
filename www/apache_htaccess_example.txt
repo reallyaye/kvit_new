@@ -1,0 +1,45 @@
+# ============================================================
+# Apache .htaccess — прокси для интеграции квитанций КРЭК
+# ============================================================
+#
+# Как использовать (Apache):
+# 1. Поместите этот файл в корень сайта КРЭК (папка krec/)
+#    переименовав в .htaccess
+# 2. Убедитесь что включены модули Apache:
+#    sudo a2enmod rewrite proxy proxy_http proxy_wstunnel headers
+#    sudo systemctl restart apache2
+# 3. Убедитесь что Python-сервис квитанций запущен на порту 8000
+# ============================================================
+
+Options -Indexes
+RewriteEngine On
+
+# ── Проксирование /kvit/ на Python-сервис ────────────────────
+
+# WebSocket (/ws путь)
+RewriteCond %{HTTP:Upgrade} websocket [NC]
+RewriteCond %{HTTP:Connection} upgrade [NC]
+RewriteRule ^kvit/ws(.*)$ ws://127.0.0.1:8000/ws$1 [P,L]
+
+# HTTP запросы к /kvit/
+RewriteRule ^kvit/(.*)$ http://127.0.0.1:8000/$1 [P,L]
+
+# Передача реального IP клиента
+<IfModule mod_headers.c>
+    RequestHeader set X-Forwarded-Proto "http"
+    RequestHeader set X-Real-IP %{REMOTE_ADDR}s
+</IfModule>
+
+# ── Стандартные правила PHP-сайта КРЭК ───────────────────────
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# ── Кеширование статики ───────────────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 7 days"
+    ExpiresByType image/png  "access plus 7 days"
+    ExpiresByType text/css   "access plus 1 day"
+    ExpiresByType application/pdf "access plus 1 day"
+</IfModule>
