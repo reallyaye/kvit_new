@@ -1,4 +1,5 @@
 import base64
+import binascii
 import html
 import ipaddress
 import os
@@ -18,7 +19,7 @@ def _decode_env_val(val: str) -> str:
             inner = inner.split(':', 1)[1].strip()
         try:
             return base64.b64decode(inner.encode('ascii')).decode('utf-8')
-        except Exception:
+        except (ValueError, binascii.Error, UnicodeDecodeError):
             return clean_val
 
     for prefix in ('B64:', 'b64:', 'BASE64:', 'base64:', 'ENC:b64:', 'enc:b64:'):
@@ -26,7 +27,7 @@ def _decode_env_val(val: str) -> str:
             encoded = clean_val[len(prefix):].strip()
             try:
                 return base64.b64decode(encoded.encode('ascii')).decode('utf-8')
-            except Exception:
+            except (ValueError, binascii.Error, UnicodeDecodeError):
                 return clean_val
 
     return clean_val
@@ -34,21 +35,27 @@ def _decode_env_val(val: str) -> str:
 def _load_env():
     """Загружает переменные окружения из файла .env, поддерживая автоматическое декодирование."""
     env_path = os.path.join(BASE, '.env')
-    if os.path.isfile(env_path):
-        try:
-            with open(env_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith('#') or '=' not in line:
-                        continue
-                    key, val = line.split('=', 1)
-                    key = key.strip()
-                    decoded_val = _decode_env_val(val)
-                    # Устанавливаем только если не переопределено системным окружением
-                    if key not in os.environ:
-                        os.environ[key] = decoded_val
-        except Exception:
-            pass
+    if not os.path.isfile(env_path):
+        return
+
+    try:
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line_no, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                key, val = line.split('=', 1)
+                key = key.strip()
+                if not key:
+                    continue
+                decoded_val = _decode_env_val(val)
+                # Устанавливаем только если не переопределено системным окружением
+                if key not in os.environ:
+                    os.environ[key] = decoded_val
+    except (OSError, UnicodeDecodeError) as e:
+        import sys
+        print(f"[Config] ❌ Критическая ошибка чтения файла конфигурации .env ({env_path}): {e}", file=sys.stderr)
+        raise
 
 _load_env()
 
