@@ -368,6 +368,48 @@ def test_persistent_state_and_session_sharing():
     assert allowed2 is False
     assert reason2 == 'ip_banned'
 
+def test_session_store_db_failure_policies():
+    """Тестирует явные политики поведения SessionStore при сбоях БД."""
+    from unittest import mock
+    from services.security.session_store import DatabaseSessionStore, DBFailurePolicy
+
+    now = time.time()
+    token = "test_failure_token_12345"
+
+    # 1. Тест политики FAIL_CLOSED
+    store_closed = DatabaseSessionStore(l1_ttl_seconds=10.0, db_failure_policy=DBFailurePolicy.FAIL_CLOSED)
+    with mock.patch("services.security.session_store.write_transaction", side_effect=Exception("DB Down")):
+        store_closed.save_session(token, now + 3600, now)
+        # В режиме FAIL_CLOSED токен не должен оседать в L1
+        assert token not in store_closed._l1_cache
+
+    with mock.patch("services.security.session_store.get_db", side_effect=Exception("DB Read Down")):
+        assert store_closed.get_session_expiry(token) is None
+
+    # 2. Тест политики FAIL_OPEN_L1
+    store_open = DatabaseSessionStore(l1_ttl_seconds=0.01, db_failure_policy=DBFailurePolicy.FAIL_OPEN_L1)
+    # Ручно заносим в L1 с истекшим L1 TTL, но валидным абсолютным expires_at
+    store_open._l1_cache[token] = (now + 3600, now - 5)
+    with mock.patch("services.security.session_store.get_db", side_effect=Exception("DB Read Down")):
+        # При сбое L2 возвращается валидный expiry из L1 кэша
+        assert store_open.get_session_expiry(token) == now + 3600
+
+    # 3. Тест политики STRICT
+    store_strict = DatabaseSessionStore(l1_ttl_seconds=10.0, db_failure_policy=DBFailurePolicy.STRICT)
+    with mock.patch("services.security.session_store.write_transaction", side_effect=RuntimeError("Fatal DB Error")):
+        try:
+            store_strict.save_session(token, now + 3600, now)
+            assert False, "Ожидалось исключение в режиме STRICT"
+        except RuntimeError:
+            pass
+
+    with mock.patch("services.security.session_store.get_db", side_effect=RuntimeError("Fatal DB Read Error")):
+        try:
+            store_strict.get_session_expiry(token)
+            assert False, "Ожидалось исключение в режиме STRICT"
+        except RuntimeError:
+            pass
+
 def test_env_crypto_encode_decode():
     from config import _decode_env_val
     from services.security.env_crypto import decode_env_content, decode_val, encode_env_content, encode_val
