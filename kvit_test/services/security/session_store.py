@@ -48,27 +48,10 @@ class DatabaseSessionStore(BaseSessionStore):
 
     def __init__(self, l1_ttl_seconds: float = 10.0):
         self._lock = threading.Lock()
-        # token -> (expires_at, l1_valid_until)
+        # token -> (expires_at, l1_valid_until) - заполняется лениво по запросу (Cache-Aside)
         self._l1_cache: Dict[str, Tuple[float, float]] = {}
         self._l1_ttl = float(l1_ttl_seconds)
         self._last_cleanup = time.time()
-        self._warmup_l1_from_db()
-
-    def _warmup_l1_from_db(self):
-        """Прогревает L1 кэш активными сессиями из БД при старте инстанса."""
-        now = time.time()
-        try:
-            con = get_db()
-            try:
-                rows = con.execute('SELECT token, expires_at FROM app_sessions WHERE expires_at > ?', (now,)).fetchall()
-                with self._lock:
-                    for r in rows:
-                        token, exp = r[0], float(r[1])
-                        self._l1_cache[token] = (exp, now + self._l1_ttl)
-            finally:
-                con.close()
-        except Exception as e:
-            logger.warn(f"[SessionStore] Предупреждение при прогреве L1 кэша: {e}")
 
     def save_session(self, token: str, expires_at: float, created_at: float) -> None:
         now = time.time()
