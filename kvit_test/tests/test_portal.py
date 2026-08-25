@@ -52,3 +52,38 @@ def test_render_zakup_page():
     assert 'Закупки' in html_slash
     assert '404' not in html_slash
 
+def test_health_and_readiness_probes():
+    """Тестирует liveness (/health) и readiness (/ready) проверки сервера."""
+    from unittest import mock
+    from server import AppRequestHandler
+
+    handler = AppRequestHandler.__new__(AppRequestHandler)
+    captured = {}
+
+    def mock_send_json(data, code=200, extra_headers=None):
+        captured['data'] = data
+        captured['code'] = code
+        captured['headers'] = extra_headers
+
+    handler.send_json = mock_send_json
+
+    # 1. Liveness probe (/health) -> 200 OK
+    handler._handle_health()
+    assert captured['code'] == 200
+    assert captured['data']['status'] == 'ok'
+    assert 'uptime_seconds' in captured['data']
+    assert captured['data']['service'] == 'kvit-service'
+
+    # 2. Readiness probe (/ready) -> 200 Ready
+    handler._handle_ready()
+    assert captured['code'] == 200
+    assert captured['data']['status'] == 'ready'
+    assert captured['data']['checks']['database'] == 'ok'
+
+    # 3. Readiness probe при сбое БД -> 503 Not Ready
+    with mock.patch('server.get_db', side_effect=Exception('Database unreachable')):
+        handler._handle_ready()
+        assert captured['code'] == 503
+        assert captured['data']['status'] == 'not_ready'
+        assert 'Database unreachable' in captured['data']['checks']['database']
+

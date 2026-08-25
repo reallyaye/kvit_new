@@ -215,7 +215,8 @@ def run_all():
         'test_render_document_invest',
         'test_render_document_iframe_ktp',
         'test_render_404',
-        'test_render_zakup_page'
+        'test_render_zakup_page',
+        'test_health_and_readiness_probes'
     ]:
         try:
             getattr(test_portal, fn_name)()

@@ -38,6 +38,8 @@ from templates import (
 )
 from templates.portal_views import PORTAL_PAGES, DOCUMENTS_REGISTRY, render_page as render_portal_page, render_document as render_portal_document
 
+START_TIME = time.time()
+
 
 class AppRequestHandler(BaseHTTPRequestHandler):
     """Главный HTTP-шлюз и роутер приложения."""
@@ -261,6 +263,51 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         self.close_connection = True
         ws_manager.handle_connection(self.connection, self._get_client_ip())
 
+    def _handle_health(self):
+        """Liveness probe: мгновенная проверка работоспособности HTTP-сервера."""
+        self.send_json({
+            'status': 'ok',
+            'timestamp': time.time(),
+            'uptime_seconds': round(time.time() - START_TIME, 2),
+            'service': 'kvit-service'
+        }, 200, {'Cache-Control': 'no-store, no-cache'})
+
+    def _handle_ready(self):
+        """Readiness probe: проверка готовности зависимостей (база данных, хранилище файлов)."""
+        checks = {}
+        all_ok = True
+
+        # 1. Проверка доступности БД
+        try:
+            con = get_db()
+            try:
+                con.execute('SELECT 1').fetchone()
+                checks['database'] = 'ok'
+            finally:
+                con.close()
+        except Exception as e:
+            checks['database'] = f'error: {e}'
+            all_ok = False
+
+        # 2. Проверка доступности каталога квитанций
+        try:
+            receipts_dir = getattr(config, 'RECEIPTS_DIR', 'receipts')
+            if os.path.exists(receipts_dir) and os.path.isdir(receipts_dir):
+                checks['storage'] = 'ok'
+            else:
+                os.makedirs(receipts_dir, exist_ok=True)
+                checks['storage'] = 'created'
+        except Exception as e:
+            checks['storage'] = f'error: {e}'
+            all_ok = False
+
+        status_code = 200 if all_ok else 503
+        self.send_json({
+            'status': 'ready' if all_ok else 'not_ready',
+            'checks': checks,
+            'timestamp': time.time()
+        }, status_code, {'Cache-Control': 'no-store, no-cache'})
+
     # ────────────────────── GET ──────────────────────
 
     def do_GET(self):
@@ -269,6 +316,14 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         q = parse_qs(u.query)
         is_admin = self._is_admin()
         client_ip = self._get_client_ip()
+
+        # Health & Readiness probes (Liveness / Readiness для k8s, docker, load balancers)
+        if path in ('/health', '/healthz', '/api/health'):
+            self._handle_health()
+            return
+        elif path in ('/ready', '/readyz', '/api/ready'):
+            self._handle_ready()
+            return
 
         # WebSocket перехват
         if path == '/ws' and self.headers.get('Upgrade', '').lower() == 'websocket':
