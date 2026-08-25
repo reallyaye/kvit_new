@@ -144,10 +144,8 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
 @media(max-width:600px){{.wrap{{margin:16px auto;padding:0 12px}}.card{{padding:20px 18px}}.stats{{grid-template-columns:1fr 1fr}}.period-card{{flex-direction:column;align-items:flex-start;gap:12px}}.period-card .period-actions{{width:100%}}.period-card .period-actions a,.period-card .period-actions button{{flex:1;text-align:center}}.address-item{{flex-direction:column;align-items:flex-start;gap:12px}}.address-item .btn{{width:100%;text-align:center}}.grid-fields{{grid-template-columns:1fr}}}}
 </style></head><body>
 <div class="topbar">
-    <a href="/" style="text-decoration:none;display:inline-flex;align-items:center;gap:10px;">
-        <div style="width:30px;height:30px;background:linear-gradient(135deg,#2563eb 0%,#38bdf8 100%);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 0 10px rgba(56,189,248,0.35);">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        </div>
+    <a href="/" style="text-decoration:none;display:inline-flex;align-items:center;gap:12px;">
+        <img src="/images/logo.png?v=8" alt="ТОО КРЭК" style="height:36px;width:auto;object-fit:contain;filter:drop-shadow(0 0 8px rgba(56,189,248,0.45));">
         <span class="logo">ТОО &laquo;КРЭК&raquo;</span>
         <span class="logo-sub">Квитанции</span>
     </a>

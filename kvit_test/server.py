@@ -222,7 +222,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self._send_security_headers()
             self.send_header('Content-Type', mime_type)
             self.send_header('Content-Length', str(len(data)))
-            self.send_header('Cache-Control', 'public, max-age=604800')
+            self.send_header('Cache-Control', 'no-cache, must-revalidate')
             self.end_headers()
             self.wfile.write(data)
         except Exception:
@@ -421,12 +421,12 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             elif path in ('/', '/index.php', '/index.html'):
                 self.send_html(render_portal_page('home'))
             else:
-                clean_name = path.rstrip('.php').lstrip('/')
+                clean_name = path.strip('/').removesuffix('.php').strip('/')
                 if clean_name in PORTAL_PAGES:
                     self.send_html(render_portal_page(clean_name))
                     return
 
-                doc_key = os.path.basename(path)
+                doc_key = os.path.basename(path).strip('/')
                 if not doc_key.endswith('.php'):
                     doc_key += '.php'
                 if doc_key in DOCUMENTS_REGISTRY:
@@ -1055,7 +1055,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             max_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
             csrf_tok = auth_service.get_csrf_token(self._get_session_token())
             body = render_upload_form(f'<div class="err">❌ Превышен максимальный размер загрузки ({max_mb} MB). Уменьшите объем файлов или загрузите их частями.</div>', csrf_token=csrf_tok)
-            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok), status=413)
+            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok), 413)
             return
 
         if tmp_dir is None or not pdf_files:

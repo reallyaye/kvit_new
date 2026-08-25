@@ -8,21 +8,35 @@ PAGES_JSON_PATH = os.path.join(BASE_DIR, 'data', 'extracted_portal_pages.json')
 DOCS_JSON_PATH = os.path.join(BASE_DIR, 'data', 'documents.json')
 
 def load_portal_pages():
-    if os.path.isfile(PAGES_JSON_PATH):
-        try:
-            with open(PAGES_JSON_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            pass
+    paths = [
+        PAGES_JSON_PATH,
+        os.path.join(os.path.dirname(BASE_DIR), 'data', 'extracted_portal_pages.json'),
+        os.path.join(os.getcwd(), 'data', 'extracted_portal_pages.json'),
+        os.path.join(os.getcwd(), 'kvit_test', 'data', 'extracted_portal_pages.json'),
+    ]
+    for p in paths:
+        if os.path.isfile(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                pass
     return {}
 
 def load_documents_registry():
-    if os.path.isfile(DOCS_JSON_PATH):
-        try:
-            with open(DOCS_JSON_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            pass
+    paths = [
+        DOCS_JSON_PATH,
+        os.path.join(os.path.dirname(BASE_DIR), 'data', 'documents.json'),
+        os.path.join(os.getcwd(), 'data', 'documents.json'),
+        os.path.join(os.getcwd(), 'kvit_test', 'data', 'documents.json'),
+    ]
+    for p in paths:
+        if os.path.isfile(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                pass
     return {}
 
 PORTAL_PAGES = load_portal_pages()
@@ -30,7 +44,7 @@ DOCUMENTS_REGISTRY = load_documents_registry()
 
 def render_page(page_name: str) -> str:
     """Рендерит именованную страницу портала (home, contacts, reports, etc.)."""
-    clean_name = page_name.lower().rstrip('.php').lstrip('/')
+    clean_name = page_name.lower().lstrip('/').removesuffix('.php')
     if clean_name in ('', 'index', 'main'):
         clean_name = 'home'
 

@@ -1,3 +1,9 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /upload
+Disallow: /reconcile
+Disallow: /login
+Disallow: /api/
+
+Sitemap: https://krec.kz/sitemap.xml
 

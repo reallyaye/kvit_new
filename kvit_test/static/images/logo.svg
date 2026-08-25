@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <!-- Soft electric blue glow -->
+    <radialGradient id="krecGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.3" />
+      <stop offset="60%" stop-color="#0284c7" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0" />
+    </radialGradient>
+    
+    <!-- Blue Oval Ring Gradient -->
+    <linearGradient id="krecOvalGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+
+    <!-- Yellow Lightning Gradient -->
+    <linearGradient id="krecBoltGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="35%" stop-color="#facc15" />
+      <stop offset="70%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#fef08a" />
+    </linearGradient>
+    
+    <!-- Drop shadow for lightning bolt -->
+    <filter id="boltGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="2.5" flood-color="#38bdf8" flood-opacity="0.7"/>
+    </filter>
+  </defs>
+
+  <!-- Ambient Glow Background -->
+  <circle cx="60" cy="60" r="56" fill="url(#krecGlow)" />
+
+  <!-- Blue Oval Outer Ring -->
+  <ellipse cx="60" cy="60" rx="25" ry="45" fill="none" stroke="url(#krecOvalGrad)" stroke-width="7" opacity="0.95" />
+
+  <!-- Inner Soft Light Fill for perfect contrast on any background -->
+  <ellipse cx="60" cy="60" rx="19" ry="38" fill="#dbeafe" opacity="0.9" />
+
+  <!-- Transmission Tower (ЛЭП) -->
+  <g id="tower">
+    <!-- Main Tower Body & Apex -->
+    <path d="M60 18 L53 44 L43 44 L41 50 L51 50 L42 66 L39 72 L49 72 L37 104 L48 104 L55 84 L65 84 L72 104 L83 104 L71 72 L81 72 L78 66 L69 50 L79 50 L77 44 L67 44 Z" fill="#0f172a" stroke="#0f172a" stroke-width="1.2" stroke-linejoin="round" />
+  </g>
+
+  <!-- Yellow Horizontal Lightning Bolt (through center) -->
+  <polygon points="4,73 45,73 37,61 83,61 57,67 116,57 73,65 81,77 39,77 65,71" fill="url(#krecBoltGrad)" stroke="#a16207" stroke-width="0.8" filter="url(#boltGlow)" />
+</svg>

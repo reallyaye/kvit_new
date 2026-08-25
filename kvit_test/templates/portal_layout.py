@@ -19,8 +19,8 @@ def portal_layout(
 <meta name="description" content="{escaped_desc}" />
 <meta name="robots" content="index,follow">
 <title>{escaped_title}</title>
-<link rel="stylesheet" href="/css/style.css" type="text/css" media="screen" />
-<link rel="shortcut icon" href="/favicon.ico" type="image/vnd.microsoft.icon">
+<link rel="stylesheet" href="/css/style.css?v=8" type="text/css" media="screen" />
+<link rel="shortcut icon" href="/favicon.ico?v=8" type="image/vnd.microsoft.icon">
 </head>
 <body>
 <!-- Yandex.Metrika counter -->
@@ -58,9 +58,7 @@ def portal_layout(
 <!-- ===== ШАПКА САЙТА ===== -->
 <div id="header">
     <a href="/" class="header-brand">
-        <div class="header-logo-icon">
-            <svg class="svg-icon-stroke" width="20" height="20" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        </div>
+        <img src="/images/logo.png?v=8" alt="ТОО КРЭК" class="header-logo-img" />
         <div class="header-titles">
             <span class="header-title-main">ТОО &laquo;КРЭК&raquo;</span>
             <span class="header-title-sub">Карагандинская Региональная Энергетическая Компания</span>

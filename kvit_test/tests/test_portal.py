@@ -41,3 +41,14 @@ def test_render_document_iframe_ktp():
 def test_render_404():
     html = render_page('some_non_existent_page_123')
     assert '404' in html
+
+def test_render_zakup_page():
+    html = render_page('zakup')
+    assert 'Закупки' in html
+    assert 'План закупок' in html
+    assert '404' not in html
+
+    html_slash = render_page('/zakup.php')
+    assert 'Закупки' in html_slash
+    assert '404' not in html_slash
+

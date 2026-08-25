@@ -66,7 +66,9 @@ def main():
         telegram_bot_service.start_in_thread()
 
     # 6. Инициализация и запуск многопоточного HTTP/WebSocket сервера
+    ThreadingHTTPServer.allow_reuse_address = True
     http_server = ThreadingHTTPServer((HOST, PORT), AppRequestHandler)
+    http_server.daemon_threads = True
 
     protocol = "http"
     is_tls = False
@@ -110,14 +112,39 @@ def main():
         logger.info("Архитектура: сервис ожидает Reverse Proxy (Nginx/IIS) с TLS-терминацией перед собой.")
     logger.info("Система безопасности: IDOR Token, Rate Limiter, IP Throttler, gRPC Auth, WS Timeout")
 
+    import time
+
+    running = True
     try:
-        http_server.serve_forever()
+        while running:
+            try:
+                shut_down_event = getattr(http_server, '_BaseServer__is_shut_down', None)
+                if shut_down_event is not None:
+                    shut_down_event.clear()
+                http_server.serve_forever()
+            except KeyboardInterrupt:
+                running = False
+                break
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                time.sleep(0.1)
+                continue
+            except Exception as loop_err:
+                logger.warning(f"Внутренний сбой HTTP-сервера ({loop_err}), автоматический перезапуск потока...")
+                time.sleep(0.5)
+                continue
     except KeyboardInterrupt:
         logger.info("Остановка серверов по сигналу завершения...")
-        http_server.server_close()
+    except BaseException as e:
+        import traceback
+        logger.critical(f"Необработанное исключение: {e}\n{traceback.format_exc()}")
+    finally:
+        try:
+            http_server.server_close()
+        except Exception:
+            pass
         ws_manager.stop()
         telegram_bot_service.stop()
-        grpc_server.stop(grace=2)
+        grpc_server.stop(grace=1)
         logger.info("Все серверы успешно остановлены.")
 
 
