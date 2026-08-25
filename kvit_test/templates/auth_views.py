@@ -45,9 +45,9 @@ def render_404_page():
         <a class="btn-outline btn" href="/kvit/" style="display:inline-flex;align-items:center;gap:6px">{icon('arrow_left', 14)} На главную</a>
     </div>'''
 
-def render_forbidden_page():
+def render_forbidden_page(message: str = 'Недействительная или устаревшая ссылка на квитанцию.'):
     return f'''<div class="card">
         <h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:8px">{icon('shield_alert', 22, '#dc2626')} Доступ запрещён</span></h1>
-        <p style="color:#64748b;margin:12px 0 20px">Недействительная или устаревшая ссылка на квитанцию.</p>
+        <p style="color:#64748b;margin:12px 0 20px">{html.escape(message)}</p>
         <a class="btn-outline btn" href="/kvit/" style="display:inline-flex;align-items:center;gap:6px">{icon('arrow_left', 14)} На главную</a>
     </div>'''

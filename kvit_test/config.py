@@ -159,8 +159,8 @@ SESSION_DB_FAILURE_POLICY = os.environ.get('SESSION_DB_FAILURE_POLICY', 'fail_cl
 COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'auto').strip().lower()  # 'true', 'false', или 'auto' (по HTTPS/X-Forwarded-Proto)
 CSRF_ENABLED = os.environ.get('CSRF_ENABLED', 'true').strip().lower() in ('true', '1', 'yes')
 
-PROTECTED_PATHS = {'/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts', '/api/clear-receipts'}
-CSRF_PROTECTED_PATHS = {'/upload', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts', '/api/clear-receipts'}
+PROTECTED_PATHS = {'/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts'}
+CSRF_PROTECTED_PATHS = {'/upload', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts'}
 
 
 # ────────────────────── WebSocket ──────────────────────

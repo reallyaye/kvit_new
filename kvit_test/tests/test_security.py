@@ -568,6 +568,91 @@ def test_csrf_token_lifecycle_and_validation():
     finally:
         config.SECRET_KEY = old_secret
 
+def test_all_admin_endpoints_auth_and_csrf_matrix():
+    """Систематический аудит и матричное тестирование авторизации и CSRF для всех админских эндпоинтов."""
+    import io
+    from unittest import mock
+    from server import AppRequestHandler
+    from services.security.auth_service import auth_service
+
+    admin_session = auth_service.create_session()
+    valid_csrf = auth_service.get_csrf_token(admin_session)
+
+    with mock.patch("server.ip_throttler.acquire", return_value=(True, None, 0)), \
+         mock.patch("server.rate_limiter.is_allowed", return_value=(True, 0, 100)):
+
+        # 1. Проверка GET админских страниц
+        get_admin_routes = ['/upload', '/reconcile']
+        for path in get_admin_routes:
+            handler_unauth = AppRequestHandler.__new__(AppRequestHandler)
+            handler_unauth.path = path
+            handler_unauth.headers = {}
+            handler_unauth.client_address = ("127.0.0.1", 12345)
+            redirects = []
+            handler_unauth._redirect = lambda loc, extra_headers=None: redirects.append(loc)
+            handler_unauth.do_GET()
+            assert '/login' in redirects, f"GET {path} без авторизации должен редиректить на /login"
+
+        # 2. Проверка JSON API POST эндпоинтов (401 без авторизации, 403 с кривым CSRF)
+        api_post_routes = ['/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts']
+        for path in api_post_routes:
+            # а) Без сессии -> 401
+            h_unauth = AppRequestHandler.__new__(AppRequestHandler)
+            h_unauth.path = path
+            h_unauth.headers = {}
+            h_unauth.client_address = ("127.0.0.1", 12345)
+            resp = {}
+            h_unauth.send_json = lambda data, code=200, extra_headers=None: resp.update({'code': code, 'data': data})
+            h_unauth.do_POST()
+            assert resp.get('code') == 401, f"POST {path} без сессии должен возвращать 401"
+
+            # б) С валидной сессией, но БЕЗ CSRF -> 403
+            h_no_csrf = AppRequestHandler.__new__(AppRequestHandler)
+            h_no_csrf.path = path
+            h_no_csrf.headers = {'Cookie': f'session={admin_session}'}
+            h_no_csrf.client_address = ("127.0.0.1", 12345)
+            resp = {}
+            h_no_csrf.send_json = lambda data, code=200, extra_headers=None: resp.update({'code': code, 'data': data})
+            h_no_csrf.do_POST()
+            assert resp.get('code') == 403, f"POST {path} без CSRF должен возвращать 403"
+
+            # в) С валидной сессией и ПОДДЕЛЬНЫМ CSRF -> 403
+            h_bad_csrf = AppRequestHandler.__new__(AppRequestHandler)
+            h_bad_csrf.path = path
+            h_bad_csrf.headers = {
+                'Cookie': f'session={admin_session}',
+                'X-CSRF-Token': 'attacker_fake_token_12345'
+            }
+            h_bad_csrf.client_address = ("127.0.0.1", 12345)
+            resp = {}
+            h_bad_csrf.send_json = lambda data, code=200, extra_headers=None: resp.update({'code': code, 'data': data})
+            h_bad_csrf.do_POST()
+            assert resp.get('code') == 403, f"POST {path} с невалидным CSRF должен возвращать 403"
+
+        # 3. Проверка HTML POST эндпоинтов (/upload, /import-folder)
+        html_post_routes = ['/upload', '/import-folder']
+        for path in html_post_routes:
+            # а) Без сессии -> редирект /login
+            h_unauth = AppRequestHandler.__new__(AppRequestHandler)
+            h_unauth.path = path
+            h_unauth.headers = {}
+            h_unauth.client_address = ("127.0.0.1", 12345)
+            redirects = []
+            h_unauth._redirect = lambda loc, extra_headers=None: redirects.append(loc)
+            h_unauth.do_POST()
+            assert '/login' in redirects, f"POST {path} без сессии должен редиректить на /login"
+
+            # б) С валидной сессией, но БЕЗ CSRF -> 403 Forbidden
+            h_no_csrf = AppRequestHandler.__new__(AppRequestHandler)
+            h_no_csrf.path = path
+            h_no_csrf.headers = {'Cookie': f'session={admin_session}', 'Content-Length': '0'}
+            h_no_csrf.client_address = ("127.0.0.1", 12345)
+            h_no_csrf.rfile = io.BytesIO(b'')
+            html_resp = {}
+            h_no_csrf.send_html = lambda html_text, code=200, extra_headers=None: html_resp.update({'code': code, 'html': html_text})
+            h_no_csrf.do_POST()
+            assert html_resp.get('code') == 403, f"POST {path} без CSRF должен возвращать 403"
+
 
 
 
