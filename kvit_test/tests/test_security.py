@@ -335,13 +335,18 @@ def test_persistent_state_and_session_sharing():
     # Проверяем, что токен восстанавливается из БД
     assert auth_service.is_valid_session(token) is True
 
-    # Создаем абсолютно новый инстанс (эмуляция запуска 2-го пода/контейнера)
-    auth_service_replica_2 = AuthService()
+    # Создаем абсолютно новый инстанс с коротким L1 TTL (эмуляция запуска 2-го пода/контейнера)
+    from services.security.session_store import DatabaseSessionStore
+    replica_store = DatabaseSessionStore(l1_ttl_seconds=0.05)
+    auth_service_replica_2 = AuthService(session_store=replica_store)
     assert auth_service_replica_2.is_valid_session(token) is True
 
-    # Удаляем сессию и проверяем очистку
+    # Удаляем сессию на первой ноде
     auth_service.destroy_session(token)
     assert auth_service.is_valid_session(token) is False
+
+    # После истечения L1 TTL (50 мс) вторая нода синхронизируется с БД и видит удаление
+    time.sleep(0.06)
     assert auth_service_replica_2.is_valid_session(token) is False
 
     # 2. Тестирование персистентности банов IP (IPThrottler)
