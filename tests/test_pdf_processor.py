@@ -1,4 +1,5 @@
 import os
+
 try:
     import pymupdf as fitz
 except ImportError:
@@ -8,6 +9,7 @@ try:
 except ImportError:
     pytest = None
 from services.pdf.pdf_processor import pdf_processor
+
 
 def create_sample_pdf(file_path: str, pages_data: list):
     """Создаёт тестовый PDF документ с заданным текстом на каждой странице."""
@@ -109,6 +111,7 @@ def test_pdf_processor_missing_account(tmp_path):
 
 def test_streaming_multipart_parser(tmp_path):
     import io
+
     from server import AppRequestHandler
 
     boundary = "----WebKitFormBoundaryX9QWz7qg8jL"
@@ -179,8 +182,8 @@ def test_pdf_processor_flexible_patterns_and_diagnostics(tmp_path):
     assert any("Лицевой счет не распознан" in d for d in details)
 
 def test_pdf_processor_multipage_receipt_grouping(tmp_path):
-    from services.pdf.pdf_processor import pdf_processor
     from config import RECEIPTS_DIR
+    from services.pdf.pdf_processor import pdf_processor
 
     # Создаем 3-страничный PDF:
     # Стр 1: Лицевой счет 1001 (Квитанция 1, страница 1 из 2)
@@ -243,7 +246,6 @@ def test_pdf_processor_sharding_helpers():
 
 def test_pdf_processor_ocr_fallback_and_handling(tmp_path):
     from services.pdf.pdf_processor import pdf_processor
-    import services.pdf.pdf_processor as mod
 
     # Проверка извлечения со страницы без OCR и с OCR
     doc = fitz.open()
@@ -265,8 +267,9 @@ def test_pdf_processor_ocr_fallback_and_handling(tmp_path):
 def test_pdf_processor_ocr_budget_and_dos_protection(tmp_path):
     """Тестирует лимиты бюджета OCR (страницы, таймаут, разрешение, семафор)."""
     import unittest.mock as mock
-    from services.pdf.pdf_processor import pdf_processor
+
     import config
+    from services.pdf.pdf_processor import pdf_processor
 
     doc = fitz.open()
     blank = doc.new_page()
@@ -370,10 +373,10 @@ def test_atomic_importer_2phase_commit_and_rollback(tmp_path):
     1. Успешная фиксация: файлы создаются, запись в БД имеет статус 'READY'.
     2. Сбой и откат: при исключении транзакции БД все временные и созданные файлы удаляются (0 висячих файлов).
     """
-    from services.pdf.atomic_importer import AtomicReceiptImporter, StagedReceipt, ReceiptStatus
-    from database import get_db
-    from config import RECEIPTS_DIR
     import unittest.mock as mock
+
+    from database import get_db
+    from services.pdf.atomic_importer import AtomicReceiptImporter, ReceiptStatus
 
     account = "800777"
     period = "Июль 2026"

@@ -262,7 +262,10 @@ def test_application_level_resource_limits():
     """Тестирует применение лимитов уровня приложения (MAX_UPLOAD_BYTES, MAX_PDF_PAGES, MAX_PDF_OUTPUT_SIZE)."""
     import unittest.mock as mock
 
-    import fitz
+    try:
+        import pymupdf as fitz
+    except ImportError:
+        import fitz
 
     from server import AppRequestHandler
     from services.pdf.pdf_processor import pdf_processor

@@ -2,36 +2,37 @@ from templates.icons import icon
 
 
 def layout(body, active='search', is_admin=False, csrf_token=''):
-    nav_items = [
-        ('search',  '/',          'Поиск квитанции', False, 'search'),
-        ('upload',  '/upload',    'Загрузка PDF', True, 'upload'),
-        ('reconcile', '/reconcile', 'Сверка', True, 'reconcile'),
-    ]
     nav_html = ''
-    for key, href, label, protected, icon_name in nav_items:
-        cls = ' active' if key == active else ''
-        sec_icon = f"{icon('lock', 13)} " if protected and not is_admin else f"{icon(icon_name, 15)} "
-        nav_html += f'<a class="nav-link{cls}" href="{href}">{sec_icon}{label}</a>'
-
-    # Кнопка входа/выхода
+    ws_indicator_html = ''
+    
     if is_admin:
+        nav_items = [
+            ('search',  '/kvit/',     'Поиск квитанции', False, 'search'),
+            ('upload',  '/upload',    'Загрузка PDF', True, 'upload'),
+            ('reconcile', '/reconcile', 'Сверка', True, 'reconcile'),
+        ]
+        for key, href, label, protected, icon_name in nav_items:
+            cls = ' active' if key == active else ''
+            nav_html += f'<a class="nav-link{cls}" href="{href}">{icon(icon_name, 15)} {label}</a>'
         nav_html += f'<a class="nav-link nav-auth" href="/logout">{icon("logout", 15)} Выход</a>'
-    else:
-        nav_html += f'<a class="nav-link nav-auth" href="/login">{icon("login", 15)} Вход</a>'
+        ws_indicator_html = '<span class="ws-indicator" id="wsIndicator" title="WebSocket статус соединения"><span class="ws-dot"></span><span id="wsLabel">WS Offline</span></span>'
 
     csrf_meta = f'<meta name="csrf-token" content="{csrf_token}">\n' if csrf_token else ''
 
     return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-{csrf_meta}<title>Квитанции</title>
+{csrf_meta}<title>КРЭК | Квитанции</title>
 <style>
 *{{box-sizing:border-box}}
 body{{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e}}
-.topbar{{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:0 24px;display:flex;align-items:center;gap:32px;height:56px;box-shadow:0 2px 8px #00000030;flex-wrap:wrap}}
+.topbar{{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:0 24px;display:flex;align-items:center;gap:24px;height:56px;box-shadow:0 2px 8px #00000030;flex-wrap:wrap}}
 .topbar .logo{{color:#e2e8f0;font-weight:700;font-size:18px;white-space:nowrap}}
+.topbar .logo-sub{{color:#64748b;font-size:13px;white-space:nowrap;margin-left:-16px;font-weight:400}}
 .nav-link{{color:#94a3b8;text-decoration:none;font-size:15px;padding:16px 4px;border-bottom:3px solid transparent;transition:.2s;display:inline-flex;align-items:center;gap:6px}}
 .nav-link:hover{{color:#e2e8f0}}
 .nav-link.active{{color:#fff;border-bottom-color:#3b82f6}}
+.nav-back{{color:#60a5fa!important;font-size:13px;padding:10px 12px;border:1px solid #334155;border-radius:8px;border-bottom:1px solid #334155!important;margin-right:8px;transition:background .15s,color .15s}}
+.nav-back:hover{{background:#0f172a;color:#fff!important}}
 .nav-auth{{margin-left:auto}}
 .wrap{{max-width:900px;margin:32px auto;padding:0 20px}}
 .card{{background:#fff;border-radius:14px;padding:28px 32px;box-shadow:0 1px 4px #0001,0 4px 16px #0001;margin-bottom:24px}}
@@ -112,15 +113,65 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
 .live-sync-pulse{{background:#16a34a26!important;border-color:#22c55e!important}}
 .live-val{{display:inline-block;transition:all .3s ease}}
 
-@media(max-width:768px){{.topbar{{height:auto;padding:12px 16px;gap:12px}}.ws-indicator{{order:2;margin-left:auto}}}}
-@media(max-width:600px){{.wrap{{margin:16px auto;padding:0 12px}}.card{{padding:20px 18px}}.stats{{grid-template-columns:1fr 1fr}}.period-card{{flex-direction:column;align-items:flex-start;gap:12px}}.period-card .period-actions{{width:100%}}.period-card .period-actions a{{flex:1;text-align:center}}.address-item{{flex-direction:column;align-items:flex-start;gap:12px}}.address-item .btn{{width:100%;text-align:center}}}}
+.sub-tabs{{display:flex;gap:8px;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:10px}}
+.sub-tab{{flex:1;background:transparent;border:0;padding:8px 12px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;border-radius:8px;transition:.15s;text-align:center}}
+.sub-tab:hover{{color:#1e293b}}
+.sub-tab.active{{background:#fff;color:#1e293b;box-shadow:0 1px 3px #00000015}}
+.grid-fields{{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-bottom:8px}}
+.typo-badge{{background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 14px;font-size:13px;margin:12px 0;display:flex;align-items:center;gap:8px}}
+.search-loading-box{{display:flex;align-items:center;justify-content:center;gap:10px;padding:24px;color:#64748b;font-size:14px;font-weight:600}}
+.spinner{{width:20px;height:20px;border:2.5px solid #cbd5e1;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}}
+@keyframes spin{{to{{transform:rotate(360deg)}}}}
+.receipt-card-anim{{animation:fadeInUp .25s ease-out}}
+@keyframes fadeInUp{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:translateY(0)}}}}
+
+/* Modal PDF Viewer */
+.modal-backdrop{{position:fixed;inset:0;background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);z-index:9999;display:none;align-items:center;justify-content:center;padding:16px}}
+.modal-backdrop.active{{display:flex}}
+.modal-window{{background:#fff;border-radius:16px;width:100%;max-width:960px;height:90vh;display:flex;flex-direction:column;box-shadow:0 25px 50px -12px rgba(0,0,0,0.35);overflow:hidden;animation:modalZoomIn .2s ease-out}}
+@keyframes modalZoomIn{{from{{opacity:0;transform:scale(0.95)}}to{{opacity:1;transform:scale(1)}}}}
+.modal-header{{padding:14px 20px;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #334155}}
+.modal-title{{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}}
+.modal-actions{{display:flex;align-items:center;gap:8px}}
+.modal-btn{{background:#334155;color:#e2e8f0;border:0;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:.15s}}
+.modal-btn:hover{{background:#475569;color:#fff}}
+.modal-btn-close{{background:#ef4444;color:#fff}}
+.modal-btn-close:hover{{background:#dc2626}}
+.modal-body{{flex:1;background:#f8fafc;position:relative}}
+.modal-body iframe{{width:100%;height:100%;border:0}}
+
+@media(max-width:768px){{.topbar{{height:auto;padding:12px 16px;gap:12px}}.ws-indicator{{order:2;margin-left:auto}}.grid-fields{{grid-template-columns:1fr 1fr}}.grid-fields > div:first-child{{grid-column:1/-1}}.modal-window{{height:95vh;max-width:100%}}}}
+@media(max-width:600px){{.wrap{{margin:16px auto;padding:0 12px}}.card{{padding:20px 18px}}.stats{{grid-template-columns:1fr 1fr}}.period-card{{flex-direction:column;align-items:flex-start;gap:12px}}.period-card .period-actions{{width:100%}}.period-card .period-actions a,.period-card .period-actions button{{flex:1;text-align:center}}.address-item{{flex-direction:column;align-items:flex-start;gap:12px}}.address-item .btn{{width:100%;text-align:center}}.grid-fields{{grid-template-columns:1fr}}}}
 </style></head><body>
 <div class="topbar">
-    <span class="logo">Квитанции</span>
-    <span class="ws-indicator" id="wsIndicator" title="WebSocket статус соединения"><span class="ws-dot"></span><span id="wsLabel">WS Offline</span></span>
+    <a href="/" style="text-decoration:none;display:inline-flex;align-items:center;gap:10px;">
+        <div style="width:30px;height:30px;background:linear-gradient(135deg,#2563eb 0%,#38bdf8 100%);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 0 10px rgba(56,189,248,0.35);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <span class="logo">ТОО &laquo;КРЭК&raquo;</span>
+        <span class="logo-sub">Квитанции</span>
+    </a>
+    {ws_indicator_html}
+    <a class="nav-link nav-back" href="/">{icon('arrow_left', 14)} На главную сайта</a>
     {nav_html}
 </div>
 <div class="wrap">{body}</div>
+
+<!-- Modal PDF Viewer -->
+<div id="pdfModal" class="modal-backdrop" onclick="handleModalBackdropClick(event)">
+    <div class="modal-window">
+        <div class="modal-header">
+            <div class="modal-title" id="pdfModalTitle" style="display:flex;align-items:center;gap:6px">{icon('file_text', 16, '#3b82f6')} Просмотр квитанции</div>
+            <div class="modal-actions">
+                <a id="pdfModalDownload" class="modal-btn" href="#" download title="Скачать PDF" style="display:inline-flex;align-items:center;gap:5px">{icon('download', 14)} Скачать PDF</a>
+                <button type="button" class="modal-btn modal-btn-close" onclick="closePdfModal()" title="Закрыть (Esc)">{icon('x', 16)}</button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <iframe id="pdfModalFrame" src="about:blank"></iframe>
+        </div>
+    </div>
+</div>
 
 <script>
 let appWS = null;
@@ -291,6 +342,86 @@ function initAppWebSocket() {{
         setTimeout(initAppWebSocket, 4000);
     }}
 }}
+
+function openPdfModal(token, title) {{
+    const modal = document.getElementById('pdfModal');
+    const frame = document.getElementById('pdfModalFrame');
+    const titleEl = document.getElementById('pdfModalTitle');
+    const dlEl = document.getElementById('pdfModalDownload');
+    if (!modal || !frame) return;
+
+    const receiptUrl = '/receipt?token=' + encodeURIComponent(token);
+    const downloadUrl = '/download?token=' + encodeURIComponent(token);
+
+    if (titleEl) titleEl.innerHTML = title ? ('{icon('file_text', 16, '#3b82f6')} ' + title) : '{icon('file_text', 16, '#3b82f6')} Просмотр квитанции';
+    if (dlEl) dlEl.href = downloadUrl;
+
+    frame.src = receiptUrl;
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}}
+
+function closePdfModal() {{
+    const modal = document.getElementById('pdfModal');
+    const frame = document.getElementById('pdfModalFrame');
+    if (!modal) return;
+    modal.classList.remove('active');
+    if (frame) frame.src = 'about:blank';
+    document.body.style.overflow = '';
+}}
+
+function handleModalBackdropClick(e) {{
+    if (e.target && e.target.id === 'pdfModal') {{
+        closePdfModal();
+    }}
+}}
+
+window.switchSearchTab = function(tab) {{
+    var fAcc = document.getElementById('searchAccountForm');
+    var fAddr = document.getElementById('searchAddressForm');
+    var bAcc = document.getElementById('tabBtnAccount');
+    var bAddr = document.getElementById('tabBtnAddress');
+    var resBox = document.getElementById('liveSearchResults');
+    if (!fAcc || !fAddr) return;
+
+    if (resBox) resBox.innerHTML = '';
+
+    if (tab === 'address') {{
+        fAcc.style.display = 'none';
+        fAddr.style.display = 'block';
+        if (bAcc) bAcc.classList.remove('active');
+        if (bAddr) bAddr.classList.add('active');
+        var inp = fAddr.querySelector('input[name="address"]');
+        if (inp) inp.focus();
+    }} else {{
+        fAddr.style.display = 'none';
+        fAcc.style.display = 'block';
+        if (bAddr) bAddr.classList.remove('active');
+        if (bAcc) bAcc.classList.add('active');
+        var inp = fAcc.querySelector('input[name="account"]');
+        if (inp) inp.focus();
+    }}
+}};
+
+document.addEventListener('keydown', function(e) {{
+    if (e.key === 'Escape' || e.key === 'Esc') {{
+        closePdfModal();
+    }}
+}});
+
+document.addEventListener('click', function(e) {{
+    var target = e.target;
+    var btn = target.closest('button, a');
+    if (!btn) return;
+
+    if (btn.id === 'tabBtnAddress') {{
+        e.preventDefault();
+        window.switchSearchTab('address');
+    }} else if (btn.id === 'tabBtnAccount') {{
+        e.preventDefault();
+        window.switchSearchTab('account');
+    }}
+}});
 
 document.addEventListener('DOMContentLoaded', function() {{
     initAppWebSocket();

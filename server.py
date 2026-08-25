@@ -281,6 +281,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             if path == '/api/stats':
                 self._handle_api_stats(q)
                 return
+            elif path == '/api/search':
+                self._handle_api_search(q)
+                return
             elif path == '/':
                 tab = q.get('tab', ['account'])[0].strip()
                 periods = receipt_service.get_distinct_periods()
@@ -289,6 +292,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             elif path == '/search':
                 account = q.get('account', [''])[0].strip()
                 address_query = q.get('address', [''])[0].strip()
+                street = q.get('street', [''])[0].strip()
+                house = q.get('house', [''])[0].strip()
+                flat = q.get('flat', [''])[0].strip()
                 period_filter = q.get('period', [''])[0].strip()
 
                 if account:
@@ -296,6 +302,23 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     receipts = receipt_service.get_receipts(account, period_filter) if account_row else []
                     body = render_search_result(account, period_filter, account_row, receipts)
                     self.send_html(layout(body, 'search', is_admin=is_admin))
+                elif street or house:
+                    status, acc_data, prompt_msg = receipt_service.search_by_structured_address(street, house, flat)
+                    combined_query = f"{street} {house} {flat}".strip()
+                    if status == 'EXACT_MATCH' and acc_data:
+                        acc_num = str(acc_data['account_number'])
+                        account_row = receipt_service.get_account(acc_num)
+                        receipts = receipt_service.get_receipts(acc_num, period_filter) if account_row else []
+                        body = render_search_result(acc_num, period_filter, account_row, receipts)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                    elif status == 'NOT_FOUND':
+                        periods = receipt_service.get_distinct_periods()
+                        body = render_address_not_found(combined_query, period_filter, prompt_msg, periods)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                    else:
+                        periods = receipt_service.get_distinct_periods()
+                        body = render_address_clarification_prompt(combined_query, period_filter, prompt_msg, periods)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
                 elif address_query:
                     status, acc_data, prompt_msg = receipt_service.search_account_by_specific_address(address_query)
                     if status == 'EXACT_MATCH' and acc_data:
@@ -740,6 +763,93 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             'periods_count': len(distinct_periods),
             'selected_period': period_filter
         }, 200, extra_headers={'Cache-Control': 'no-store, no-cache, must-revalidate'})
+
+    def _handle_api_search(self, q: dict):
+        """Обрабатывает AJAX-запросы поиска квитанций по лицевому счету или адресу."""
+        account = q.get('account', [''])[0].strip()
+        address_query = q.get('address', [''])[0].strip()
+        street = q.get('street', [''])[0].strip()
+        house = q.get('house', [''])[0].strip()
+        flat = q.get('flat', [''])[0].strip()
+        period_filter = q.get('period', [''])[0].strip()
+
+        if account:
+            account_row = receipt_service.get_account(account)
+            if not account_row:
+                self.send_json({
+                    'status': 'NOT_FOUND',
+                    'message': f'Лицевой счёт {account} отсутствует в базе данных.',
+                    'account': account,
+                    'receipts': []
+                }, 200, extra_headers={'Cache-Control': 'no-store'})
+                return
+
+            receipts = receipt_service.get_receipts(account, period_filter)
+            rec_list = []
+            for r in receipts:
+                rec_list.append({
+                    'period': r['period'],
+                    'access_token': r['access_token'],
+                    'receipt_url': f"/receipt?token={r['access_token']}",
+                    'download_url': f"/download?token={r['access_token']}"
+                })
+
+            self.send_json({
+                'status': 'EXACT_MATCH',
+                'message': 'Квитанция найдена',
+                'account': str(account_row['account_number']),
+                'address': account_row['address'] or '—',
+                'customer_name': account_row['customer_name'] or '',
+                'period_filter': period_filter,
+                'receipts': rec_list
+            }, 200, extra_headers={'Cache-Control': 'no-store'})
+            return
+
+        # Поиск по раздельным структурированным полям
+        if street or house:
+            status, acc_data, prompt_msg = receipt_service.search_by_structured_address(street, house, flat)
+        elif address_query:
+            status, acc_data, prompt_msg = receipt_service.search_account_by_specific_address(address_query)
+        else:
+            self.send_json({
+                'status': 'EMPTY',
+                'message': 'Пожалуйста, введите номер лицевого счёта или адрес.',
+                'receipts': []
+            }, 200, extra_headers={'Cache-Control': 'no-store'})
+            return
+
+        if status == 'EXACT_MATCH' and acc_data:
+            acc_num = str(acc_data['account_number'])
+            account_row = receipt_service.get_account(acc_num)
+            receipts = receipt_service.get_receipts(acc_num, period_filter) if account_row else []
+            rec_list = []
+            for r in receipts:
+                rec_list.append({
+                    'period': r['period'],
+                    'access_token': r['access_token'],
+                    'receipt_url': f"/receipt?token={r['access_token']}",
+                    'download_url': f"/download?token={r['access_token']}"
+                })
+
+            self.send_json({
+                'status': 'EXACT_MATCH',
+                'message': prompt_msg or 'Квитанция найдена',
+                'account': acc_num,
+                'address': acc_data.get('address') or (account_row['address'] if account_row else '—'),
+                'customer_name': account_row['customer_name'] if account_row else '',
+                'is_corrected': acc_data.get('is_corrected', False),
+                'corrected_street': acc_data.get('corrected_street'),
+                'original_query': acc_data.get('original_query', address_query or f"{street} {house} {flat}".strip()),
+                'period_filter': period_filter,
+                'receipts': rec_list
+            }, 200, extra_headers={'Cache-Control': 'no-store'})
+        else:
+            self.send_json({
+                'status': status,
+                'message': prompt_msg,
+                'is_corrected': False,
+                'receipts': []
+            }, 200, extra_headers={'Cache-Control': 'no-store'})
 
     def _handle_api_sync_receipts(self):
         if not self._is_admin():

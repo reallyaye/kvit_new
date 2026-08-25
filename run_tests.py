@@ -51,6 +51,7 @@ def run_all():
             DROP TABLE IF EXISTS accounts;
             DROP TABLE IF EXISTS app_sessions;
             DROP TABLE IF EXISTS security_blocks;
+            DROP TABLE IF EXISTS telegram_users;
         ''')
         con.commit()
         con.close()
@@ -93,7 +94,7 @@ def run_all():
 
     # 3. test_receipt_service
     from tests import test_receipt_service
-    for fn_name in ['test_get_account', 'test_get_receipts', 'test_get_pdf_by_token_valid', 'test_get_pdf_by_token_invalid_or_traversal', 'test_get_pdf_by_token_sharded', 'test_search_accounts_by_address', 'test_search_account_by_specific_address', 'test_privacy_search_view_no_personal_data', 'test_search_by_exact_receipt_address', 'test_api_stats_live_polling']:
+    for fn_name in ['test_get_account', 'test_get_receipts', 'test_get_pdf_by_token_valid', 'test_get_pdf_by_token_invalid_or_traversal', 'test_get_pdf_by_token_sharded', 'test_search_accounts_by_address', 'test_search_account_by_specific_address', 'test_privacy_search_view_no_personal_data', 'test_search_by_exact_receipt_address', 'test_api_stats_live_polling', 'test_search_by_structured_and_compound_address', 'test_fuzzy_street_match_and_typo_correction', 'test_api_search_endpoint']:
         try:
             reset_db()
             import inspect
@@ -183,7 +184,9 @@ def run_all():
         'test_bot_authorization_flow',
         'test_bot_help_and_stats_commands',
         'test_bot_search_account_and_receipt',
-        'test_bot_upload_pdf_receipt_flow'
+        'test_bot_upload_pdf_receipt_flow',
+        'test_bot_user_registration_and_admin_approval_lifecycle',
+        'test_bot_admin_user_management_commands'
     ]:
         try:
             reset_db()

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+import datetime
 import html
 import os
 import re
@@ -9,6 +11,7 @@ from typing import Optional, Set
 
 import config
 from database import get_db
+from database.connection import write_transaction
 from logger import logger
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
@@ -19,7 +22,7 @@ from .telegram_client import TelegramAPIError, TelegramClient
 
 
 class TelegramBotService:
-    """Сервис Telegram-бота для обработки квитанций, поиска счетов и выдачи статистики."""
+    """Сервис Telegram-бота для регистрации пользователей, обработки квитанций, поиска счетов и выдачи статистики."""
 
     def __init__(self, token: Optional[str] = None):
         self.token = (token or config.TELEGRAM_BOT_TOKEN or '').strip()
@@ -30,24 +33,88 @@ class TelegramBotService:
         self._thread: Optional[threading.Thread] = None
         self._last_update_id = 0
 
+    # ────────────────────── Проверка прав и статусов ──────────────────────
+
+    def get_user_record(self, user_id: int) -> Optional[dict]:
+        """Возвращает запись пользователя из таблицы telegram_users."""
+        con = get_db()
+        try:
+            row = con.execute(
+                'SELECT telegram_id, username, first_name, last_name, status, role, requested_at, reviewed_at, reviewed_by, comment '
+                'FROM telegram_users WHERE telegram_id = ?',
+                (user_id,)
+            ).fetchone()
+            if row:
+                return dict(row)
+            return None
+        finally:
+            con.close()
+
     def is_admin(self, user_id: int) -> bool:
         """Проверяет, является ли пользователь администратором."""
         if user_id in self.admin_ids:
             return True
         if user_id in self.authenticated_users:
             return True
-        # Если ADMIN_IDS не заданы вовсе, но задан ADMIN_PASSWORD_HASH, требуем /login
+        rec = self.get_user_record(user_id)
+        if rec and rec.get('status') == 'APPROVED' and rec.get('role') == 'ADMIN':
+            return True
         return False
 
+    def is_approved(self, user_id: int) -> bool:
+        """Проверяет, одобрен ли доступ пользователю к боту."""
+        if self.is_admin(user_id):
+            return True
+        rec = self.get_user_record(user_id)
+        if rec and rec.get('status') == 'APPROVED':
+            return True
+        return False
+
+    def get_all_admin_ids(self) -> Set[int]:
+        """Возвращает множество всех ID администраторов (из config, активных сессий и БД)."""
+        admins = set(self.admin_ids) | set(self.authenticated_users)
+        con = get_db()
+        try:
+            rows = con.execute(
+                "SELECT telegram_id FROM telegram_users WHERE status = 'APPROVED' AND role = 'ADMIN'"
+            ).fetchall()
+            for r in rows:
+                admins.add(r[0])
+        except Exception:
+            pass
+        finally:
+            con.close()
+        return admins
+
     def get_main_keyboard(self, user_id: int) -> dict:
-        """Возвращает кнопки главного меню."""
+        """Возвращает кнопки главного меню в зависимости от роли и статуса."""
         is_adm = self.is_admin(user_id)
-        keyboard = [
-            [{"text": "📊 Статистика"}, {"text": "🔍 Найти квитанцию"}],
-            [{"text": "❓ Помощь"}]
-        ]
-        if not is_adm:
-            keyboard[1].append({"text": "🔐 Авторизация"})
+        is_appr = self.is_approved(user_id)
+
+        if is_adm:
+            keyboard = [
+                [{"text": "📊 Статистика"}, {"text": "🔍 Найти квитанцию"}],
+                [{"text": "👥 Заявки"}, {"text": "❓ Помощь"}]
+            ]
+        elif is_appr:
+            keyboard = [
+                [{"text": "📊 Статистика"}, {"text": "🔍 Найти квитанцию"}],
+                [{"text": "❓ Помощь"}]
+            ]
+        else:
+            rec = self.get_user_record(user_id)
+            status = rec.get('status') if rec else None
+            if status == 'PENDING':
+                keyboard = [
+                    [{"text": "⏳ Статус заявки"}, {"text": "❓ Помощь"}],
+                    [{"text": "🔐 Авторизация"}]
+                ]
+            else:
+                keyboard = [
+                    [{"text": "📝 Зарегистрироваться"}, {"text": "❓ Помощь"}],
+                    [{"text": "🔐 Авторизация"}]
+                ]
+
         return {
             "keyboard": keyboard,
             "resize_keyboard": True,
@@ -58,6 +125,11 @@ class TelegramBotService:
 
     def handle_update(self, update: dict):
         """Маршрутизация входящего обновления Telegram."""
+        # 1. Обработка нажатий на инлайн-кнопки (Callback Query)
+        if 'callback_query' in update:
+            self._handle_callback_query(update['callback_query'])
+            return
+
         message = update.get('message')
         if not message:
             return
@@ -69,17 +141,264 @@ class TelegramBotService:
         if not chat_id or not user_id:
             return
 
-        # 1. Если прислан документ (PDF квитанция)
+        # 2. Если прислан документ (PDF квитанция)
         if 'document' in message:
             self._handle_document(chat_id, user_id, message)
             return
 
-        # 2. Если текстовое сообщение
+        # 3. Если текстовое сообщение
         text = (message.get('text') or '').strip()
         if not text:
             return
 
         self._handle_text(chat_id, user_id, text, message)
+
+    # ────────────────────── Callback Query (Одобрение / Отклонение) ──────────────────────
+
+    def _handle_callback_query(self, cb: dict):
+        """Обработка нажатий администратором на инлайн-кнопки одобрения/отклонения заявок."""
+        cb_id = cb.get('id')
+        from_user = cb.get('from', {})
+        admin_id = from_user.get('id')
+        admin_name = from_user.get('first_name') or f"Admin({admin_id})"
+        data = cb.get('data') or ''
+        message = cb.get('message', {})
+        msg_chat_id = message.get('chat', {}).get('id')
+        msg_id = message.get('message_id')
+
+        if not self.is_admin(admin_id):
+            if cb_id:
+                self.client.answer_callback_query(cb_id, text="⛔ Действие доступно только администраторам.", show_alert=True)
+            return
+
+        # Обработка одобрения заявки: approve_user:<user_id>
+        if data.startswith('approve_user:'):
+            try:
+                target_user_id = int(data.split(':', 1)[1])
+            except (ValueError, IndexError):
+                return
+
+            now_ts = time.time()
+            with write_transaction() as con:
+                con.execute(
+                    "UPDATE telegram_users SET status = 'APPROVED', reviewed_at = ?, reviewed_by = ? WHERE telegram_id = ?",
+                    (now_ts, admin_id, target_user_id)
+                )
+
+            if cb_id:
+                self.client.answer_callback_query(cb_id, text="✅ Заявка успешно одобрена!")
+
+            target_rec = self.get_user_record(target_user_id)
+            user_display = html.escape(target_rec.get('first_name') or str(target_user_id)) if target_rec else str(target_user_id)
+            user_uname = f" (@{html.escape(target_rec.get('username'))})" if target_rec and target_rec.get('username') else ""
+
+            if msg_chat_id and msg_id:
+                updated_text = (
+                    f"✅ <b>Заявка ОДОБРЕНА</b>\n"
+                    f"────────────────────────\n"
+                    f"👤 <b>Пользователь:</b> {user_display}{user_uname}\n"
+                    f"🆔 <b>ID:</b> <code>{target_user_id}</code>\n"
+                    f"👨‍💼 <b>Администратор:</b> {html.escape(admin_name)}\n"
+                    f"🕒 <b>Время:</b> {datetime.datetime.fromtimestamp(now_ts).strftime('%d.%m.%Y %H:%M')}"
+                )
+                try:
+                    self.client.edit_message_text(msg_chat_id, msg_id, updated_text)
+                except Exception as edit_err:
+                    logger.debug(f"[Telegram] Не удалось отредактировать сообщение заявки: {edit_err}")
+
+            try:
+                self.client.send_message(
+                    target_user_id,
+                    "🎉 <b>Поздравляем! Ваша регистрация подтверждена.</b>\n\n"
+                    "Теперь вам доступен полный функционал сервиса:\n"
+                    "• Поиск квитанций по номеру лицевого счёта\n"
+                    "• Поиск квитанций по адресу\n"
+                    "• Просмотр статистики базы данных\n\n"
+                    "Нажмите /start или выберите нужное действие в меню ниже.",
+                    reply_markup=self.get_main_keyboard(target_user_id)
+                )
+            except Exception as notify_err:
+                logger.warning(f"[Telegram] Не удалось отправить уведомление пользователю {target_user_id}: {notify_err}")
+
+            return
+
+        # Обработка отклонения заявки: reject_user:<user_id>
+        if data.startswith('reject_user:'):
+            try:
+                target_user_id = int(data.split(':', 1)[1])
+            except (ValueError, IndexError):
+                return
+
+            now_ts = time.time()
+            with write_transaction() as con:
+                con.execute(
+                    "UPDATE telegram_users SET status = 'REJECTED', reviewed_at = ?, reviewed_by = ? WHERE telegram_id = ?",
+                    (now_ts, admin_id, target_user_id)
+                )
+
+            if cb_id:
+                self.client.answer_callback_query(cb_id, text="❌ Заявка отклонена.")
+
+            target_rec = self.get_user_record(target_user_id)
+            user_display = html.escape(target_rec.get('first_name') or str(target_user_id)) if target_rec else str(target_user_id)
+            user_uname = f" (@{html.escape(target_rec.get('username'))})" if target_rec and target_rec.get('username') else ""
+
+            if msg_chat_id and msg_id:
+                updated_text = (
+                    f"❌ <b>Заявка ОТКЛОНЕНА</b>\n"
+                    f"────────────────────────\n"
+                    f"👤 <b>Пользователь:</b> {user_display}{user_uname}\n"
+                    f"🆔 <b>ID:</b> <code>{target_user_id}</code>\n"
+                    f"👨‍💼 <b>Администратор:</b> {html.escape(admin_name)}\n"
+                    f"🕒 <b>Время:</b> {datetime.datetime.fromtimestamp(now_ts).strftime('%d.%m.%Y %H:%M')}"
+                )
+                try:
+                    self.client.edit_message_text(msg_chat_id, msg_id, updated_text)
+                except Exception as edit_err:
+                    logger.debug(f"[Telegram] Не удалось отредактировать сообщение заявки: {edit_err}")
+
+            try:
+                self.client.send_message(
+                    target_user_id,
+                    "❌ <b>Ваша заявка на регистрацию была отклонена администратором.</b>\n\n"
+                    "Если вы считаете, что это произошло по ошибке, вы можете отправить повторную заявку с помощью команды <code>/register</code>.",
+                    reply_markup=self.get_main_keyboard(target_user_id)
+                )
+            except Exception as notify_err:
+                logger.warning(f"[Telegram] Не удалось отправить уведомление пользователю {target_user_id}: {notify_err}")
+
+            return
+
+    # ────────────────────── Регистрация пользователей ──────────────────────
+
+    def _handle_registration_request(self, chat_id: int, user_id: int, from_user: dict):
+        """Обрабатывает подачу заявки на регистрацию от пользователя."""
+        if self.is_approved(user_id):
+            self.client.send_message(
+                chat_id,
+                "✅ <b>Вы уже зарегистрированы и имеете доступ к боту!</b>",
+                reply_markup=self.get_main_keyboard(user_id)
+            )
+            return
+
+        rec = self.get_user_record(user_id)
+        if rec and rec.get('status') == 'PENDING':
+            self.client.send_message(
+                chat_id,
+                "⏳ <b>Ваша заявка уже находится на рассмотрении.</b>\n"
+                "Администратор сервиса уведомит вас сразу после проверки.",
+                reply_markup=self.get_main_keyboard(user_id)
+            )
+            return
+
+        username = from_user.get('username') or ''
+        first_name = from_user.get('first_name') or ''
+        last_name = from_user.get('last_name') or ''
+        now_ts = time.time()
+
+        with write_transaction() as con:
+            con.execute('''
+                INSERT INTO telegram_users(telegram_id, username, first_name, last_name, status, role, requested_at)
+                VALUES (?, ?, ?, ?, 'PENDING', 'USER', ?)
+                ON CONFLICT(telegram_id) DO UPDATE SET
+                    username = excluded.username,
+                    first_name = excluded.first_name,
+                    last_name = excluded.last_name,
+                    status = 'PENDING',
+                    requested_at = excluded.requested_at,
+                    reviewed_at = NULL,
+                    reviewed_by = NULL
+            ''', (user_id, username, first_name, last_name, now_ts))
+
+        self.client.send_message(
+            chat_id,
+            "⏳ <b>Заявка на регистрацию принята!</b>\n\n"
+            "Запрос отправлен администраторам сервиса. Как только администратор подтвердит регистрацию, вы получите уведомление.",
+            reply_markup=self.get_main_keyboard(user_id)
+        )
+
+        admin_ids = self.get_all_admin_ids()
+        admin_alert = [
+            "🔔 <b>Новая заявка на регистрацию в Kvit-App!</b>",
+            "────────────────────────",
+            f"👤 <b>Имя:</b> {html.escape(first_name)} {html.escape(last_name)}".strip(),
+            f"🔗 <b>Username:</b> @{html.escape(username)}" if username else "🔗 <b>Username:</b> <i>не указан</i>",
+            f"🆔 <b>Telegram ID:</b> <code>{user_id}</code>",
+            f"📅 <b>Дата:</b> {datetime.datetime.fromtimestamp(now_ts).strftime('%d.%m.%Y %H:%M')}",
+            "────────────────────────",
+            "Выберите действие:"
+        ]
+        admin_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "✅ Одобрить", "callback_data": f"approve_user:{user_id}"},
+                    {"text": "❌ Отклонить", "callback_data": f"reject_user:{user_id}"}
+                ]
+            ]
+        }
+
+        for adm_id in admin_ids:
+            try:
+                self.client.send_message(adm_id, "\n".join(admin_alert), reply_markup=admin_markup)
+            except Exception as e:
+                logger.warning(f"[Telegram] Не удалось отправить уведомление о заявке админу {adm_id}: {e}")
+
+    # ────────────────────── Админ-список заявок и пользователей ──────────────────────
+
+    def _send_users_list_to_admin(self, chat_id: int, user_id: int):
+        """Отправляет список ожидающих и зарегистрированных пользователей администратору."""
+        if not self.is_admin(user_id):
+            return
+
+        con = get_db()
+        try:
+            pending_rows = con.execute(
+                "SELECT telegram_id, username, first_name, last_name, requested_at FROM telegram_users WHERE status = 'PENDING' ORDER BY requested_at DESC"
+            ).fetchall()
+            approved_count = con.execute(
+                "SELECT COUNT(*) FROM telegram_users WHERE status = 'APPROVED'"
+            ).fetchone()[0]
+        finally:
+            con.close()
+
+        if not pending_rows:
+            self.client.send_message(
+                chat_id,
+                f"👥 <b>Управление пользователями:</b>\n\n"
+                f"✅ Одобренных пользователей: <b>{approved_count}</b>\n"
+                f"⏳ Заявок на рассмотрении: <b>0</b>\n\n"
+                f"<i>Все новые заявки будут автоматически приходить вам с кнопками одобрения.</i>",
+                reply_markup=self.get_main_keyboard(user_id)
+            )
+            return
+
+        self.client.send_message(
+            chat_id,
+            f"⏳ <b>Заявки, ожидающие рассмотрения ({len(pending_rows)}):</b>",
+            reply_markup=self.get_main_keyboard(user_id)
+        )
+
+        for row in pending_rows[:10]:
+            uid, uname, fname, lname, req_ts = row[0], row[1], row[2], row[3], row[4]
+            u_name_full = f"{fname or ''} {lname or ''}".strip() or f"User({uid})"
+            u_uname_str = f"@{uname}" if uname else "нет"
+            req_time_str = datetime.datetime.fromtimestamp(req_ts).strftime('%d.%m.%Y %H:%M') if req_ts else "недавно"
+
+            msg_text = (
+                f"👤 <b>{html.escape(u_name_full)}</b> ({html.escape(u_uname_str)})\n"
+                f"🆔 ID: <code>{uid}</code> | 📅 {req_time_str}"
+            )
+            markup = {
+                "inline_keyboard": [
+                    [
+                        {"text": "✅ Одобрить", "callback_data": f"approve_user:{uid}"},
+                        {"text": "❌ Отклонить", "callback_data": f"reject_user:{uid}"}
+                    ]
+                ]
+            }
+            self.client.send_message(chat_id, msg_text, reply_markup=markup)
+
+    # ────────────────────── Загрузка документов ──────────────────────
 
     def _handle_document(self, chat_id: int, user_id: int, message: dict):
         """Обработка загрузки PDF-квитанций."""
@@ -97,13 +416,13 @@ class TelegramBotService:
             )
             return
 
-        # Проверка прав доступа
-        if not self.is_admin(user_id):
+        # Проверка прав доступа: загрузка доступна всем одобренным пользователям и администраторам
+        if not self.is_approved(user_id):
             self.client.send_message(
                 chat_id,
                 "⛔ <b>Доступ ограничен</b>\n"
-                "Загрузка квитанций доступна только администраторам сервиса.\n\n"
-                "Для входа используйте команду: <code>/login &lt;пароль&gt;</code>",
+                "Загрузка квитанций доступна только зарегистрированным пользователям.\n\n"
+                "Для подачи заявки нажмите кнопку <b>«📝 Зарегистрироваться»</b> или отправьте команду <code>/register</code>.",
                 reply_markup=self.get_main_keyboard(user_id)
             )
             return
@@ -119,7 +438,6 @@ class TelegramBotService:
         tmp_path = os.path.join(tmp_dir, file_name)
 
         try:
-            # Получаем путь к файлу на серверах Telegram и скачиваем его
             file_info = self.client.get_file(file_id)
             tg_file_path = file_info.get('file_path')
 
@@ -130,7 +448,6 @@ class TelegramBotService:
                 )
                 return
 
-            # Обрабатываем PDF через встроенный процессор
             con = get_db()
             try:
                 known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
@@ -143,7 +460,6 @@ class TelegramBotService:
             )
 
             if added > 0 or orphan > 0:
-                # Оповещаем подключенные веб-клиенты через WebSocket
                 try:
                     ws_manager.broadcast('upload_batch_completed', {
                         'files_count': 1,
@@ -156,7 +472,6 @@ class TelegramBotService:
                 except Exception as ws_err:
                     logger.debug(f"[Telegram] WS broadcast error: {ws_err}")
 
-            # Формируем красивый отчет для Telegram
             status_icon = "✅" if (orphan == 0 and skipped == 0 and dups == 0) else "⚠️"
             report_lines = [
                 f"{status_icon} <b>Обработан файл:</b> <code>{html.escape(file_name)}</code>",
@@ -169,7 +484,6 @@ class TelegramBotService:
 
             if details:
                 report_lines.append("\n📋 <b>Детализация страниц:</b>")
-                # Ограничиваем длину детализации, чтобы не превысить лимит сообщения Telegram (4096 символов)
                 max_lines = 15
                 for d in details[:max_lines]:
                     report_lines.append(f"• {html.escape(d.strip())}")
@@ -191,16 +505,101 @@ class TelegramBotService:
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    # ────────────────────── Текстовые команды ──────────────────────
+
     def _handle_text(self, chat_id: int, user_id: int, text: str, message: dict):
         """Обработка текстовых команд и поисковых запросов."""
         lower_text = text.lower()
 
-        # 1. Команды старта и помощи
+        # 1. Регистрация пользователя
+        if lower_text in ('/register', '📝 зарегистрироваться', 'зарегистрироваться', 'регистрация'):
+            self._handle_registration_request(chat_id, user_id, message.get('from', {}))
+            return
+
+        # 2. Проверка статуса заявки
+        if lower_text in ('⏳ статус заявки', 'статус заявки', '/status'):
+            rec = self.get_user_record(user_id)
+            if self.is_approved(user_id):
+                self.client.send_message(
+                    chat_id,
+                    "✅ <b>Ваша регистрация одобрена!</b> Вы имеете полный доступ к поиску квитанций.",
+                    reply_markup=self.get_main_keyboard(user_id)
+                )
+            elif rec and rec.get('status') == 'PENDING':
+                self.client.send_message(
+                    chat_id,
+                    "⏳ <b>Ваша заявка находится на рассмотрении у администратора.</b>\nОжидайте уведомления.",
+                    reply_markup=self.get_main_keyboard(user_id)
+                )
+            elif rec and rec.get('status') == 'REJECTED':
+                self.client.send_message(
+                    chat_id,
+                    "❌ <b>Ваша заявка была отклонена.</b> Вы можете отправить повторную заявку с помощью команды <code>/register</code>.",
+                    reply_markup=self.get_main_keyboard(user_id)
+                )
+            else:
+                self.client.send_message(
+                    chat_id,
+                    "ℹ️ Вы ещё не подавали заявку на регистрацию. Нажмите <b>«📝 Зарегистрироваться»</b> или отправьте команду <code>/register</code>.",
+                    reply_markup=self.get_main_keyboard(user_id)
+                )
+            return
+
+        # 3. Список заявок / пользователей (для администратора)
+        if lower_text in ('/users', '/pending', '👥 заявки', 'заявки', 'пользователи'):
+            if self.is_admin(user_id):
+                self._send_users_list_to_admin(chat_id, user_id)
+            else:
+                self.client.send_message(chat_id, "⛔ Доступно только администраторам.", reply_markup=self.get_main_keyboard(user_id))
+            return
+
+        # 4. Прямые команды одобрения / отклонения текстом: /approve <id> или /reject <id>
+        if lower_text.startswith('/approve ') or lower_text.startswith('/reject '):
+            if not self.is_admin(user_id):
+                self.client.send_message(chat_id, "⛔ Доступно только администраторам.")
+                return
+            action, target_str = text.split(maxsplit=1)
+            try:
+                target_uid = int(target_str.strip())
+            except ValueError:
+                self.client.send_message(chat_id, "⚠️ Укажите корректный цифровой Telegram ID: <code>/approve 12345678</code>")
+                return
+
+            now_ts = time.time()
+            if action.lower() == '/approve':
+                with write_transaction() as con:
+                    con.execute("UPDATE telegram_users SET status = 'APPROVED', reviewed_at = ?, reviewed_by = ? WHERE telegram_id = ?",
+                                (now_ts, user_id, target_uid))
+                self.client.send_message(chat_id, f"✅ Пользователь <code>{target_uid}</code> успешно <b>одобрен</b>!")
+                try:
+                    self.client.send_message(
+                        target_uid,
+                        "🎉 <b>Поздравляем! Ваша регистрация подтверждена.</b>\nТеперь вам доступен поиск квитанций.",
+                        reply_markup=self.get_main_keyboard(target_uid)
+                    )
+                except Exception:
+                    pass
+            else:
+                with write_transaction() as con:
+                    con.execute("UPDATE telegram_users SET status = 'REJECTED', reviewed_at = ?, reviewed_by = ? WHERE telegram_id = ?",
+                                (now_ts, user_id, target_uid))
+                self.client.send_message(chat_id, f"❌ Пользователь <code>{target_uid}</code> <b>отклонен</b>.")
+                try:
+                    self.client.send_message(
+                        target_uid,
+                        "❌ <b>Ваша заявка на регистрацию отклонена администратором.</b>",
+                        reply_markup=self.get_main_keyboard(target_uid)
+                    )
+                except Exception:
+                    pass
+            return
+
+        # 5. Команды старта и помощи
         if lower_text in ('/start', '/help', '❓ помощь', 'помощь'):
             self._send_help(chat_id, user_id)
             return
 
-        # 2. Авторизация администратора
+        # 6. Авторизация администратора по паролю
         if lower_text.startswith('/login') or lower_text in ('🔐 авторизация', 'вход'):
             parts = text.split(maxsplit=1)
             if len(parts) > 1:
@@ -229,7 +628,7 @@ class TelegramBotService:
                 )
             return
 
-        # 3. Выход из режима администратора
+        # 7. Выход из режима администратора
         if lower_text == '/logout':
             self.authenticated_users.discard(user_id)
             self.client.send_message(
@@ -239,12 +638,32 @@ class TelegramBotService:
             )
             return
 
-        # 4. Статистика и сверка
+        # 8. Проверка доступа для всех остальных действий (поиск, квитанции, статистика)
+        if not self.is_approved(user_id):
+            rec = self.get_user_record(user_id)
+            if rec and rec.get('status') == 'PENDING':
+                self.client.send_message(
+                    chat_id,
+                    "⏳ <b>Ваша заявка на регистрацию находится на рассмотрении.</b>\n"
+                    "Пожалуйста, дождитесь подтверждения от администратора.",
+                    reply_markup=self.get_main_keyboard(user_id)
+                )
+            else:
+                self.client.send_message(
+                    chat_id,
+                    "⛔ <b>Доступ ограничен</b>\n\n"
+                    "Для поиска и получения квитанций необходима регистрация в сервисе.\n"
+                    "Нажмите кнопку <b>«📝 Зарегистрироваться»</b> или отправьте команду <code>/register</code>.",
+                    reply_markup=self.get_main_keyboard(user_id)
+                )
+            return
+
+        # 9. Статистика и сверка (для одобренных пользователей и администраторов)
         if lower_text in ('/stats', '/reconcile', '📊 статистика', 'статистика', 'сверка'):
             self._send_stats(chat_id, user_id)
             return
 
-        # 5. Поиск квитанции (подсказка)
+        # 10. Поиск квитанции (подсказка)
         if lower_text in ('🔍 найти квитанцию', 'найти квитанцию', '/search', '/kvit'):
             self.client.send_message(
                 chat_id,
@@ -256,43 +675,77 @@ class TelegramBotService:
             )
             return
 
-        # 6. Поиск по команде /address
+        # 11. Поиск по команде /address
         if lower_text.startswith('/address'):
             query = text[len('/address'):].strip()
             self._search_by_address(chat_id, user_id, query)
             return
 
-        # 7. Поиск по команде /kvit или /search с аргументом
+        # 12. Поиск по команде /kvit или /search с аргументом
         if lower_text.startswith('/kvit ') or lower_text.startswith('/search '):
             query = text.split(maxsplit=1)[1].strip()
             self._search_account_or_address(chat_id, user_id, query)
             return
 
-        # 8. Прямой ввод текста: проверка номера счёта или адреса
+        # 13. Прямой ввод текста: проверка номера счёта или адреса
         self._search_account_or_address(chat_id, user_id, text)
 
     def _send_help(self, chat_id: int, user_id: int):
         """Отправляет справочное сообщение с описанием команд."""
         is_adm = self.is_admin(user_id)
-        role_badge = "👑 <b>Статус:</b> Администратор" if is_adm else "👤 <b>Статус:</b> Пользователь"
+        is_appr = self.is_approved(user_id)
+
+        if is_adm:
+            role_badge = "👑 <b>Статус:</b> Администратор"
+        elif is_appr:
+            role_badge = "👤 <b>Статус:</b> Зарегистрированный пользователь"
+        else:
+            rec = self.get_user_record(user_id)
+            if rec and rec.get('status') == 'PENDING':
+                role_badge = "⏳ <b>Статус:</b> Заявка на рассмотрении"
+            else:
+                role_badge = "🔒 <b>Статус:</b> Требуется регистрация"
 
         msg = [
             "📄 <b>Kvit-App Telegram Bot</b>",
             role_badge,
-            "────────────────────────",
-            "🚀 <b>Как загрузить квитанции:</b>",
-            "Просто <b>отправьте PDF-файл</b> (или несколько файлов) в этот чат. Бот автоматически распознает лицевые счета, периоды, распределит по папкам и сохранит в базу данных.",
-            "",
-            "🔍 <b>Поиск и выдача квитанций:</b>",
-            "• Отправьте номер счёта: <code>800146</code> или <code>/kvit 800146</code>",
-            "• Поиск по точному адресу: <code>/address ул. Пушкина 12, кв 4</code>",
-            "<i>(Бот сразу пришлёт PDF-файл квитанции прямо в чат)</i>",
-            "",
-            "📊 <b>Команды управления:</b>",
-            "• <code>/stats</code> — статистика базы и процент покрытия квитанциями",
-            "• <code>/login &lt;пароль&gt;</code> — авторизация администратора",
-            "• <code>/help</code> — это меню справки"
+            "────────────────────────"
         ]
+
+        if not is_appr and not is_adm:
+            msg.extend([
+                "👋 Добро пожаловать! Чтобы получить доступ к поиску и скачиванию квитанций, необходимо зарегистрироваться.",
+                "",
+                "📝 <b>Как получить доступ:</b>",
+                "• Нажмите кнопку <b>«📝 Зарегистрироваться»</b> или команду <code>/register</code>",
+                "• Администратор подтвердит вашу заявку, и вам придёт уведомление",
+                "",
+                "🔐 Если вы администратор, используйте <code>/login &lt;пароль&gt;</code>"
+            ])
+        else:
+            msg.extend([
+                "🚀 <b>Загрузка квитанций:</b>",
+                "Просто <b>отправьте PDF-файл</b> в этот чат. Бот автоматически распознает лицевые счета, периоды и привяжет квитанции к базе данных.",
+                "",
+                "🔍 <b>Поиск и выдача квитанций:</b>",
+                "• Отправьте номер счёта: <code>800146</code> или <code>/kvit 800146</code>",
+                "• Поиск по точному адресу: <code>/address ул. Пушкина 12, кв 4</code>",
+                "<i>(Бот сразу пришлёт PDF-файл квитанции прямо в чат)</i>",
+                "",
+                "📊 <b>Команды:</b>",
+                "• <code>/stats</code> — статистика базы и процент покрытия квитанциями",
+                "• <code>/help</code> — это меню справки"
+            ])
+
+            if is_adm:
+                msg.extend([
+                    "",
+                    "👑 <b>Возможности администратора:</b>",
+                    "• <code>/users</code> — список заявок на регистрацию",
+                    "• <code>/approve &lt;ID&gt;</code> — одобрить пользователя",
+                    "• <code>/reject &lt;ID&gt;</code> — отклонить заявку"
+                ])
+
         self.client.send_message(chat_id, "\n".join(msg), reply_markup=self.get_main_keyboard(user_id))
 
     def _send_stats(self, chat_id: int, user_id: int):
@@ -346,7 +799,6 @@ class TelegramBotService:
         if not clean_q:
             return
 
-        # Если запрос состоит только из цифр (номер лицевого счёта)
         if re.match(r'^\d+$', clean_q):
             self._send_account_receipts(chat_id, user_id, clean_q)
         else:
@@ -384,7 +836,6 @@ class TelegramBotService:
         header_lines.append(f"\n📄 <b>Найдено квитанций:</b> {len(receipts)}")
         self.client.send_message(chat_id, "\n".join(header_lines))
 
-        # Отправляем последнюю квитанцию файлом
         latest_rec = receipts[0]
         token = latest_rec['access_token']
         pdf_full_path = receipt_service.get_pdf_by_token(token) if token else None
@@ -408,7 +859,6 @@ class TelegramBotService:
             acc_num = str(acc_data['account_number'])
             self._send_account_receipts(chat_id, user_id, acc_num)
         else:
-            # Выводим подсказку с уточнением
             self.client.send_message(
                 chat_id,
                 f"ℹ️ {html.escape(prompt_msg)}",
@@ -421,8 +871,10 @@ class TelegramBotService:
         """Устанавливает подсказки команд в интерфейсе Telegram."""
         commands = [
             {"command": "start", "description": "Перезапуск и главное меню"},
-            {"command": "stats", "description": "Статистика базы и сверка"},
+            {"command": "register", "description": "Заявка на регистрацию в боте"},
+            {"command": "status", "description": "Проверить статус регистрации"},
             {"command": "search", "description": "Поиск квитанции по счету или адресу"},
+            {"command": "stats", "description": "Статистика базы и сверка"},
             {"command": "login", "description": "Авторизация администратора"},
             {"command": "help", "description": "Справка по возможностям"}
         ]
@@ -481,5 +933,6 @@ class TelegramBotService:
     def stop(self):
         """Останавливает цикл polling."""
         self._running = False
+
 
 telegram_bot_service = TelegramBotService()

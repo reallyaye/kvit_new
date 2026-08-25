@@ -17,6 +17,18 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
     form_acc_style = '' if not is_addr else 'display:none'
     form_addr_style = '' if is_addr else 'display:none'
 
+    ico_clock = icon('clock', 15, '#ef4444')
+    ico_bulb = icon('lightbulb', 15, '#d97706')
+    ico_warn = icon('alert_triangle', 22, '#d97706')
+    ico_ok = icon('check_circle', 22, '#16a34a')
+    ico_eye_btn = icon('eye', 15)
+    ico_eye_sm = icon('eye', 13)
+    ico_dl_btn = icon('download', 15)
+    ico_dl_sm = icon('download', 13)
+    ico_file = icon('file_text', 16, '#3b82f6')
+    ico_err = icon('x_circle', 22, '#dc2626')
+    ico_shield = icon('shield', 14)
+
     return f'''<div class="card">
         <h1>Получение квитанции</h1>
         <p class="subtitle">Найдите квитанцию по номеру лицевого счёта или по адресу объекта.</p>
@@ -26,28 +38,32 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
             <button type="button" class="mode-tab{tab_addr_cls}" id="tabBtnAddress" onclick="switchSearchTab('address')">{icon('map_pin', 15)} По адресу</button>
         </div>
 
-        <form id="searchAccountForm" action="/search" method="get" style="{form_acc_style}">
+        <!-- Поиск по лицевому счёту -->
+        <form id="searchAccountForm" action="/search" method="get" style="{form_acc_style}" onsubmit="handleAjaxSearch(event, this, 'account')">
             <label>Лицевой счёт</label>
-            <input name="account" type="search" inputmode="numeric" placeholder="Например, 800146" value="{html.escape(default_account)}" required>
+            <input name="account" type="search" inputmode="numeric" placeholder="Например: 800146" value="{html.escape(default_account)}" required>
             <label>Период</label>
             <select name="period">
                 {period_options}
             </select>
-            <button class="btn">{icon('search', 15)} Найти квитанцию</button>
+            <button type="submit" class="btn">{icon('search', 15)} Найти квитанцию</button>
         </form>
 
-        <form id="searchAddressForm" action="/search" method="get" style="{form_addr_style}">
+        <!-- Поиск по адресу -->
+        <form id="searchAddressForm" action="/search" method="get" style="{form_addr_style}" onsubmit="handleAjaxSearch(event, this, 'address')">
             <label>Точный адрес объекта</label>
-            <input name="address" type="search" placeholder="Например: станц. Шокай, ул. Автобаза, дом 1" value="{html.escape(default_address)}" required>
-            <p style="color:#64748b;font-size:12px;margin:4px 0 12px;display:flex;align-items:center;gap:5px">{icon('shield', 13)} Укажите улицу, номер дома и квартиру. В целях безопасности поиск открывает квитанцию только при указании конкретного адреса.</p>
+            <input name="address" type="search" placeholder="Например: ул. Абая 10, кв 5 или Абая 10-5" value="{html.escape(default_address)}" required>
+            <p style="color:#64748b;font-size:12px;margin:4px 0 12px;display:flex;align-items:center;gap:5px">{icon('shield', 13)} Укажите улицу, номер дома и квартиру (например: <i>ул. Абая 10, кв 5</i> или <i>Абая 10-5</i>).</p>
             <label>Период</label>
             <select name="period">
                 {period_options}
             </select>
-            <button class="btn">{icon('search', 15)} Найти по адресу</button>
+            <button type="submit" class="btn">{icon('search', 15)} Найти по адресу</button>
         </form>
     </div>
 
+    <!-- Контейнер для мгновенных AJAX-результатов -->
+    <div id="liveSearchResults"></div>
 
     <script>
     function switchSearchTab(tab) {{
@@ -55,77 +71,200 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         var fAddr = document.getElementById('searchAddressForm');
         var bAcc = document.getElementById('tabBtnAccount');
         var bAddr = document.getElementById('tabBtnAddress');
+        var resBox = document.getElementById('liveSearchResults');
         if (!fAcc || !fAddr) return;
+
+        if (resBox) resBox.innerHTML = '';
 
         if (tab === 'address') {{
             fAcc.style.display = 'none';
             fAddr.style.display = 'block';
-            bAcc.classList.remove('active');
-            bAddr.classList.add('active');
+            if (bAcc) bAcc.classList.remove('active');
+            if (bAddr) bAddr.classList.add('active');
             var inp = fAddr.querySelector('input[name="address"]');
             if (inp) inp.focus();
         }} else {{
             fAddr.style.display = 'none';
             fAcc.style.display = 'block';
-            bAddr.classList.remove('active');
-            bAcc.classList.add('active');
+            if (bAddr) bAddr.classList.remove('active');
+            if (bAcc) bAcc.classList.add('active');
             var inp = fAcc.querySelector('input[name="account"]');
             if (inp) inp.focus();
         }}
     }}
+
+    async function handleAjaxSearch(e, formEl, formType) {{
+        e.preventDefault();
+        var resBox = document.getElementById('liveSearchResults');
+        if (!resBox) return;
+
+        resBox.innerHTML = '<div class="card search-loading-box"><div class="spinner"></div><span>Поиск квитанции...</span></div>';
+
+        var formData = new FormData(formEl);
+        var params = new URLSearchParams();
+        for (var pair of formData.entries()) {{
+            if (pair[1] && pair[1].trim()) {{
+                params.append(pair[0], pair[1].trim());
+            }}
+        }}
+
+        try {{
+            var resp = await fetch('/api/search?' + params.toString(), {{
+                headers: {{ 'Accept': 'application/json' }},
+                cache: 'no-store'
+            }});
+            if (!resp.ok) {{
+                if (resp.status === 429) {{
+                    resBox.innerHTML = '<div class="card receipt-card-anim"><div class="err" style="display:flex;align-items:center;gap:6px">{ico_clock} Слишком много запросов. Пожалуйста, подождите несколько секунд.</div></div>';
+                    return;
+                }}
+                throw new Error('Server error ' + resp.status);
+            }}
+
+            var data = await resp.json();
+            renderAjaxSearchResults(data, params.get('period') || '');
+        }} catch(err) {{
+            formEl.submit();
+        }}
+    }}
+
+    function escapeHtml(str) {{
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }}
+
+    function renderAjaxSearchResults(data, periodFilter) {{
+        var resBox = document.getElementById('liveSearchResults');
+        if (!resBox) return;
+
+        if (data.status === 'EXACT_MATCH') {{
+            var acct = escapeHtml(data.account || '');
+            var addr = escapeHtml(data.address || '—');
+            var receipts = data.receipts || [];
+
+            var typoHtml = '';
+            if (data.is_corrected && data.corrected_street) {{
+                typoHtml = '<div class="typo-badge" style="display:flex;align-items:center;gap:6px">{ico_bulb} <span><b>Показаны результаты для:</b> «' + escapeHtml(data.corrected_street) + '» (исправлена опечатка в названии)</span></div>';
+            }}
+
+            if (!receipts || receipts.length === 0) {{
+                var noRecHtml = '';
+                if (periodFilter) {{
+                    noRecHtml = '<div class="card receipt-card-anim">' +
+                        '<h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{ico_warn} Квитанция за период не найдена</span></h1>' +
+                        typoHtml +
+                        '<div class="ok" style="background:#f0fdf4;border-color:#bbf7d0">' +
+                            '<b>Лицевой счёт:</b> ' + acct + '<br><b>Адрес:</b> ' + addr +
+                        '</div>' +
+                        '<div class="warn"><b>Квитанция за период «' + escapeHtml(periodFilter) + '» для данного счёта отсутствует.</b></div>' +
+                    '</div>';
+                }} else {{
+                    noRecHtml = '<div class="card receipt-card-anim">' +
+                        '<h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{ico_warn} Квитанции не загружены</span></h1>' +
+                        typoHtml +
+                        '<div class="ok" style="background:#f0fdf4;border-color:#bbf7d0">' +
+                            '<b>Лицевой счёт:</b> ' + acct + '<br><b>Адрес:</b> ' + addr +
+                        '</div>' +
+                        '<div class="warn">Для данного лицевого счёта квитанции пока не загружены.</div>' +
+                    '</div>';
+                }}
+                resBox.innerHTML = noRecHtml;
+                resBox.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }});
+                return;
+            }}
+
+            if (receipts.length === 1) {{
+                var r = receipts[0];
+                var token = escapeHtml(r.access_token);
+                var periodEsc = escapeHtml(r.period);
+                var singleHtml = '<div class="card receipt-card-anim">' +
+                    '<h1><span style="display:inline-flex;align-items:center;gap:6px;color:#16a34a">{ico_ok} Квитанция найдена</span></h1>' +
+                    typoHtml +
+                    '<div class="ok">' +
+                        '<b>Лицевой счёт:</b> ' + acct + '<br>' +
+                        '<b>Период:</b> ' + periodEsc + '<br>' +
+                        '<b>Адрес:</b> ' + addr +
+                    '</div>' +
+                    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">' +
+                        '<button type="button" class="btn" data-token="' + token + '" data-title="Квитанция: ' + acct + ' (' + periodEsc + ')" onclick="openPdfModal(this.getAttribute(\\'data-token\\'), this.getAttribute(\\'data-title\\'))">{ico_eye_btn} Быстрый просмотр</button>' +
+                        '<a class="btn btn-green" href="/download?token=' + token + '">{ico_dl_btn} Скачать PDF</a>' +
+                    '</div>' +
+                '</div>';
+                resBox.innerHTML = singleHtml;
+            }} else {{
+                var listHtml = '';
+                for (var i = 0; i < receipts.length; i++) {{
+                    var rec = receipts[i];
+                    var t = escapeHtml(rec.access_token);
+                    var pEsc = escapeHtml(rec.period);
+                    listHtml += '<div class="period-card">' +
+                        '<span class="period-name" style="display:inline-flex;align-items:center;gap:6px">{ico_file} ' + pEsc + '</span>' +
+                        '<div class="period-actions">' +
+                            '<button type="button" class="btn btn-sm" data-token="' + t + '" data-title="Квитанция: ' + acct + ' (' + pEsc + ')" onclick="openPdfModal(this.getAttribute(\\'data-token\\'), this.getAttribute(\\'data-title\\'))">{ico_eye_sm} Просмотр</button>' +
+                            '<a class="btn btn-green btn-sm" href="/download?token=' + t + '">{ico_dl_sm} Скачать</a>' +
+                        '</div>' +
+                    '</div>';
+                }}
+
+                var multiHtml = '<div class="card receipt-card-anim">' +
+                    '<h1><span style="display:inline-flex;align-items:center;gap:6px;color:#16a34a">{ico_ok} Квитанции найдены</span></h1>' +
+                    typoHtml +
+                    '<div class="ok">' +
+                        '<b>Лицевой счёт:</b> ' + acct + '<br>' +
+                        '<b>Адрес:</b> ' + addr + '<br>' +
+                        '<b>Доступно квитанций:</b> ' + receipts.length +
+                    '</div>' +
+                    '<h2 style="font-size:17px;margin:24px 0 12px;color:#334155">Выберите период:</h2>' +
+                    listHtml +
+                '</div>';
+                resBox.innerHTML = multiHtml;
+            }}
+        }} else if (data.status === 'NOT_FOUND') {{
+            resBox.innerHTML = '<div class="card receipt-card-anim">' +
+                '<h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{ico_err} Квитанция не найдена</span></h1>' +
+                '<div class="err"><b>' + escapeHtml(data.message || 'Квитанция не найдена.') + '</b><br><br>Проверьте правильность написания улицы, номера дома и квартиры.</div>' +
+            '</div>';
+        }} else {{
+            resBox.innerHTML = '<div class="card receipt-card-anim">' +
+                '<h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{ico_warn} Требуется уточнить адрес</span></h1>' +
+                '<div class="warn"><b>' + escapeHtml(data.message || 'Требуется уточнить адрес.') + '</b><br><br><span style="display:inline-flex;align-items:center;gap:5px">{ico_shield} <b>Конфиденциальность:</b></span> поиск открывает квитанцию только при указании конкретного номера дома и квартиры.</div>' +
+            '</div>';
+        }}
+
+        resBox.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }});
+    }}
     </script>'''
 
 def render_search_result(account: str, period_filter: str, account_row, receipts):
-    if not account_row:
-        return f'''<div class="card">
-            <h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{icon('x_circle', 22, '#dc2626')} Лицевой счёт не найден</span></h1>
-            <div class="err">
-                <b>Лицевой счёт <span style="font-size:18px">{html.escape(account)}</span> отсутствует в базе данных.</b><br><br>
-                Возможные причины:<br>
-                • Номер лицевого счёта введён неверно<br>
-                • Данный лицевой счёт не зарегистрирован в системе
-            </div>
-            <p style="color:#64748b;font-size:14px">Проверьте правильность введённого номера или попробуйте найти квитанцию по адресу.</p>
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <a class="btn-outline btn" href="/">{icon('arrow_left', 14)} Поиск по номеру</a>
-                <a class="btn-outline btn" href="/?tab=address" style="border-color:#64748b;color:#64748b">{icon('map_pin', 14)} Поиск по адресу</a>
-            </div>
-        </div>'''
-
-    acct = html.escape(str(account_row['account_number']))
-    addr = html.escape(account_row['address'] or '—')
+    acct = html.escape(account)
+    addr = html.escape(account_row['address']) if account_row and account_row['address'] else '—'
 
     if not receipts:
         if period_filter:
             return f'''<div class="card">
                 <h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{icon('alert_triangle', 22, '#d97706')} Квитанция за период не найдена</span></h1>
                 <div class="ok" style="background:#f0fdf4;border-color:#bbf7d0">
-                    <b style="color:#166534;display:inline-flex;align-items:center;gap:5px">{icon('check_circle', 15, '#166534')} Лицевой счёт найден в базе</b><br><br>
                     <b>Лицевой счёт:</b> {acct}<br>
                     <b>Адрес:</b> {addr}
                 </div>
                 <div class="warn">
-                    <b>Квитанция за период «{html.escape(period_filter)}» для данного счёта отсутствует.</b><br><br>
-                    Лицевой счёт зарегистрирован в системе, но квитанция за указанный период ещё не загружена.
+                    <b>Квитанция за период «{html.escape(period_filter)}» для счёта № {acct} не найдена.</b>
                 </div>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-                    <a class="btn-outline btn" href="/search?account={acct}">{icon('list', 14)} Показать все периоды</a>
-                    <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">{icon('arrow_left', 14)} Новый поиск</a>
-                </div>
+                <br>
+                <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
             </div>'''
         else:
             return f'''<div class="card">
-                <h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{icon('alert_triangle', 22, '#d97706')} Квитанции не загружены</span></h1>
+                <h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{icon('alert_triangle', 22, '#d97706')} Квитанции не найдены</span></h1>
                 <div class="ok" style="background:#f0fdf4;border-color:#bbf7d0">
-                    <b style="color:#166534;display:inline-flex;align-items:center;gap:5px">{icon('check_circle', 15, '#166534')} Лицевой счёт найден в базе</b><br><br>
                     <b>Лицевой счёт:</b> {acct}<br>
                     <b>Адрес:</b> {addr}
                 </div>
                 <div class="warn">
-                    <b>Для данного лицевого счёта квитанции ещё не загружены.</b><br><br>
-                    Лицевой счёт зарегистрирован в системе, но ни одной квитанции пока не было добавлено.
+                    Для лицевого счёта № {acct} квитанции пока не загружены.
                 </div>
-                <a class="btn-outline btn" href="/">{icon('arrow_left', 14)} Новый поиск</a>
+                <br>
+                <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
             </div>'''
 
     if len(receipts) == 1:
@@ -140,11 +279,11 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
                 <b>Адрес:</b> {addr}
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
-                <a class="btn" href="/receipt?token={token}" target="_blank">{icon('file_text', 15)} Открыть PDF</a>
+                <button type="button" class="btn" onclick="openPdfModal('{token}', 'Квитанция: {acct} ({period_esc})')">{icon('eye', 15)} Быстрый просмотр</button>
                 <a class="btn btn-green" href="/download?token={token}">{icon('upload', 15)} Скачать PDF</a>
             </div>
             <br>
-            <a class="back-link" href="/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
+            <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
         </div>'''
     else:
         periods_html = ''
@@ -154,7 +293,8 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
             periods_html += f'''<div class="period-card">
                 <span class="period-name" style="display:inline-flex;align-items:center;gap:6px">{icon('file_text', 16, '#3b82f6')} {period_esc}</span>
                 <div class="period-actions">
-                    <a class="btn btn-sm" href="/receipt?token={token}" target="_blank">Открыть</a>
+                    <button type="button" class="btn btn-sm" onclick="openPdfModal('{token}', 'Квитанция: {acct} ({period_esc})')">{icon('eye', 13)} Просмотр</button>
+                    <a class="btn-outline btn btn-sm" href="/receipt?token={token}" target="_blank">Вкладка</a>
                     <a class="btn btn-green btn-sm" href="/download?token={token}">Скачать</a>
                 </div>
             </div>'''
@@ -169,7 +309,7 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
             <h2 style="font-size:17px;margin:24px 0 12px;color:#334155">Выберите период:</h2>
             {periods_html}
             <br>
-            <a class="back-link" href="/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
+            <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
         </div>'''
 
 def render_address_clarification_prompt(address_query: str, period_filter: str, message: str, periods=None):
@@ -199,7 +339,7 @@ def render_address_clarification_prompt(address_query: str, period_filter: str, 
         </form>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по номеру счёта</a>
+            <a class="btn-outline btn" href="/kvit/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по номеру счёта</a>
         </div>
     </div>'''
 
@@ -233,7 +373,7 @@ def render_address_not_found(address_query: str, period_filter: str, message: st
         </form>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <a class="btn-outline btn" href="/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по лицевому счёту</a>
+            <a class="btn-outline btn" href="/kvit/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по лицевому счёту</a>
         </div>
     </div>'''
 
@@ -242,3 +382,4 @@ def render_address_search_results(address_query: str, period_filter: str, accoun
     if accounts and len(accounts) == 1:
         return render_address_clarification_prompt(address_query, period_filter, "Найдена 1 запись.")
     return render_address_clarification_prompt(address_query, period_filter, "Пожалуйста, укажите точный номер дома и квартиры.")
+

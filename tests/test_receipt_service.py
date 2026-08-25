@@ -212,4 +212,98 @@ def test_api_stats_live_polling():
     assert res['matched'] >= 1
     assert res['coverage_pct'] > 0
 
+def test_search_by_structured_and_compound_address():
+    con = get_db()
+    con.execute('INSERT OR REPLACE INTO accounts(account_number, customer_name, address) VALUES (?,?,?)',
+                ('888001', 'Тестовый Житель', 'ул. Абая, дом 10, кв. 5'))
+    con.execute('INSERT OR REPLACE INTO accounts(account_number, customer_name, address) VALUES (?,?,?)',
+                ('888002', 'Тестовый Житель 2', 'мкр. Аксай-4, дом 12'))
+    con.execute('INSERT OR REPLACE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)',
+                ('888001', '09.2026', '88/80/888001_h.pdf', 'h888001', 'tok88800100000000000000000000000', 'ул. Абая, дом 10, кв. 5'))
+    con.commit()
+    con.close()
+
+    # 1. Поиск через составную запись через дефис ("Абая 10-5")
+    status, acc, msg = receipt_service.search_account_by_specific_address('Абая 10-5')
+    assert status == 'EXACT_MATCH'
+    assert acc['account_number'] == '888001'
+
+    # 2. Поиск через дробную запись ("Абая 10/5")
+    status, acc, msg = receipt_service.search_account_by_specific_address('ул. Абая 10/5')
+    assert status == 'EXACT_MATCH'
+    assert acc['account_number'] == '888001'
+
+    # 3. Поиск по раздельным структурированным полям
+    status, acc, msg = receipt_service.search_by_structured_address(street='Абая', house='10', flat='5')
+    assert status == 'EXACT_MATCH'
+    assert acc['account_number'] == '888001'
+
+    # 4. Поиск в микрорайоне ("мкр. Аксай-4 12")
+    status, acc, msg = receipt_service.search_account_by_specific_address('мкр. Аксай-4, 12')
+    assert status == 'EXACT_MATCH'
+    assert acc['account_number'] == '888002'
+
+def test_fuzzy_street_match_and_typo_correction():
+    con = get_db()
+    con.execute('INSERT OR REPLACE INTO accounts(account_number, customer_name, address) VALUES (?,?,?)',
+                ('888003', 'Житель Жандосова', 'ул. Жандосова, дом 10, кв. 5'))
+    con.commit()
+    con.close()
+
+    # Запрос с опечаткой: "Жандосава 10, кв 5"
+    status, acc, msg = receipt_service.search_account_by_specific_address('Жандосава 10, кв 5')
+    assert status == 'EXACT_MATCH'
+    assert acc['account_number'] == '888003'
+    assert acc.get('is_corrected') is True
+    assert 'Жандосова' in acc.get('corrected_street', '')
+
+def test_api_search_endpoint():
+    con = get_db()
+    con.execute('INSERT OR REPLACE INTO accounts(account_number, customer_name, address) VALUES (?,?,?)',
+                ('888004', 'Иванов Иван', 'ул. Сатпаева, дом 15, кв. 3'))
+    con.execute('INSERT OR REPLACE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)',
+                ('888004', '09.2026', '88/80/888004_h.pdf', 'h888004', 'tok88800400000000000000000000000', 'ул. Сатпаева, дом 15, кв. 3'))
+    con.commit()
+    con.close()
+
+    from server import AppRequestHandler
+    class MockHandler(AppRequestHandler):
+        def __init__(self):
+            self.sent_json = None
+            self.status_code = None
+
+        def send_json(self, data, code=200, extra_headers=None, **kwargs):
+            self.sent_json = data
+            self.status_code = code
+
+    # 1. Поиск по номеру счета через API
+    h1 = MockHandler()
+    h1._handle_api_search({'account': ['888004']})
+    assert h1.status_code == 200
+    assert h1.sent_json['status'] == 'EXACT_MATCH'
+    assert h1.sent_json['account'] == '888004'
+    assert len(h1.sent_json['receipts']) == 1
+
+    # 2. Поиск по строке адреса через API
+    h2 = MockHandler()
+    h2._handle_api_search({'address': ['ул. Сатпаева 15-3']})
+    assert h2.status_code == 200
+    assert h2.sent_json['status'] == 'EXACT_MATCH'
+    assert h2.sent_json['account'] == '888004'
+
+    # 3. Поиск по структурированным полям через API
+    h3 = MockHandler()
+    h3._handle_api_search({'street': ['Сатпаева'], 'house': ['15'], 'flat': ['3']})
+    assert h3.status_code == 200
+    assert h3.sent_json['status'] == 'EXACT_MATCH'
+    assert h3.sent_json['account'] == '888004'
+
+    # 4. Поиск с опечаткой через API
+    h4 = MockHandler()
+    h4._handle_api_search({'address': ['Сатпаива 15, кв 3']})
+    assert h4.status_code == 200
+    assert h4.sent_json['status'] == 'EXACT_MATCH'
+    assert h4.sent_json['is_corrected'] is True
+
+
 

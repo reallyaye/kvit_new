@@ -104,7 +104,7 @@ def get_sharded_receipt_rel_path(account: str, filename: str) -> str:
     return f"{s1}/{s2}/{filename}"
 
 # ────────────────────── Сетевые настройки ──────────────────────
-HOST = os.environ.get('HOST', '127.0.0.1')
+HOST = os.environ.get('HOST', '0.0.0.0')
 PORT = int(os.environ.get('PORT', '8000'))
 TRUST_PROXY = os.environ.get('TRUST_PROXY', 'false').lower() in ('true', '1', 'yes')
 # Список доверенных IP и подсетей обратных прокси через запятую (например: 127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)

@@ -65,6 +65,20 @@ def migrate_db():
                     reason TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_blocks_until ON security_blocks(blocked_until);
+
+                CREATE TABLE IF NOT EXISTS telegram_users (
+                    telegram_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    status TEXT NOT NULL DEFAULT 'PENDING',
+                    role TEXT NOT NULL DEFAULT 'USER',
+                    requested_at REAL NOT NULL,
+                    reviewed_at REAL,
+                    reviewed_by INTEGER,
+                    comment TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_tg_users_status ON telegram_users(status);
             ''')
 
             # 2. Проверка и динамическое добавление недостающих колонок

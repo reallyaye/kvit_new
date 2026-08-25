@@ -170,7 +170,7 @@ def render_reconcile_page(data: dict):
             return;
         }}
         btn.disabled = true;
-        btn.textContent = '⏳ Проверка файлов...';
+        btn.innerHTML = '{icon('clock', 14)} Проверка файлов...';
         try {{
             const csrfMeta = document.querySelector('meta[name="csrf-token"]');
             const csrfVal = csrfMeta ? csrfMeta.content : '';
@@ -187,12 +187,12 @@ def render_reconcile_page(data: dict):
             }} else {{
                 alert('Ошибка: ' + (data.error || 'Не удалось выполнить синхронизацию'));
                 btn.disabled = false;
-                btn.textContent = '🔄 Синхронизировать с диском';
+                btn.innerHTML = '{icon('refresh', 14)} Синхронизировать с диском';
             }}
         }} catch (e) {{
             alert('Ошибка сети: ' + e.message);
             btn.disabled = false;
-            btn.textContent = '🔄 Синхронизировать с диском';
+            btn.innerHTML = '{icon('refresh', 14)} Синхронизировать с диском';
         }}
     }}
 
@@ -203,7 +203,7 @@ def render_reconcile_page(data: dict):
             return;
         }}
         btn.disabled = true;
-        btn.textContent = '⏳ Очистка...';
+        btn.innerHTML = '{icon('clock', 14)} Очистка...';
         try {{
             const csrfMeta = document.querySelector('meta[name="csrf-token"]');
             const csrfVal = csrfMeta ? csrfMeta.content : '';
@@ -220,12 +220,12 @@ def render_reconcile_page(data: dict):
             }} else {{
                 alert('Ошибка: ' + (data.error || 'Не удалось выполнить очистку'));
                 btn.disabled = false;
-                btn.textContent = '🗑️ Очистить отсутствующие';
+                btn.innerHTML = '{icon('trash', 14)} Очистить отсутствующие';
             }}
         }} catch (e) {{
             alert('Ошибка сети: ' + e.message);
             btn.disabled = false;
-            btn.textContent = '🗑️ Очистить отсутствующие';
+            btn.innerHTML = '{icon('trash', 14)} Очистить отсутствующие';
         }}
     }}
     </script>'''

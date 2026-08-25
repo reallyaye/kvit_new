@@ -202,6 +202,44 @@ class TelegramClient:
             logger.error(f"[Telegram] Ошибка отправки документа в {chat_id}: {e}")
             raise
 
+    def answer_callback_query(
+        self,
+        callback_query_id: str,
+        text: Optional[str] = None,
+        show_alert: bool = False
+    ) -> bool:
+        """Отвечает на callback_query (нажатие inline-кнопки)."""
+        payload: Dict[str, Any] = {
+            'callback_query_id': callback_query_id,
+            'show_alert': show_alert
+        }
+        if text:
+            payload['text'] = text
+        try:
+            return bool(self._make_request('answerCallbackQuery', payload))
+        except Exception as e:
+            logger.warning(f"[Telegram] Не удалось ответить на callback_query: {e}")
+            return False
+
+    def edit_message_text(
+        self,
+        chat_id: Union[int, str],
+        message_id: int,
+        text: str,
+        parse_mode: str = 'HTML',
+        reply_markup: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Редактирует текст ранее отправленного сообщения."""
+        payload: Dict[str, Any] = {
+            'chat_id': chat_id,
+            'message_id': message_id,
+            'text': text,
+            'parse_mode': parse_mode
+        }
+        if reply_markup is not None:
+            payload['reply_markup'] = reply_markup
+        return self._make_request('editMessageText', payload)
+
     def set_my_commands(self, commands: List[Dict[str, str]]) -> bool:
         """Устанавливает список команд в меню Telegram."""
         try:
@@ -210,3 +248,4 @@ class TelegramClient:
         except Exception as e:
             logger.warning(f"[Telegram] Не удалось установить команды меню: {e}")
             return False
+

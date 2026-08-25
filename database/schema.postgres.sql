@@ -61,3 +61,19 @@ CREATE TABLE IF NOT EXISTS security_blocks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_blocks_until ON security_blocks(blocked_until);
+
+CREATE TABLE IF NOT EXISTS telegram_users (
+    telegram_id BIGINT PRIMARY KEY,
+    username VARCHAR(255),
+    first_name VARCHAR(255),
+    last_name VARCHAR(255),
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    role VARCHAR(32) NOT NULL DEFAULT 'USER',
+    requested_at DOUBLE PRECISION NOT NULL,
+    reviewed_at DOUBLE PRECISION,
+    reviewed_by BIGINT,
+    comment TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_users_status ON telegram_users(status);
+
