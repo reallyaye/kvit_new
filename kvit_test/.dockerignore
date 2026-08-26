@@ -1,10 +1,27 @@
+# Git
 .git
 .gitignore
-__pycache__
+.github
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
 *.pyc
 *.pyo
 *.pyd
+
+# Secrets & Environment variables
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Database & Storage
 data.sqlite3
 *.sqlite3
 *.sqlite3-journal
@@ -12,10 +29,26 @@ data.sqlite3
 *.sqlite3-shm
 receipts/
 logs/
+data/
+
+# Raw data & Spreadsheets
 *.xls
 *.xlsx
 *.csv
+лицевые все.xls
+лицевые все.xlsx
+
+# Tests & Benchmarks
 tests/
 test_*.pdf
 test_*.py
-.pytest_cache/
+benchmarks/
+coverage.xml
+.coverage
+htmlcov/
+
+# Documentation & AI assistant state
+.ai/
+.foryou/
+*.md
+LICENSE

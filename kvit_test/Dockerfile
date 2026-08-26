@@ -38,8 +38,13 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Копируем исходный код приложения
-COPY --chown=appuser:appuser . .
+# Копируем только необходимые модули и каталоги приложения (соответствие Sonar docker:S6470)
+COPY --chown=appuser:appuser app.py bot.py config.py logger.py server.py import_data.py encrypt_env.py grpc_client.py ./
+COPY --chown=appuser:appuser database/ ./database/
+COPY --chown=appuser:appuser services/ ./services/
+COPY --chown=appuser:appuser templates/ ./templates/
+COPY --chown=appuser:appuser static/ ./static/
+COPY --chown=appuser:appuser proto/ ./proto/
 
 USER appuser
 
