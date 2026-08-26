@@ -4,7 +4,6 @@
 высокой конкурентной нагрузки (одновременное чтение, поиск, сверка и параллельная запись).
 """
 import os
-import random
 import secrets
 import statistics
 import sys
@@ -118,7 +117,7 @@ def run_sqlite_load_test(num_accounts=100_000, num_receipts=200_000, concurrent_
                 t_start = time.perf_counter()
                 try:
                     # Случайный точечный поиск по счету или токену
-                    rnd_id = random.randint(1, num_accounts)
+                    rnd_id = secrets.randbelow(num_accounts) + 1
                     target_acc = f"ACC{rnd_id:07d}"
                     con = get_db()
                     try:
@@ -170,7 +169,7 @@ def run_sqlite_load_test(num_accounts=100_000, num_receipts=200_000, concurrent_
                 w_counter += 1
                 t_start = time.perf_counter()
                 try:
-                    rnd_acc = f"ACC{random.randint(1, num_accounts):07d}"
+                    rnd_acc = f"ACC{secrets.randbelow(num_accounts) + 1:07d}"
                     token = secrets.token_hex(16)
                     with write_transaction() as wcon:
                         wcon.execute(

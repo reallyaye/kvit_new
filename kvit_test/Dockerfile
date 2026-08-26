@@ -11,8 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir --only-binary :all: --user \
+    PyMuPDF==1.25.3 \
+    xlrd==2.0.1 \
+    openpyxl==3.1.5 \
+    grpcio==1.70.0 \
+    protobuf==5.29.3 \
+    pytest==8.3.4 \
+    pytest-cov==6.0.0 \
+    psycopg2-binary==2.9.10
 
 # --- Этап 2: Финальный легковесный образ ---
 FROM python:3.11-slim AS runner
@@ -30,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Создаём непривилегированного пользователя appuser для безопасности
 RUN useradd -m -u 1000 appuser && \
     mkdir -p /app/receipts /app/logs /app/data && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app/receipts /app/logs /app/data
 
 # Копируем установленные пакеты из builder
 COPY --from=builder /root/.local /home/appuser/.local
@@ -38,13 +45,13 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Копируем только необходимые модули и каталоги приложения (соответствие Sonar docker:S6470)
-COPY --chown=appuser:appuser app.py bot.py config.py logger.py server.py import_data.py encrypt_env.py grpc_client.py ./
-COPY --chown=appuser:appuser database/ ./database/
-COPY --chown=appuser:appuser services/ ./services/
-COPY --chown=appuser:appuser templates/ ./templates/
-COPY --chown=appuser:appuser static/ ./static/
-COPY --chown=appuser:appuser proto/ ./proto/
+# Копируем только необходимые модули и каталоги приложения
+COPY app.py bot.py config.py logger.py server.py import_data.py encrypt_env.py grpc_client.py ./
+COPY database/ ./database/
+COPY services/ ./services/
+COPY templates/ ./templates/
+COPY static/ ./static/
+COPY proto/ ./proto/
 
 USER appuser
 

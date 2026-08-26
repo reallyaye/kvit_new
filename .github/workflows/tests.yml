@@ -26,9 +26,9 @@ jobs:
 
       - name: Install Linting & Security Tools
         run: |
-          python -m pip install --upgrade pip
-          pip install ruff bandit pip-audit
-          if [[ -f kvit_test/requirements.txt ]]; then pip install -r kvit_test/requirements.txt; fi
+          python -m pip install --only-binary :all: pip==25.0.1
+          pip install --only-binary :all: ruff==0.9.7 bandit==1.8.2 pip-audit==2.8.0
+          if [[ -f kvit_test/requirements.txt ]]; then pip install --only-binary :all: -r kvit_test/requirements.txt; fi
 
       - name: Run Ruff Linter & Formatter Check
         run: |
@@ -71,9 +71,9 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          python -m pip install --upgrade pip
-          if [[ -f kvit_test/requirements.txt ]]; then pip install -r kvit_test/requirements.txt; fi
-          pip install pytest pytest-cov
+          python -m pip install --only-binary :all: pip==25.0.1
+          if [[ -f kvit_test/requirements.txt ]]; then pip install --only-binary :all: -r kvit_test/requirements.txt; fi
+          pip install --only-binary :all: pytest==8.3.4 pytest-cov==6.0.0
 
       - name: Run Full Unit & Integration Test Suite
         env:
@@ -112,8 +112,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          if [[ -f kvit_test/requirements.txt ]]; then pip install -r kvit_test/requirements.txt; fi
+          python -m pip install --only-binary :all: pip==25.0.1
+          if [[ -f kvit_test/requirements.txt ]]; then pip install --only-binary :all: -r kvit_test/requirements.txt; fi
 
       - name: Verify Clean Database Migration Fail-Fast
         run: |

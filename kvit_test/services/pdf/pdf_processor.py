@@ -21,24 +21,24 @@ except ImportError:
         fitz = None
 
 ACCOUNT_PATTERNS = [
-    re.compile(r'(?:Жеке\s+шот\s*/\s*Лицевой\s+сч[её]т|Лицевой\s+сч[её]т\s*/\s*Жеке\s+шот)\s*[:№#\s]*(\d+)', re.IGNORECASE),
-    re.compile(r'Лицевой\s+сч[её]т\s*[:№#\s]*(\d+)', re.IGNORECASE),
-    re.compile(r'Л[/\.]\s*сч?[её]?т?\s*[:№#\s]*(\d+)', re.IGNORECASE),
-    re.compile(r'Абонентский\s+сч[её]т\s*[:№#\s]*(\d+)', re.IGNORECASE),
-    re.compile(r'Сч[её]т-извещение\s*[:№#\s]*(\d+)', re.IGNORECASE),
-    re.compile(r'(?:Жеке|Дербес)\s+шот\s*[:№#\s]*(\d+)', re.IGNORECASE),
-    re.compile(r'Абонент\s*[:№#\s]*(\d+)', re.IGNORECASE),
+    re.compile(r'(?:Жеке\s+шот\s*/\s*Лицевой\s+сч[её]т|Лицевой\s+сч[её]т\s*/\s*Жеке\s+шот)[:№#\s]+(\d+)', re.IGNORECASE),
+    re.compile(r'Лицевой\s+сч[её]т[:№#\s]+(\d+)', re.IGNORECASE),
+    re.compile(r'Л[/\.]\s*сч?[её]?т?[:№#\s]+(\d+)', re.IGNORECASE),
+    re.compile(r'Абонентский\s+сч[её]т[:№#\s]+(\d+)', re.IGNORECASE),
+    re.compile(r'Сч[её]т-извещение[:№#\s]+(\d+)', re.IGNORECASE),
+    re.compile(r'(?:Жеке|Дербес)\s+шот[:№#\s]+(\d+)', re.IGNORECASE),
+    re.compile(r'Абонент[:№#\s]+(\d+)', re.IGNORECASE),
 ]
 
 PERIOD_PATTERNS = [
-    re.compile(r'(?:Сч[её]т-извещение|Квитанция|Извещение)\s+за\s+(.+?)(?:\s*г\.|\s*$|\n)', re.IGNORECASE),
-    re.compile(r'(?:Мезгілі\s*/\s*Период|Период\s*/\s*Мезгілі|Период)\s*[:\s]+(.+?)(?:\s*г\.|\s*$|\n)', re.IGNORECASE),
+    re.compile(r'(?:Сч[её]т-извещение|Квитанция|Извещение)\s+за\s+([^\r\n]+)', re.IGNORECASE),
+    re.compile(r'(?:Мезгілі\s*/\s*Период|Период\s*/\s*Мезгілі|Период)[:\s]+([^\r\n]+)', re.IGNORECASE),
     re.compile(r'за\s+((?:январ[ья]|феврал[ья]|март[а]?|апрел[ья]|ма[йя]|июн[ья]|июл[ья]|август[а]?|сентябр[ья]|октябр[ья]|ноябр[ья]|декабр[ья]|қаңтар|ақпан|наурыз|сәуір|мамыр|маусым|шілде|тамыз|қыркүйек|қазан|қараша|желтоқсан)\s+\d{4})', re.IGNORECASE),
     re.compile(r'((?:0[1-9]|1[0-2])[\./]\d{4})'),
 ]
 
 ADDRESS_PATTERNS = [
-    re.compile(r'(?:Мекенжайы\s*/\s*Адрес|Мекен-жайы\s*/\s*Адрес|Адрес\s*/\s*Мекенжайы|Мекенжайы|Мекен-жайы|Адрес)\s*[:\s]+([^\n\r]+)', re.IGNORECASE),
+    re.compile(r'(?:Мекенжайы\s*/\s*Адрес|Мекен-жайы\s*/\s*Адрес|Адрес\s*/\s*Мекенжайы|Мекенжайы|Мекен-жайы|Адрес)[:\s]+([^\n\r]+)', re.IGNORECASE),
 ]
 
 os.makedirs(config.RECEIPTS_DIR, exist_ok=True)
@@ -70,6 +70,10 @@ class PDFProcessor:
             match = pattern.search(text)
             if match:
                 val = match.group(1).strip().rstrip('.,;')
+                for suffix in (' г.', ' г', 'г.', 'г'):
+                    if val.lower().endswith(suffix):
+                        val = val[:-len(suffix)].strip()
+                        break
                 if val:
                     return val
         return 'не указан'

@@ -27,7 +27,7 @@ RE_FLAT = re.compile(
 
 # Шаблон для составного адреса в конце строки: например "Абая 10-5" или "Абая 10/5" или "Абая 10, кв 5"
 RE_COMPOUND_END = re.compile(
-    r'(?:^|\s+)(\d+[а-яa-z\w\-\/]*)\s*[\-\/]\s*(\d+[а-яa-z\w\-]*)$',
+    r'(\d+[a-zA-Zа-яА-Я]?)[/-](\d+[a-zA-Zа-яА-Я]?)$',
     re.IGNORECASE
 )
 
@@ -319,7 +319,7 @@ class ReceiptService:
             unique_accounts = {item['account_number']: item for item in filtered}
 
             if len(unique_accounts) == 1:
-                acc_data = list(unique_accounts.values())[0]
+                acc_data = next(iter(unique_accounts.values()))
                 return 'EXACT_MATCH', acc_data, 'Квитанция найдена'
 
             # Если найдено несколько счетов в одном доме:

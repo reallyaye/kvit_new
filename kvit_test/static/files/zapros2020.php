@@ -6,7 +6,7 @@
 <meta name="description" content="ТОО КРЭК (Карагандинская Региональная Энергетическая Компания) - Закуп из одного источника"/>
 <title>2020</title>
 <?php
-    include ('header.html');
+    include 'header.html';
 ?>
 
 <h1>2020</h1>
@@ -24,5 +24,5 @@
 <div class="line"></div>
 
 <?php
-    include ('footer.html');
+    include 'footer.html';
 ?>

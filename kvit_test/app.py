@@ -1,6 +1,9 @@
 import os
 import secrets
+import socket
 import sys
+import time
+import traceback
 from http.server import ThreadingHTTPServer
 
 import config
@@ -13,10 +16,8 @@ from services.telegram_bot import telegram_bot_service
 from services.websocket import ws_manager
 
 
-def main():
-    logger.info("Запуск приложения...")
-
-    # 1. Проверка обязательного ключа подписи сессий и CSRF-токенов
+def validate_startup_security() -> None:
+    """Проверяет обязательные переменные безопасности перед стартом."""
     if not config.SECRET_KEY:
         suggested_secret = secrets.token_hex(32)
         logger.error("=" * 70)
@@ -28,7 +29,6 @@ def main():
         logger.error("=" * 70)
         sys.exit(1)
 
-    # 2. Проверка обязательного секрета gRPC
     if not config.GRPC_API_KEY:
         suggested_key = secrets.token_hex(32)
         logger.error("=" * 70)
@@ -40,10 +40,8 @@ def main():
         logger.error("=" * 70)
         sys.exit(1)
 
-    # 3. Проверка обязательного хеша пароля администратора (хранение открытых паролей запрещено)
     if not config.ADMIN_PASSWORD_HASH:
         from services.security.auth_service import hash_password
-        # Если случайно был передан открытый пароль, помогаем пользователю его захешировать
         raw_pass = os.environ.get('ADMIN_PASSWORD', '').strip()
         sample_pass = raw_pass if raw_pass else secrets.token_urlsafe(12)
         sample_hash = hash_password(sample_pass)
@@ -58,7 +56,58 @@ def main():
         logger.error("=" * 70)
         sys.exit(1)
 
-    # 3. Автоматические миграции базы данных
+
+def get_local_ip() -> str:
+    """Безопасно определяет локальный IP-адрес интерфейса."""
+    try:
+        hostname = socket.gethostname()
+        return socket.gethostbyname(hostname)
+    except OSError:
+        return '127.0.0.1'
+
+
+def configure_tls(http_server: ThreadingHTTPServer) -> tuple[str, bool]:
+    """Настраивает TLS при наличии сертификатов."""
+    if not (config.USE_HTTPS or (config.SSL_CERT_PATH and config.SSL_KEY_PATH)):
+        return "http", False
+
+    if not (os.path.isfile(config.SSL_CERT_PATH) and os.path.isfile(config.SSL_KEY_PATH)):
+        logger.error(f"❌ ОШИБКА TLS: Файлы сертификатов не найдены: cert='{config.SSL_CERT_PATH}', key='{config.SSL_KEY_PATH}'")
+        sys.exit(1)
+
+    import ssl
+    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ssl_ctx.options |= getattr(ssl, 'OP_NO_SSLv2', 0) | getattr(ssl, 'OP_NO_SSLv3', 0) | getattr(ssl, 'OP_NO_TLSv1', 0) | getattr(ssl, 'OP_NO_TLSv1_1', 0)
+    ssl_ctx.set_ciphers('ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384')
+    ssl_ctx.load_cert_chain(certfile=config.SSL_CERT_PATH, keyfile=config.SSL_KEY_PATH)
+    http_server.socket = ssl_ctx.wrap_socket(http_server.socket, server_side=True)
+    return "https", True
+
+
+def run_http_loop(http_server: ThreadingHTTPServer) -> None:
+    """Запускает и поддерживает цикл обработки HTTP-запросов."""
+    running = True
+    while running:
+        try:
+            shut_down_event = getattr(http_server, '_BaseServer__is_shut_down', None)
+            if shut_down_event is not None:
+                shut_down_event.clear()
+            http_server.serve_forever()
+        except KeyboardInterrupt:
+            running = False
+            break
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            time.sleep(0.1)
+        except Exception as loop_err:
+            logger.warning(f"Внутренний сбой HTTP-сервера ({loop_err}), перезапуск потока...")
+            time.sleep(0.5)
+
+
+def main():
+    logger.info("Запуск приложения...")
+    validate_startup_security()
+
     try:
         migrate_db()
         logger.info("Миграции базы данных проверены.")
@@ -69,48 +118,19 @@ def main():
         logger.critical("=" * 70)
         sys.exit(1)
 
-    # 4. Инициализация и запуск gRPC сервера
     grpc_server = create_grpc_server(host=GRPC_HOST, port=GRPC_PORT)
     grpc_server.start()
 
-    # 5. Инициализация и запуск Telegram-бота (если задан TELEGRAM_BOT_TOKEN)
     if config.TELEGRAM_ENABLED:
         telegram_bot_service.start_in_thread()
 
-    # 6. Инициализация и запуск многопоточного HTTP/WebSocket сервера
     ThreadingHTTPServer.allow_reuse_address = True
     http_server = ThreadingHTTPServer((HOST, PORT), AppRequestHandler)
     http_server.daemon_threads = True
 
-    protocol = "http"
-    is_tls = False
-    if config.USE_HTTPS or (config.SSL_CERT_PATH and config.SSL_KEY_PATH):
-        if os.path.isfile(config.SSL_CERT_PATH) and os.path.isfile(config.SSL_KEY_PATH):
-            import ssl
-            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-            ssl_ctx.options |= getattr(ssl, 'OP_NO_SSLv2', 0) | getattr(ssl, 'OP_NO_SSLv3', 0) | getattr(ssl, 'OP_NO_TLSv1', 0) | getattr(ssl, 'OP_NO_TLSv1_1', 0)
-            ssl_ctx.set_ciphers('ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384')
-            ssl_ctx.load_cert_chain(certfile=config.SSL_CERT_PATH, keyfile=config.SSL_KEY_PATH)
-            http_server.socket = ssl_ctx.wrap_socket(http_server.socket, server_side=True)
-            protocol = "https"
-            is_tls = True
-        else:
-            logger.error(f"❌ ОШИБКА TLS: Файлы сертификатов не найдены: cert='{config.SSL_CERT_PATH}', key='{config.SSL_KEY_PATH}'")
-            sys.exit(1)
+    protocol, is_tls = configure_tls(http_server)
+    local_ip = get_local_ip()
 
-    def _get_local_ip():
-        try:
-            import socket
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('8.8.8.8', 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
-        except Exception:
-            return '127.0.0.1'
-
-    local_ip = _get_local_ip()
     logger.info(f"Веб-сервер ({protocol.upper()}):     {protocol}://{HOST}:{PORT}")
     if HOST in ('0.0.0.0', '::') and local_ip not in ('127.0.0.1', '0.0.0.0'):
         logger.info(f"  ➜ Локально на этом ПК:   {protocol}://localhost:{PORT}")
@@ -127,30 +147,11 @@ def main():
         logger.info("Архитектура: сервис ожидает Reverse Proxy (Nginx/IIS) с TLS-терминацией перед собой.")
     logger.info("Система безопасности: IDOR Token, Rate Limiter, IP Throttler, gRPC Auth, WS Timeout")
 
-    import time
-
-    running = True
     try:
-        while running:
-            try:
-                shut_down_event = getattr(http_server, '_BaseServer__is_shut_down', None)
-                if shut_down_event is not None:
-                    shut_down_event.clear()
-                http_server.serve_forever()
-            except KeyboardInterrupt:
-                running = False
-                break
-            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
-                time.sleep(0.1)
-                continue
-            except Exception as loop_err:
-                logger.warning(f"Внутренний сбой HTTP-сервера ({loop_err}), автоматический перезапуск потока...")
-                time.sleep(0.5)
-                continue
+        run_http_loop(http_server)
     except KeyboardInterrupt:
         logger.info("Остановка серверов по сигналу завершения...")
-    except BaseException as e:
-        import traceback
+    except Exception as e:
         logger.critical(f"Необработанное исключение: {e}\n{traceback.format_exc()}")
     finally:
         try:
@@ -165,4 +166,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

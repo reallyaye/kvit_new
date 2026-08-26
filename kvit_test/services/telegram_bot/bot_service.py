@@ -20,6 +20,15 @@ from services.websocket import ws_manager
 
 from .telegram_client import TelegramAPIError, TelegramClient
 
+BTN_STATS = "📊 Статистика"
+BTN_SEARCH = "🔍 Найти квитанцию"
+BTN_HELP = "❓ Помощь"
+BTN_REQUESTS = "👥 Заявки"
+BTN_AUTH = "🔐 Авторизация"
+BTN_STATUS = "⏳ Статус заявки"
+BTN_REGISTER = "📝 Зарегистрироваться"
+MSG_DIVIDER = "────────────────────────"
+
 
 class TelegramBotService:
     """Сервис Telegram-бота для регистрации пользователей, обработки квитанций, поиска счетов и выдачи статистики."""
@@ -93,26 +102,26 @@ class TelegramBotService:
 
         if is_adm:
             keyboard = [
-                [{"text": "📊 Статистика"}, {"text": "🔍 Найти квитанцию"}],
-                [{"text": "👥 Заявки"}, {"text": "❓ Помощь"}]
+                [{"text": BTN_STATS}, {"text": BTN_SEARCH}],
+                [{"text": BTN_REQUESTS}, {"text": BTN_HELP}]
             ]
         elif is_appr:
             keyboard = [
-                [{"text": "📊 Статистика"}, {"text": "🔍 Найти квитанцию"}],
-                [{"text": "❓ Помощь"}]
+                [{"text": BTN_STATS}, {"text": BTN_SEARCH}],
+                [{"text": BTN_HELP}]
             ]
         else:
             rec = self.get_user_record(user_id)
             status = rec.get('status') if rec else None
             if status == 'PENDING':
                 keyboard = [
-                    [{"text": "⏳ Статус заявки"}, {"text": "❓ Помощь"}],
-                    [{"text": "🔐 Авторизация"}]
+                    [{"text": BTN_STATUS}, {"text": BTN_HELP}],
+                    [{"text": BTN_AUTH}]
                 ]
             else:
                 keyboard = [
-                    [{"text": "📝 Зарегистрироваться"}, {"text": "❓ Помощь"}],
-                    [{"text": "🔐 Авторизация"}]
+                    [{"text": BTN_REGISTER}, {"text": BTN_HELP}],
+                    [{"text": BTN_AUTH}]
                 ]
 
         return {
@@ -320,12 +329,12 @@ class TelegramBotService:
         admin_ids = self.get_all_admin_ids()
         admin_alert = [
             "🔔 <b>Новая заявка на регистрацию в Kvit-App!</b>",
-            "────────────────────────",
+            MSG_DIVIDER,
             f"👤 <b>Имя:</b> {html.escape(first_name)} {html.escape(last_name)}".strip(),
             f"🔗 <b>Username:</b> @{html.escape(username)}" if username else "🔗 <b>Username:</b> <i>не указан</i>",
             f"🆔 <b>Telegram ID:</b> <code>{user_id}</code>",
             f"📅 <b>Дата:</b> {datetime.datetime.fromtimestamp(now_ts).strftime('%d.%m.%Y %H:%M')}",
-            "────────────────────────",
+            MSG_DIVIDER,
             "Выберите действие:"
         ]
         admin_markup = {

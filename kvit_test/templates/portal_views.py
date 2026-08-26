@@ -4,15 +4,17 @@ import urllib.parse
 from templates.portal_layout import portal_layout
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PAGES_JSON_PATH = os.path.join(BASE_DIR, 'data', 'extracted_portal_pages.json')
-DOCS_JSON_PATH = os.path.join(BASE_DIR, 'data', 'documents.json')
+PAGES_FILENAME = 'extracted_portal_pages.json'
+DOCS_FILENAME = 'documents.json'
+PAGES_JSON_PATH = os.path.join(BASE_DIR, 'data', PAGES_FILENAME)
+DOCS_JSON_PATH = os.path.join(BASE_DIR, 'data', DOCS_FILENAME)
 
 def load_portal_pages():
     paths = [
         PAGES_JSON_PATH,
-        os.path.join(os.path.dirname(BASE_DIR), 'data', 'extracted_portal_pages.json'),
-        os.path.join(os.getcwd(), 'data', 'extracted_portal_pages.json'),
-        os.path.join(os.getcwd(), 'kvit_test', 'data', 'extracted_portal_pages.json'),
+        os.path.join(os.path.dirname(BASE_DIR), 'data', PAGES_FILENAME),
+        os.path.join(os.getcwd(), 'data', PAGES_FILENAME),
+        os.path.join(os.getcwd(), 'kvit_test', 'data', PAGES_FILENAME),
     ]
     for p in paths:
         if os.path.isfile(p):
@@ -26,9 +28,9 @@ def load_portal_pages():
 def load_documents_registry():
     paths = [
         DOCS_JSON_PATH,
-        os.path.join(os.path.dirname(BASE_DIR), 'data', 'documents.json'),
-        os.path.join(os.getcwd(), 'data', 'documents.json'),
-        os.path.join(os.getcwd(), 'kvit_test', 'data', 'documents.json'),
+        os.path.join(os.path.dirname(BASE_DIR), 'data', DOCS_FILENAME),
+        os.path.join(os.getcwd(), 'data', DOCS_FILENAME),
+        os.path.join(os.getcwd(), 'kvit_test', 'data', DOCS_FILENAME),
     ]
     for p in paths:
         if os.path.isfile(p):

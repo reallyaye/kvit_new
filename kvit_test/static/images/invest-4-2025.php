@@ -3,8 +3,8 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ru" lang="ru">
 <head>
-<body>
-<h1>Отчет инвестиционной программы и тарифной сметы за 4 квартал 2025 года</h1>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Отчет инвестиционной программы и тарифной сметы за 4 квартал 2025 года</title>
 <style>
     table {
         width: 100%;
@@ -49,7 +49,7 @@
     }
 </script>
 <?php
-  include ('header.html');
+  include 'header.html';
 ?>
 </head>
 <body>
@@ -128,7 +128,7 @@
 </div>
 
 <?php
-  include ('footer.html');
+  include 'footer.html';
 ?>
 </body>
 </html>

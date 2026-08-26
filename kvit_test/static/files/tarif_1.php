@@ -6,7 +6,7 @@
 <meta name="description" content="ТОО КРЭК (Карагандинская Региональная Энергетическая Компания) - Тариф"/>
 <title>ТОО КРЭК - Тариф</title>
 <?php
-    include ('header.html');
+    include 'header.html';
 ?>
 <h1>Приказ на действующий тариф</h1>
 <ol>
@@ -52,5 +52,5 @@
 <!--<p><a href="../files/komp_tarif_1106.pdf" target="_blank">Об утверждении временного компенсирующего тарифа ТОО "КРЭК" на услуги по передаче электрической энергии от 10.06.2024</a>-->
 <!--<p><a href="../files/komp.tarif.pdf" target="_blank">Об утверждении временного компенсирующего тарифа</a></p>-->
 <?php
-    include ('footer.html');
+    include 'footer.html';
 ?>
