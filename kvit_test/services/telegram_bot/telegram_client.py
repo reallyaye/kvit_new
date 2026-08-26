@@ -30,6 +30,7 @@ class TelegramClient:
         self.file_base_url = f"https://api.telegram.org/file/bot{self.token}"
         self.timeout = timeout
         self.ssl_ctx = ssl.create_default_context()
+        self.ssl_ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
     def _make_request(self, method: str, data: Optional[Dict[str, Any]] = None, timeout: Optional[int] = None) -> Dict[str, Any]:
         if not self.token:
