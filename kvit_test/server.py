@@ -47,6 +47,10 @@ from templates.admin_cms_views import (
 from templates.portal_views import PORTAL_PAGES, DOCUMENTS_REGISTRY, render_page as render_portal_page, render_document as render_portal_document
 
 START_TIME = time.time()
+SW_JS_PATH = '/sw.js'
+KVIT_PATH_PREFIX = '/kvit/'
+BOUNDARY_PREFIX = 'boundary='
+CSRF_INVALID_MSG = 'Недействительный или отсутствующий CSRF-токен.'
 
 
 class AppRequestHandler(BaseHTTPRequestHandler):
@@ -225,7 +229,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             if not mime_type:
                 mime_type = 'application/octet-stream'
 
-            if path == '/sw.js':
+            if path == SW_JS_PATH:
                 mime_type = 'application/javascript; charset=utf-8'
             elif path == '/manifest.json':
                 mime_type = 'application/manifest+json; charset=utf-8'
@@ -237,7 +241,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self._send_security_headers()
-            if path == '/sw.js':
+            if path == SW_JS_PATH:
                 self.send_header('Service-Worker-Allowed', '/')
             self.send_header('Content-Type', mime_type)
             self.send_header('Content-Length', str(len(data)))
@@ -401,7 +405,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             elif path == '/api/search':
                 self._handle_api_search(q)
                 return
-            elif path in ('/kvit', '/kvit/'):
+            elif path in ('/kvit', KVIT_PATH_PREFIX):
                 tab = q.get('tab', ['account'])[0].strip()
                 periods = receipt_service.get_distinct_periods()
                 body = render_search_form(periods, active_tab=tab)
@@ -667,8 +671,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         boundary = None
         for part in content_type.split(';'):
             part = part.strip()
-            if part.startswith('boundary='):
-                boundary = part[len('boundary='):].strip('"\'')
+            if part.startswith(BOUNDARY_PREFIX):
+                boundary = part[len(BOUNDARY_PREFIX):].strip('"\'')
                 break
         if not boundary or content_length <= 0:
             return None, None
@@ -1079,7 +1083,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         # 0. Проверка CSRF токена
         if not self._verify_csrf(body_csrf=csrf_token):
             csrf_tok = auth_service.get_csrf_token(self._get_session_token())
-            body = render_forbidden_page('Недействительный или отсутствующий CSRF-токен.')
+            body = render_forbidden_page(CSRF_INVALID_MSG)
             self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok), 403)
             return
 
