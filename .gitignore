@@ -29,11 +29,10 @@ ENV/
 *.csv
 
 # Receipts & Storage files
-/kvit_test/receipts/
-/kvit_test/logs/
-/kvit_test/data.sqlite3
-
-# Logs
+receipts/
+data/
+logs/
+*.log
 logs/
 *.log
 

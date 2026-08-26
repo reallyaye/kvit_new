@@ -1,25 +1,27 @@
 version: '3.8'
 
 services:
-  # ────────────────────── 1. PostgreSQL (Production Database) ──────────────────────
+  # ────────────────────── 1. PostgreSQL (Internal Production DB) ──────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: kvit-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-kvit_db}
-      POSTGRES_USER: ${POSTGRES_USER:-kvit_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kvit_secure_password_change_me}
+      POSTGRES_USER: ${POSTGRES_USER:?Обязательно укажите POSTGRES_USER в файле .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Обязательно укажите надежный POSTGRES_PASSWORD в файле .env}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      - kvit-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kvit_user} -d ${POSTGRES_DB:-kvit_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-kvit_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
 
-  # ────────────────────── 2. Redis (Distributed Queue & Locks) ──────────────────────
+  # ────────────────────── 2. Redis (Internal Queue & Distributed Locks) ─────────────
   redis:
     image: redis:7-alpine
     container_name: kvit-redis
@@ -27,6 +29,8 @@ services:
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     volumes:
       - redis-data:/data
+    networks:
+      - kvit-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -34,12 +38,12 @@ services:
       retries: 5
       start_period: 3s
 
-  # ────────────────────── 3. Kvit-API (Web & gRPC Microservice) ──────────────────────
+  # ────────────────────── 3. Kvit-API (Scalable Web & gRPC Microservice) ────────────
   kvit-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: kvit-api
+    # container_name намеренно опущен для поддержки horizontal auto-scaling: docker compose up --scale kvit-api=3
     restart: unless-stopped
     command: ["python", "app.py"]
     depends_on:
@@ -54,7 +58,7 @@ services:
       - GRPC_PORT=50051
       - APP_ENV=production
       - DB_TYPE=postgres
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-kvit_user}:${POSTGRES_PASSWORD:-kvit_secure_password_change_me}@postgres:5432/${POSTGRES_DB:-kvit_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kvit_db}
       - REDIS_URL=redis://redis:6379/0
       - REDIS_ENABLED=true
       - RUN_EMBEDDED_WORKER=false
@@ -63,14 +67,19 @@ services:
       - RECEIPTS_DIR=/app/receipts
       - LOG_FILE=/app/logs/api.log
       - LOG_LEVEL=INFO
-      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
-      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH environment variable is required}
-      - GRPC_API_KEY=${GRPC_API_KEY:?GRPC_API_KEY environment variable is required}
+      - SECRET_KEY=${SECRET_KEY:?Обязательно укажите SECRET_KEY в .env}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:?Обязательно укажите ADMIN_PASSWORD_HASH в .env}
+      - GRPC_API_KEY=${GRPC_API_KEY:?Обязательно укажите GRPC_API_KEY в .env}
       - TRUST_PROXY=true
     volumes:
       - kvit-data:/app/data
       - kvit-receipts:/app/receipts
       - kvit-logs:/app/logs
+    networks:
+      - kvit-network
+    expose:
+      - "8000"
+      - "50051"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\" || exit 1"]
       interval: 15s
@@ -78,12 +87,11 @@ services:
       retries: 3
       start_period: 5s
 
-  # ────────────────────── 4. Kvit-Worker (Dedicated PDF & OCR Worker) ──────────────────────
+  # ────────────────────── 4. Kvit-Worker (Dedicated Async PDF & OCR Worker) ───────────
   kvit-worker:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: kvit-worker
     restart: unless-stopped
     command: ["python", "worker.py", "--workers", "${WORKER_COUNT:-4}"]
     depends_on:
@@ -94,7 +102,7 @@ services:
     environment:
       - APP_ENV=production
       - DB_TYPE=postgres
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-kvit_user}:${POSTGRES_PASSWORD:-kvit_secure_password_change_me}@postgres:5432/${POSTGRES_DB:-kvit_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kvit_db}
       - REDIS_URL=redis://redis:6379/0
       - REDIS_ENABLED=true
       - RECEIPTS_DIR=/app/receipts
@@ -102,27 +110,36 @@ services:
       - LOG_LEVEL=INFO
       - WORKER_COUNT=${WORKER_COUNT:-4}
       - MAX_OCR_CONCURRENT_WORKERS=${MAX_OCR_CONCURRENT_WORKERS:-2}
-      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
+      - SECRET_KEY=${SECRET_KEY:?Обязательно укажите SECRET_KEY в .env}
     volumes:
       - kvit-data:/app/data
       - kvit-receipts:/app/receipts
       - kvit-logs:/app/logs
+    networks:
+      - kvit-network
 
-  # ────────────────────── 5. Nginx (Reverse Proxy & X-Accel-Redirect) ──────────────────────
+  # ────────────────────── 5. Nginx (Public Reverse Proxy, SSL, Scale Balancer) ───────
   nginx:
     image: nginx:1.25-alpine
     container_name: kvit-nginx
     restart: unless-stopped
     ports:
       - "80:80"
-      - "50051:50051" # gRPC проксирование при необходимости
+      - "443:443"
     depends_on:
       - kvit-api
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - kvit-receipts:/app/receipts:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
       - ./static:/app/static:ro
+      - kvit-receipts:/app/receipts:ro
       - kvit-logs:/var/log/nginx
+    networks:
+      - kvit-network
+
+networks:
+  kvit-network:
+    driver: bridge
 
 volumes:
   postgres-data:

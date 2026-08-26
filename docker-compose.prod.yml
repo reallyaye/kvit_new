@@ -1,0 +1,101 @@
+# ==============================================================================
+# Enterprise Production Compose (Dedicated Managed DB & Managed Redis Cluster)
+# ==============================================================================
+# Использование:
+# docker compose -f docker-compose.prod.yml up -d --scale kvit-api=4 --scale kvit-worker=2
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # ────────────────────── 1. Scalable API Service ──────────────────────────────
+  kvit-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: ["python", "app.py"]
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - GRPC_HOST=0.0.0.0
+      - GRPC_PORT=50051
+      - APP_ENV=production
+      - DB_TYPE=postgres
+      - DATABASE_URL=${DATABASE_URL:?Укажите production строку подключения к PostgreSQL DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:?Укажите production строку подключения к Redis REDIS_URL}
+      - REDIS_ENABLED=true
+      - RUN_EMBEDDED_WORKER=false
+      - ENABLE_X_ACCEL_REDIRECT=true
+      - X_ACCEL_PREFIX=/internal_receipts/
+      - RECEIPTS_DIR=/app/receipts
+      - LOG_FILE=/app/logs/api.log
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=${SECRET_KEY:?Укажите SECRET_KEY}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:?Укажите ADMIN_PASSWORD_HASH}
+      - GRPC_API_KEY=${GRPC_API_KEY:?Укажите GRPC_API_KEY}
+      - TRUST_PROXY=true
+    volumes:
+      - /opt/kvit/receipts:/app/receipts
+      - /opt/kvit/data:/app/data
+      - /opt/kvit/logs:/app/logs
+    networks:
+      - kvit-net
+    expose:
+      - "8000"
+      - "50051"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\" || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # ────────────────────── 2. Scalable Worker Service ───────────────────────────
+  kvit-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: ["python", "worker.py", "--workers", "${WORKER_COUNT:-4}"]
+    environment:
+      - APP_ENV=production
+      - DB_TYPE=postgres
+      - DATABASE_URL=${DATABASE_URL:?Укажите production строку подключения к PostgreSQL DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:?Укажите production строку подключения к Redis REDIS_URL}
+      - REDIS_ENABLED=true
+      - RECEIPTS_DIR=/app/receipts
+      - LOG_FILE=/app/logs/worker.log
+      - LOG_LEVEL=INFO
+      - WORKER_COUNT=${WORKER_COUNT:-4}
+      - MAX_OCR_CONCURRENT_WORKERS=${MAX_OCR_CONCURRENT_WORKERS:-2}
+      - SECRET_KEY=${SECRET_KEY:?Укажите SECRET_KEY}
+    volumes:
+      - /opt/kvit/receipts:/app/receipts
+      - /opt/kvit/data:/app/data
+      - /opt/kvit/logs:/app/logs
+    networks:
+      - kvit-net
+
+  # ────────────────────── 3. Public Edge Reverse Proxy (Nginx) ─────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: kvit-edge-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - kvit-api
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/nginx/ssl/live:ro
+      - ./static:/app/static:ro
+      - /opt/kvit/receipts:/app/receipts:ro
+      - /opt/kvit/logs/nginx:/var/log/nginx
+    networks:
+      - kvit-net
+
+networks:
+  kvit-net:
+    driver: bridge
