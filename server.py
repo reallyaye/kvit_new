@@ -179,12 +179,15 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         return auth_service.verify_csrf_token(session_token, csrf_token)
 
     def _send_security_headers(self):
-        """Внедрение обязательных заголовков безопасности."""
+        """Внедрение обязательных заголовков безопасности и идентификатора инстанса."""
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'SAMEORIGIN')
         self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
         self.send_header('X-XSS-Protection', '1; mode=block')
         self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+        backend_instance = os.environ.get('HOSTNAME') or f"pid-{os.getpid()}"
+        self.send_header('X-Backend-Instance', backend_instance)
+
 
     def send_html(self, text: str, code: int = 200, extra_headers: dict = None):
         try:

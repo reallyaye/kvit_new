@@ -165,6 +165,8 @@ class MemoryTaskQueueBackend(BaseTaskQueueBackend):
         return job_data
 
     def ack_job(self, job_id: str) -> bool:
+        if isinstance(job_id, dict):
+            job_id = job_id.get('job_id', '')
         with self._lock:
             if job_id in self._processing:
                 del self._processing[job_id]
@@ -172,6 +174,8 @@ class MemoryTaskQueueBackend(BaseTaskQueueBackend):
         return False
 
     def nack_job(self, job_id: str, requeue: bool = True) -> bool:
+        if isinstance(job_id, dict):
+            job_id = job_id.get('job_id', '')
         with self._lock:
             self._processing.pop(job_id, None)
             job_data = self._states.get(job_id)
@@ -179,6 +183,7 @@ class MemoryTaskQueueBackend(BaseTaskQueueBackend):
             self._queue.put(job_data)
             return True
         return False
+
 
     def extend_visibility(self, job_id: str, extra_timeout: float = 300.0) -> bool:
         with self._lock:
@@ -398,6 +403,8 @@ class RedisTaskQueueBackend(BaseTaskQueueBackend):
 
     def ack_job(self, job_id: str) -> bool:
         """Подтверждает успешное завершение и удаляет задачу из processing ZSET."""
+        if isinstance(job_id, dict):
+            job_id = job_id.get('job_id', '')
         try:
             res = self._script_ack(keys=[self._processing_key], args=[job_id])
             return bool(res)
@@ -407,6 +414,8 @@ class RedisTaskQueueBackend(BaseTaskQueueBackend):
 
     def nack_job(self, job_id: str, requeue: bool = True) -> bool:
         """Отказ от задачи с возможностью возврата в очередь ожидания."""
+        if isinstance(job_id, dict):
+            job_id = job_id.get('job_id', '')
         try:
             self._script_nack(
                 keys=[self._processing_key, self._queue_key],
@@ -421,6 +430,7 @@ class RedisTaskQueueBackend(BaseTaskQueueBackend):
                 pipe.lpush(self._queue_key, job_id)
             pipe.execute()
             return True
+
 
     def extend_visibility(self, job_id: str, extra_timeout: float = 300.0) -> bool:
         """Продлевает время видимости для задачи в обработке."""
