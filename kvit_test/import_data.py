@@ -12,6 +12,7 @@ from database import (
 )
 from database.migrations import migrate_receipts_to_sharding
 from services.pdf import pdf_processor
+from services.security import validate_safe_path
 
 
 def load_excel_rows(file_path: str):
@@ -131,12 +132,18 @@ def main():
 
         # 1. Импорт лицевых счетов из Excel
         if args.accounts:
-            if not os.path.isfile(args.accounts):
-                print(f"❌ Файл счетов не найден: {args.accounts}")
+            try:
+                accounts_path = validate_safe_path(args.accounts)
+            except ValueError as e:
+                print(f"❌ Ошибка безопасности пути к счетам: {e}")
                 sys.exit(1)
 
-            print(f" Чтение файла лицевых счетов: {args.accounts}...")
-            raw_rows = load_excel_rows(args.accounts)
+            if not os.path.isfile(accounts_path):
+                print(f"❌ Файл счетов не найден: {accounts_path}")
+                sys.exit(1)
+
+            print(f" Чтение файла лицевых счетов: {accounts_path}...")
+            raw_rows = load_excel_rows(accounts_path)
             accounts_to_insert = []
 
             for row in raw_rows:
@@ -178,19 +185,25 @@ def main():
 
         # 2. Импорт PDF квитанций
         if args.receipts:
+            try:
+                receipts_path = validate_safe_path(args.receipts)
+            except ValueError as e:
+                print(f"❌ Ошибка безопасности пути к квитанциям: {e}")
+                sys.exit(1)
+
             known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
             existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
 
             pdf_files = []
-            if os.path.isfile(args.receipts):
-                pdf_files.append(args.receipts)
-            elif os.path.isdir(args.receipts):
-                for root, _, files in os.walk(args.receipts):
+            if os.path.isfile(receipts_path):
+                pdf_files.append(receipts_path)
+            elif os.path.isdir(receipts_path):
+                for root, _, files in os.walk(receipts_path):
                     for f in files:
                         if f.lower().endswith('.pdf'):
                             pdf_files.append(os.path.join(root, f))
             else:
-                print(f"❌ Путь к PDF не найден: {args.receipts}")
+                print(f"❌ Путь к PDF не найден: {receipts_path}")
                 sys.exit(1)
 
             print(f"📄 Обработка PDF ({len(pdf_files)} шт.)...")

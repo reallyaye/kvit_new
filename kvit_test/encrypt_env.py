@@ -12,6 +12,7 @@ import os
 import sys
 
 from services.security.env_crypto import decode_env_content, encode_env_content
+from services.security.path_validator import validate_safe_path
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE, '.env')
@@ -23,7 +24,12 @@ def main():
     parser.add_argument('--file', default=ENV_PATH, help="Путь к файлу .env (по умолчанию: .env в корне)")
     args = parser.parse_args()
 
-    target_file = os.path.abspath(args.file)
+    try:
+        target_file = validate_safe_path(args.file, base_dir=BASE)
+    except ValueError as e:
+        print(f"❌ Ошибка безопасности: {e}")
+        sys.exit(1)
+
     if not os.path.isfile(target_file):
         print(f"❌ Файл не найден: {target_file}")
         sys.exit(1)

@@ -654,6 +654,66 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             assert html_resp.get('code') == 403, f"POST {path} без CSRF должен возвращать 403"
 
 
+def test_validate_safe_path_canonicalization_and_traversal():
+    """Тестирует защиту от path traversal и partial path traversal (pythonsecurity:S8707)."""
+    import os
+    import tempfile
+    import shutil
+    from services.security.path_validator import validate_safe_path
+
+    base_dir = tempfile.mkdtemp(prefix='kvit_safe_base_')
+    inside_file = os.path.join(base_dir, 'subfolder', 'test.txt')
+    os.makedirs(os.path.dirname(inside_file), exist_ok=True)
+    with open(inside_file, 'w') as f:
+        f.write('safe')
+
+    # Создаем каталог с похожим префиксом для теста partial path traversal (base_dir + "-secret")
+    partial_trap_dir = base_dir + "-secret"
+    os.makedirs(partial_trap_dir, exist_ok=True)
+    trap_file = os.path.join(partial_trap_dir, 'secret.txt')
+    with open(trap_file, 'w') as f:
+        f.write('trap')
+
+    outside_dir = tempfile.mkdtemp(prefix='kvit_safe_outside_')
+
+    try:
+        # 1. Легитимный файл внутри base_dir
+        safe_res = validate_safe_path(inside_file, base_dir=base_dir)
+        assert safe_res == os.path.realpath(inside_file)
+
+        # 2. Относительный путь с .. внутри base_dir
+        rel_inside = os.path.join(base_dir, 'subfolder', '..', 'subfolder', 'test.txt')
+        safe_res2 = validate_safe_path(rel_inside, base_dir=base_dir)
+        assert safe_res2 == os.path.realpath(inside_file)
+
+        # 3. Path Traversal побег наружу
+        try:
+            validate_safe_path(os.path.join(base_dir, '..', '..', 'etc', 'passwd'), base_dir=base_dir)
+            assert False, "Должен выбросить ValueError при попытке path traversal"
+        except ValueError as e:
+            assert "выходит за пределы" in str(e)
+
+        # 4. Partial Path Traversal атака (совпадение префикса без разделителя)
+        try:
+            validate_safe_path(trap_file, base_dir=base_dir)
+            assert False, "Должен выбросить ValueError при попытке partial path traversal"
+        except ValueError as e:
+            assert "выходит за пределы" in str(e)
+
+        # 5. Пустой путь
+        try:
+            validate_safe_path('', base_dir=base_dir)
+            assert False, "Должен выбросить ValueError при пустом пути"
+        except ValueError:
+            pass
+
+    finally:
+        shutil.rmtree(base_dir, ignore_errors=True)
+        shutil.rmtree(partial_trap_dir, ignore_errors=True)
+        shutil.rmtree(outside_dir, ignore_errors=True)
+
+
+
 
 
 
