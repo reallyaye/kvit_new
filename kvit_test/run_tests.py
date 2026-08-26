@@ -246,6 +246,29 @@ def run_all():
             traceback.print_exc()
             failed += 1
 
+    # 10. test_tasks (Менеджер асинхронных фоновых задач обработки PDF)
+    from tests import test_tasks
+    import pathlib
+    for fn_name in [
+        'test_task_manager_submit_and_completion',
+        'test_task_manager_get_and_list',
+        'test_task_manager_error_isolation'
+    ]:
+        try:
+            reset_db()
+            import inspect
+            sig = inspect.signature(getattr(test_tasks, fn_name))
+            if len(sig.parameters) > 0:
+                getattr(test_tasks, fn_name)(pathlib.Path(test_dir))
+            else:
+                getattr(test_tasks, fn_name)()
+            print(f"  [OK] test_tasks.{fn_name}")
+            passed += 1
+        except Exception as e:
+            print(f"  [FAIL] test_tasks.{fn_name}: {e}")
+            traceback.print_exc()
+            failed += 1
+
     shutil.rmtree(test_dir, ignore_errors=True)
 
     print("=" * 65)

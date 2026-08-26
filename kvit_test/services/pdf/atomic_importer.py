@@ -121,6 +121,14 @@ class AtomicReceiptImporter:
                     INSERT INTO receipts(
                         account_number, period, pdf_file, content_hash, file_hash, semantic_hash, status, access_token, address
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(account_number, period) DO UPDATE SET
+                        pdf_file = excluded.pdf_file,
+                        content_hash = excluded.content_hash,
+                        file_hash = excluded.file_hash,
+                        semantic_hash = excluded.semantic_hash,
+                        status = excluded.status,
+                        access_token = excluded.access_token,
+                        address = excluded.address
                 ''', insert_rows)
 
                 # Атомарный перенос файлов

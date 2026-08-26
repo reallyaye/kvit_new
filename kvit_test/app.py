@@ -12,6 +12,8 @@ from database import migrate_db
 from logger import logger
 from server import AppRequestHandler
 from services.grpc_service import create_grpc_server
+from services.security import auth_service
+from services.tasks import task_manager
 from services.telegram_bot import telegram_bot_service
 from services.websocket import ws_manager
 
@@ -145,7 +147,7 @@ def main():
         logger.info("Режим Reverse Proxy: TLS терминируется внешним прокси (Nginx/IIS/Traefik).")
     elif not is_tls:
         logger.info("Архитектура: сервис ожидает Reverse Proxy (Nginx/IIS) с TLS-терминацией перед собой.")
-    logger.info("Система безопасности: IDOR Token, Rate Limiter, IP Throttler, gRPC Auth, WS Timeout")
+    task_manager.start()
 
     try:
         run_http_loop(http_server)
@@ -161,6 +163,7 @@ def main():
         ws_manager.stop()
         telegram_bot_service.stop()
         grpc_server.stop(grace=1)
+        task_manager.stop()
         logger.info("Все серверы успешно остановлены.")
 
 

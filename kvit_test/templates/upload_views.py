@@ -2,7 +2,7 @@
 from templates.icons import icon
 
 
-def render_upload_form(message=None, csrf_token=''):
+def render_upload_form(message=None, csrf_token='', active_job_id=''):
     msg_html = message if message else ''
     csrf_input = f'<input type="hidden" name="csrf_token" value="{csrf_token}">' if csrf_token else ''
 
@@ -21,7 +21,7 @@ def render_upload_form(message=None, csrf_token=''):
             <div class="upload-zone" id="dropzone">
                 <div class="icon" style="color:#3b82f6;display:flex;justify-content:center;margin-bottom:12px">{icon('upload_cloud_large', 54, '#3b82f6')}</div>
                 <div id="dropLabel"><b>Выберите PDF-файлы или папку</b> или перетащите сюда</div>
-                <div style="margin-top:8px;font-size:13px;color:#94a3b8">Поддерживаются как отдельные PDF, так и целые папки (включая вложенные)</div>
+                <div style="margin-top:8px;font-size:13px;color:#94a3b8">Файлы принимаются мгновенно и обрабатываются в изолированном фоновом воркере</div>
                 <input type="file" id="fileInput" accept=".pdf" multiple style="display:none">
                 <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none">
             </div>
@@ -36,14 +36,14 @@ def render_upload_form(message=None, csrf_token=''):
                     <div class="progress-fill" id="progressFill"></div>
                     <div class="progress-text" id="progressText">0%</div>
                 </div>
-                <div id="statusLabel" style="font-size:14px;color:#475569;font-weight:600;margin-top:6px">Подготовка...</div>
+                <div id="statusLabel" style="font-size:14px;color:#475569;font-weight:600;margin-top:6px">Фоновая обработка...</div>
                 <div class="log-box" id="logBox"></div>
             </div>
 
             <div id="resultArea" style="margin-top:20px"></div>
 
             <button type="button" class="btn btn-green" id="btnStartUpload" style="margin-top:16px;width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px" disabled>
-                {icon('upload', 16)} Загрузить и обработать
+                {icon('upload', 16)} Загрузить в фоновую очередь
             </button>
         </div>
 
@@ -53,8 +53,8 @@ def render_upload_form(message=None, csrf_token=''):
                 {csrf_input}
                 <label>Полный путь к папке с PDF на компьютере</label>
                 <input type="text" name="folder_path" placeholder="Например, C:\\\\Users\\\\zhunis\\\\Desktop\\\\квитанции" required>
-                <p style="font-size:13px;color:#64748b;margin:6px 0 16px">Сервер напрямую и быстро прочитает все .pdf файлы из указанной папки без ожидания загрузки по сети.</p>
-                <button class="btn btn-green" style="width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('hard_drive', 16)} Импортировать из папки</button>
+                <p style="font-size:13px;color:#64748b;margin:6px 0 16px">Сервер мгновенно просканирует файлы и передаст задачу в фоновый воркер без блокировки API.</p>
+                <button class="btn btn-green" style="width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('hard_drive', 16)} Запустить фоновый импорт</button>
             </form>
         </div>
     </div>
@@ -106,7 +106,7 @@ def render_upload_form(message=None, csrf_token=''):
         }} else {{
             dropLabel.innerHTML = '<b>Выбрано PDF-файлов: ' + selectedPdfFiles.length + '</b>';
             btnStartUpload.disabled = false;
-            btnStartUpload.innerHTML = `{icon('upload', 16)} Загрузить и обработать (` + selectedPdfFiles.length + ' файлов)';
+            btnStartUpload.innerHTML = `{icon('upload', 16)} Загрузить в фоновую очередь (` + selectedPdfFiles.length + ' файлов)';
         }}
     }}
 
@@ -165,6 +165,83 @@ def render_upload_form(message=None, csrf_token=''):
         }});
     }}
 
+    function log(text) {{
+        logBox.textContent += text + '\\n';
+        logBox.scrollTop = logBox.scrollHeight;
+    }}
+
+    async function trackJob(jobId) {{
+        progressArea.style.display = 'block';
+        btnStartUpload.disabled = true;
+        btnChooseFiles.disabled = true;
+        btnChooseFolder.disabled = true;
+        log('Отслеживание задачи ' + jobId + '...');
+
+        const pollInterval = 600;
+        const maxPolls = 1000;
+        let polls = 0;
+        let lastDetailCount = 0;
+
+        while (polls < maxPolls) {{
+            polls++;
+            try {{
+                const res = await fetch('/api/tasks/' + jobId);
+                if (res.ok) {{
+                    const t = await res.json();
+                    const pct = t.progress_pct || 0;
+                    progressFill.style.width = pct + '%';
+                    
+                    const speedText = t.speed_files_per_sec > 0 ? (' • ' + t.speed_files_per_sec + ' файл/сек') : '';
+                    const etaText = (t.eta_seconds !== null && t.eta_seconds > 0) ? (' • осталось ~' + t.eta_seconds + ' сек') : '';
+                    const retryText = t.retry_count > 0 ? (' • Повтор ' + t.retry_count + '/' + t.max_retries) : '';
+                    
+                    progressText.textContent = pct + '% (' + (t.processed_files || 0) + '/' + (t.total_files || 0) + speedText + etaText + retryText + ')';
+                    
+                    if (t.current_file) {{
+                        statusLabel.textContent = 'Обработка: ' + t.current_file + speedText + etaText;
+                    }}
+
+                    if (t.details && t.details.length > lastDetailCount) {{
+                        for (let i = lastDetailCount; i < t.details.length; i++) {{
+                            log(t.details[i]);
+                        }}
+                        lastDetailCount = t.details.length;
+                    }}
+
+                    if (t.status === 'COMPLETED') {{
+                        statusLabel.innerHTML = '<span style="color:#16a34a;display:inline-flex;align-items:center;gap:6px">{icon("check_circle", 16, "#16a34a")} Фоновая обработка успешно завершена! (' + (t.speed_files_per_sec || 0) + ' файл/сек)</span>';
+                        btnStartUpload.disabled = false;
+                        btnChooseFiles.disabled = false;
+                        btnChooseFolder.disabled = false;
+
+                        const cls = (t.orphan === 0 && t.skipped === 0 && t.duplicates === 0) ? 'ok' : 'warn';
+                        const detailHtml = (t.details || []).map(d => htmlEscape(d)).join('<br>');
+                        resultArea.innerHTML = `<div class="${{cls}}">
+                            <b>Фоновая обработка завершена: ${{t.total_files}} файлов</b><br><br>
+                            Привязано к счетам: <b>${{t.added}}</b><br>
+                            Счёта нет в базе: <b>${{t.orphan}}</b><br>
+                            Не удалось распознать: <b>${{t.skipped}}</b><br>
+                            Дубликатов пропущено: <b>${{t.duplicates}}</b><br>
+                            Скорость обработки: <b>${{t.speed_files_per_sec || 0}} файлов/сек</b><br><br>
+                            <details><summary>Подробности по файлам</summary><br>${{detailHtml}}</details>
+                        </div>`;
+                        break;
+                    }} else if (t.status === 'FAILED') {{
+                        statusLabel.innerHTML = '<span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">❌ Сбой фоновой обработки</span>';
+                        btnStartUpload.disabled = false;
+                        btnChooseFiles.disabled = false;
+                        btnChooseFolder.disabled = false;
+                        resultArea.innerHTML = `<div class="err"><b>Ошибка фоновой обработки:</b> ${{htmlEscape(t.error_message || 'Неизвестная ошибка')}}</div>`;
+                        break;
+                    }}
+                }}
+            }} catch (e) {{
+                console.error('Polling error:', e);
+            }}
+            await new Promise(r => setTimeout(r, pollInterval));
+        }}
+    }}
+
     btnStartUpload.addEventListener('click', async () => {{
         if (selectedPdfFiles.length === 0) return;
 
@@ -175,83 +252,54 @@ def render_upload_form(message=None, csrf_token=''):
         logBox.textContent = '';
         resultArea.innerHTML = '';
 
-        const total = selectedPdfFiles.length;
-        const batchSize = 10;
-        let processed = 0;
-        let totalAdded = 0;
-        let totalOrphan = 0;
-        let totalSkipped = 0;
-        let totalDuplicates = 0;
-        const allDetails = [];
+        const formData = new FormData();
+        selectedPdfFiles.forEach(f => formData.append('pdf', f, f.name));
 
-        function log(text) {{
-            logBox.textContent += text + '\\n';
-            logBox.scrollTop = logBox.scrollHeight;
-        }}
+        statusLabel.textContent = 'Отправка файлов на сервер...';
+        log('Отправка ' + selectedPdfFiles.length + ' файлов в фоновую очередь...');
 
-        log('Начало обработки: всего ' + total + ' файлов...');
+        try {{
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfVal = csrfMeta ? csrfMeta.content : '';
+            const headers = csrfVal ? {{ 'X-CSRF-Token': csrfVal }} : {{}};
 
-        for (let i = 0; i < total; i += batchSize) {{
-            const batch = selectedPdfFiles.slice(i, i + batchSize);
-            const formData = new FormData();
-            batch.forEach(f => formData.append('pdf', f, f.name));
+            const res = await fetch('/api/upload-batch', {{
+                method: 'POST',
+                headers: headers,
+                body: formData
+            }});
 
-            statusLabel.textContent = 'Обработка: ' + (i + 1) + '-' + Math.min(i + batchSize, total) + ' из ' + total + ' файлов...';
-
-            try {{
-                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-                const csrfVal = csrfMeta ? csrfMeta.content : '';
-                const headers = csrfVal ? {{ 'X-CSRF-Token': csrfVal }} : {{}};
-
-                const res = await fetch('/api/upload-batch', {{
-                    method: 'POST',
-                    headers: headers,
-                    body: formData
-                }});
-
-                if (!res.ok) {{
-                    log('[Ошибка] При отправке пакета файлов: ' + res.statusText);
-                    totalSkipped += batch.length;
+            if (!res.ok) {{
+                const errData = await res.json().catch(() => ({{}}));
+                log('[Ошибка] ' + (errData.error || res.statusText));
+                statusLabel.innerHTML = '<span style="color:#dc2626">❌ Ошибка загрузки файлов</span>';
+                btnStartUpload.disabled = false;
+                btnChooseFiles.disabled = false;
+                btnChooseFolder.disabled = false;
+            }} else {{
+                const data = await res.json();
+                if (data.job_id) {{
+                    log('Файлы успешно приняты сервером. Задача ID: ' + data.job_id);
+                    trackJob(data.job_id);
                 }} else {{
-                    const json = await res.json();
-                    totalAdded += json.added || 0;
-                    totalOrphan += json.orphan || 0;
-                    totalSkipped += json.skipped || 0;
-                    totalDuplicates += json.duplicates || 0;
-                    if (json.details) {{
-                        json.details.forEach(d => log(d));
-                        allDetails.push(...json.details);
-                    }}
+                    log('Загрузка завершена');
                 }}
-            }} catch (err) {{
-                log('[Ошибка] Соединения: ' + err.message);
-                totalSkipped += batch.length;
             }}
-
-            processed += batch.length;
-            const percent = Math.min(100, Math.round((processed / total) * 100));
-            progressFill.style.width = percent + '%';
-            progressText.textContent = percent + '% (' + Math.min(processed, total) + '/' + total + ')';
+        }} catch (err) {{
+            log('[Ошибка соединения] ' + err.message);
+            btnStartUpload.disabled = false;
+            btnChooseFiles.disabled = false;
+            btnChooseFolder.disabled = false;
         }}
-
-        statusLabel.innerHTML = '<span style="color:#16a34a;display:inline-flex;align-items:center;gap:6px">{icon("check_circle", 16, "#16a34a")} Загрузка и обработка завершена!</span>';
-        btnStartUpload.disabled = false;
-        btnChooseFiles.disabled = false;
-        btnChooseFolder.disabled = false;
-
-        const cls = (totalOrphan === 0 && totalSkipped === 0 && totalDuplicates === 0) ? 'ok' : 'warn';
-        const detailHtml = allDetails.map(d => htmlEscape(d)).join('<br>');
-        resultArea.innerHTML = `<div class="${{cls}}">
-            <b>Обработка завершена: ${{total}} файлов</b><br><br>
-            Привязано к счетам: <b>${{totalAdded}}</b><br>
-            Счёта нет в базе: <b>${{totalOrphan}}</b><br>
-            Не удалось распознать: <b>${{totalSkipped}}</b><br>
-            Дубликатов пропущено: <b>${{totalDuplicates}}</b><br><br>
-            <details><summary>Подробности по файлам</summary><br>${{detailHtml}}</details>
-        </div>`;
     }});
+
+    const activeJob = '{active_job_id}';
+    if (activeJob) {{
+        trackJob(activeJob);
+    }}
 
     function htmlEscape(str) {{
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }}
     </script>'''
+

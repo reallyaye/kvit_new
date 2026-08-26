@@ -16,6 +16,7 @@ from logger import logger
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
 from services.security import auth_service
+from services.tasks import task_manager
 from services.websocket import ws_manager
 
 from .telegram_client import TelegramAPIError, TelegramClient
@@ -451,68 +452,66 @@ class TelegramBotService:
             tg_file_path = file_info.get('file_path')
 
             if not tg_file_path or not self.client.download_file(tg_file_path, tmp_path):
+                shutil.rmtree(tmp_dir, ignore_errors=True)
                 self.client.send_message(
                     chat_id,
                     f"❌ Не удалось скачать файл «{html.escape(file_name)}» из Telegram. Попробуйте еще раз."
                 )
                 return
 
-            con = get_db()
-            try:
-                known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-                existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
-            finally:
-                con.close()
-
-            added, orphan, skipped, dups, details, receipts_to_insert = pdf_processor.process_single_pdf(
-                tmp_path, file_name, known_accounts, existing_hashes
-            )
-
-            if added > 0 or orphan > 0:
-                try:
-                    ws_manager.broadcast('upload_batch_completed', {
-                        'files_count': 1,
-                        'added': added,
-                        'orphan': orphan,
-                        'duplicates': dups,
-                        'skipped': skipped,
-                        'source': 'telegram'
-                    })
-                except Exception as ws_err:
-                    logger.debug(f"[Telegram] WS broadcast error: {ws_err}")
-
-            status_icon = "✅" if (orphan == 0 and skipped == 0 and dups == 0) else "⚠️"
-            report_lines = [
-                f"{status_icon} <b>Обработан файл:</b> <code>{html.escape(file_name)}</code>",
-                "────────────────────────",
-                f"✅ Привязано к счетам: <b>{added}</b>",
-                f"⚠️ Без счёта в базе: <b>{orphan}</b>",
-                f"🔄 Дубликатов: <b>{dups}</b>",
-                f"❌ Ошибок/не распознано: <b>{skipped}</b>"
-            ]
-
-            if details:
-                report_lines.append("\n📋 <b>Детализация страниц:</b>")
-                max_lines = 15
-                for d in details[:max_lines]:
-                    report_lines.append(f"• {html.escape(d.strip())}")
-                if len(details) > max_lines:
-                    report_lines.append(f"<i>...и ещё {len(details) - max_lines} записей</i>")
-
             self.client.send_message(
                 chat_id,
-                "\n".join(report_lines),
+                f"📥 <b>Файл «{html.escape(file_name)}» принят!</b>\n"
+                f"Поставлен в очередь фоновой обработки. По окончании вы получите итоговый отчёт.",
                 reply_markup=self.get_main_keyboard(user_id)
             )
 
+            def _on_telegram_job_completed(task):
+                status_icon = "✅" if (task.orphan == 0 and task.skipped == 0 and task.duplicates == 0) else "⚠️"
+                report_lines = [
+                    f"{status_icon} <b>Обработан файл:</b> <code>{html.escape(file_name)}</code>",
+                    MSG_DIVIDER,
+                    f"✅ Привязано к счетам: <b>{task.added}</b>",
+                    f"⚠️ Без счёта в базе: <b>{task.orphan}</b>",
+                    f"🔄 Дубликатов: <b>{task.duplicates}</b>",
+                    f"❌ Ошибок/не распознано: <b>{task.skipped}</b>"
+                ]
+
+                if task.details:
+                    report_lines.append("\n📋 <b>Детализация страниц:</b>")
+                    max_lines = 15
+                    for d in task.details[:max_lines]:
+                        report_lines.append(f"• {html.escape(d.strip())}")
+                    if len(task.details) > max_lines:
+                        report_lines.append(f"<i>...и ещё {len(task.details) - max_lines} записей</i>")
+
+                if task.error_message:
+                    report_lines.append(f"\n⚠️ Ошибка: {html.escape(task.error_message)}")
+
+                try:
+                    self.client.send_message(
+                        chat_id,
+                        "\n".join(report_lines),
+                        reply_markup=self.get_main_keyboard(user_id)
+                    )
+                except Exception as send_err:
+                    logger.error(f"[Telegram] Сбой отправки отчёта в чат {chat_id}: {send_err}", exc_info=True)
+
+            task_manager.submit_pdf_job(
+                files=[(file_name, tmp_path)],
+                source='telegram',
+                spool_dir=tmp_dir,
+                callbacks=[_on_telegram_job_completed],
+                meta={'user_id': str(user_id), 'chat_id': str(chat_id), 'file_name': file_name}
+            )
+
         except Exception as e:
-            logger.error(f"[Telegram] Ошибка при обработке файла {file_name}: {e}", exc_info=True)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            logger.error(f"[Telegram] Ошибка при приёме файла {file_name}: {e}", exc_info=True)
             self.client.send_message(
                 chat_id,
                 f"❌ <b>Произошла ошибка при обработке файла:</b>\n<code>{html.escape(str(e))}</code>"
             )
-        finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # ────────────────────── Текстовые команды ──────────────────────
 

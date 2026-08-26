@@ -111,6 +111,8 @@ def migrate_db():
                 CREATE INDEX IF NOT EXISTS idx_receipts_hash ON receipts(content_hash);
                 CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_token ON receipts(access_token);
+                CREATE INDEX IF NOT EXISTS idx_accounts_street_bld ON accounts(street, building);
+                CREATE INDEX IF NOT EXISTS idx_receipts_hash_acc ON receipts(content_hash, account_number);
             ''')
     except Exception as e:
         logger.exception("[DB] Migration failed: %s", e)

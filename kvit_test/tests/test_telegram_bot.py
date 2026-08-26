@@ -1,6 +1,7 @@
 import os
 import shutil
 import tempfile
+import time
 
 import config
 from database import get_db, migrate_db
@@ -233,8 +234,13 @@ def test_bot_upload_pdf_receipt_flow(tmp_path=None):
         }
     })
 
-    # Проверяем отчет о загрузке
-    report = [m[1] for m in sent_messages if 'Обработан файл:' in m[1]]
+    # Проверяем отчет о загрузке (дожидаемся выполнения фоновой задачи)
+    for _ in range(50):
+        report = [m[1] for m in sent_messages if 'Обработан файл:' in m[1]]
+        if report:
+            break
+        time.sleep(0.05)
+
     assert len(report) == 1
     assert 'Привязано к счетам: <b>1</b>' in report[0]
 
@@ -270,7 +276,12 @@ def test_bot_upload_pdf_receipt_flow(tmp_path=None):
             }
         }
     })
-    report_user = [m[1] for m in sent_messages if 'Обработан файл:' in m[1]]
+    for _ in range(50):
+        report_user = [m[1] for m in sent_messages if 'Обработан файл:' in m[1]]
+        if report_user:
+            break
+        time.sleep(0.05)
+
     assert len(report_user) == 1
     assert 'Привязано к счетам: <b>1</b>' in report_user[0]
 

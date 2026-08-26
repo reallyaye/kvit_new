@@ -14,15 +14,17 @@ from urllib.parse import parse_qs, urlparse
 
 import mimetypes
 import config
-from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, WS_GUID
+from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, RATE_LIMIT_UPLOAD, WS_GUID
 from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem
 from logger import logger
+from services.metrics import metrics_collector
 from services.pdf import pdf_processor
 from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
 from services.security import auth_service, ip_throttler, rate_limiter
 from services.websocket import ws_manager
 from services.portal_cms import portal_cms
+from services.tasks import task_manager
 from templates import (
     layout,
     render_404_page,
@@ -294,7 +296,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         }, 200, {'Cache-Control': 'no-store, no-cache'})
 
     def _handle_ready(self):
-        """Readiness probe: проверка готовности зависимостей (база данных, хранилище файлов)."""
+        """Readiness probe: проверка готовности зависимостей (база данных, хранилище файлов, Redis, очередь)."""
         checks = {}
         all_ok = True
 
@@ -309,6 +311,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             checks['database'] = f'error: {e}'
             all_ok = False
+            metrics_collector.record_db_error()
 
         # 2. Проверка доступности каталога квитанций
         try:
@@ -321,6 +324,32 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             checks['storage'] = f'error: {e}'
             all_ok = False
+
+        # 3. Проверка Redis (если включен)
+        if getattr(config, 'REDIS_ENABLED', False):
+            try:
+                if task_manager.backend.ping():
+                    checks['redis'] = 'ok'
+                else:
+                    checks['redis'] = 'unavailable'
+                    all_ok = False
+            except Exception as re:
+                checks['redis'] = f'error: {re}'
+                all_ok = False
+        else:
+            checks['redis'] = 'disabled (in-memory queue active)'
+
+        # 4. Проверка состояния очереди и воркеров
+        try:
+            q_stats = task_manager.get_queue_stats()
+            checks['tasks_queue'] = {
+                'length': q_stats['queue_length'],
+                'active_workers': q_stats['active_workers'],
+                'pending': q_stats['pending_count'],
+                'processing': q_stats['processing_count']
+            }
+        except Exception as qe:
+            checks['tasks_queue'] = f'error: {qe}'
 
         status_code = 200 if all_ok else 503
         self.send_json({
@@ -399,8 +428,33 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     return
 
             # ── 4. Роутинг API и сервиса квитанций ───────────────────────────
-            if path == '/api/stats':
+            if path in ('/api/metrics', '/metrics'):
+                if 'text' in q or self.headers.get('Accept', '').startswith('text/plain'):
+                    body_bytes = metrics_collector.to_prometheus().encode('utf-8')
+                    self.send_response(200)
+                    self._send_security_headers()
+                    self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+                    self.send_header('Content-Length', str(len(body_bytes)))
+                    self.end_headers()
+                    self.wfile.write(body_bytes)
+                else:
+                    self.send_json(metrics_collector.to_dict(), 200, extra_headers={'Cache-Control': 'no-store'})
+                return
+            elif path == '/api/tasks/stats':
+                if not self._is_admin():
+                    self.send_json({'error': 'Unauthorized'}, 401)
+                    return
+                self.send_json(task_manager.get_queue_stats(), 200, extra_headers={'Cache-Control': 'no-store'})
+                return
+            elif path == '/api/stats':
                 self._handle_api_stats(q)
+                return
+            elif path == '/api/tasks':
+                self._handle_api_tasks_list()
+                return
+            elif path.startswith('/api/tasks/'):
+                job_id = path[len('/api/tasks/'):].strip()
+                self._handle_api_task_status(job_id)
                 return
             elif path == '/api/search':
                 self._handle_api_search(q)
@@ -583,7 +637,23 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self._handle_login()
                 return
 
-            # 3. Rate Limit для API эндпоинтов (POST)
+            # 3. Rate Limit для загрузки файлов (защита от перегрузки очереди)
+            if u.path in ('/upload', '/import-folder', '/api/upload-batch'):
+                allowed, retry_after, remaining = rate_limiter.is_allowed('upload', client_ip, RATE_LIMIT_UPLOAD, 60)
+                if not allowed:
+                    if u.path.startswith('/api/'):
+                        self.send_json({
+                            'error': 'Too Many Requests',
+                            'message': f'Превышен лимит операций загрузки. Пожалуйста, подождите {retry_after} сек.',
+                            'retry_after': retry_after
+                        }, 429, {'Retry-After': str(retry_after)})
+                    else:
+                        csrf_tok = auth_service.get_csrf_token(self._get_session_token()) if is_admin else ''
+                        body = render_rate_limit_page(retry_after)
+                        self.send_html(layout(body, 'upload', is_admin=is_admin, csrf_token=csrf_tok), 429, {'Retry-After': str(retry_after)})
+                    return
+
+            # 4. Rate Limit для API эндпоинтов (POST)
             if u.path.startswith('/api/'):
                 allowed, retry_after, remaining = rate_limiter.is_allowed('api', client_ip, RATE_LIMIT_API, 60)
                 if not allowed:
@@ -848,49 +918,37 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_json({'error': 'Файлы не получены'}, 400)
             return
 
-        con = get_db()
-        try:
-            known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
-            total_added = 0
-            total_skipped = 0
-            total_orphan = 0
-            total_duplicates = 0
-            all_details = []
-            all_receipts = []
+        task = task_manager.submit_pdf_job(
+            files=pdf_files,
+            source='api_batch',
+            spool_dir=tmp_dir
+        )
 
-            for base_name, tmp_path in pdf_files:
-                added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(tmp_path, base_name, known_accounts, existing_hashes)
-                total_added += added
-                total_orphan += orphan
-                total_skipped += skipped
-                total_duplicates += dups
-                status_icon = '✅' if orphan == 0 and skipped == 0 and dups == 0 else '⚠'
-                all_details.append(f'📄 {base_name}: {status_icon} +{added}, сирот {orphan}, пропущено {skipped}, дубликатов {dups}')
-                all_details.extend(details)
-                all_receipts.extend(receipts)
+        self.send_json({
+            'success': True,
+            'job_id': task.job_id,
+            'status': task.status,
+            'files_count': len(pdf_files),
+            'status_url': f'/api/tasks/{task.job_id}',
+            'message': 'Файлы успешно приняты в очередь фоновой обработки.'
+        }, 202)
 
-            if total_added > 0 or total_orphan > 0:
-                ws_manager.broadcast('upload_batch_completed', {
-                    'files_count': len(pdf_files),
-                    'added': total_added,
-                    'orphan': total_orphan,
-                    'duplicates': total_duplicates,
-                    'skipped': total_skipped
-                })
+    def _handle_api_tasks_list(self):
+        if not self._is_admin():
+            self.send_json({'error': 'Unauthorized'}, 401)
+            return
+        tasks = task_manager.list_tasks(limit=30)
+        self.send_json({'tasks': tasks}, 200, extra_headers={'Cache-Control': 'no-store'})
 
-            self.send_json({
-                'success': True,
-                'files_count': len(pdf_files),
-                'added': total_added,
-                'orphan': total_orphan,
-                'skipped': total_skipped,
-                'duplicates': total_duplicates,
-                'details': all_details
-            })
-        finally:
-            con.close()
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+    def _handle_api_task_status(self, job_id: str):
+        if not self._is_admin():
+            self.send_json({'error': 'Unauthorized'}, 401)
+            return
+        task = task_manager.get_task(job_id)
+        if not task:
+            self.send_json({'error': 'Task not found', 'job_id': job_id}, 404)
+            return
+        self.send_json(task.to_dict(), 200, extra_headers={'Cache-Control': 'no-store'})
 
     def _handle_api_stats(self, q: dict):
         period_filter = q.get('period', [''])[0].strip()
@@ -1112,62 +1170,32 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 break
 
         if not pdf_paths:
-            body = render_upload_form(f'<div class="warn">В папке <code>{html.escape(folder_path)}</code> не найдено ни одного .pdf файла.</div>')
-            self.send_html(layout(body, 'upload', is_admin=True))
+            csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+            body = render_upload_form(f'<div class="warn">В папке <code>{html.escape(folder_path)}</code> не найдено ни одного .pdf файла.</div>', csrf_token=csrf_tok)
+            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
             return
 
-        con = get_db()
-        try:
-            known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
-            total_added = 0
-            total_skipped = 0
-            total_orphan = 0
-            total_duplicates = 0
-            all_details = []
-            all_receipts = []
+        files = [(os.path.basename(p), p) for p in pdf_paths]
+        task = task_manager.submit_pdf_job(
+            files=files,
+            source='folder_import',
+            meta={'folder_path': folder_path}
+        )
 
-            for path in pdf_paths:
-                base_name = os.path.basename(path)
-                added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(path, base_name, known_accounts, existing_hashes)
-                total_added += added
-                total_orphan += orphan
-                total_skipped += skipped
-                total_duplicates += dups
-                status_icon = '✅' if orphan == 0 and skipped == 0 and dups == 0 else '⚠'
-                all_details.append(f'📄 {base_name}: {status_icon} +{added}, сирот {orphan}, пропущено {skipped}, дубликатов {dups}')
-                all_details.extend(details)
-                all_receipts.extend(receipts)
-
-            if total_added > 0 or total_orphan > 0:
-                ws_manager.broadcast('folder_import_completed', {
-                    'files_count': len(pdf_paths),
-                    'added': total_added,
-                    'orphan': total_orphan,
-                    'duplicates': total_duplicates,
-                    'skipped': total_skipped
-                })
-
-            detail_html = '<br>'.join(html.escape(d) for d in all_details)
-            cls = 'ok' if total_orphan == 0 and total_skipped == 0 else 'warn'
-            msg = f'''<div class="{cls}">
-                <b>Импорт из папки завершён: {len(pdf_paths)} PDF-файлов</b><br><br>
-                Путь к папке: <code>{html.escape(folder_path)}</code><br>
-                Привязано к счетам: <b>{total_added}</b><br>
-                Счёта нет в базе: <b>{total_orphan}</b><br>
-                Не удалось распознать: <b>{total_skipped}</b><br>
-                Дубликатов пропущено: <b>{total_duplicates}</b><br><br>
-                <details><summary>Подробности по файлам</summary><br>{detail_html}</details>
-            </div>'''
-            body = render_upload_form(msg)
-            self.send_html(layout(body, 'upload', is_admin=True))
-        finally:
-            con.close()
+        msg = f'''<div class="ok">
+            <b>Импорт из папки передан в фоновую обработку: {len(pdf_paths)} PDF-файлов</b><br><br>
+            Идентификатор задачи: <code>{task.job_id}</code><br>
+            Путь к папке: <code>{html.escape(folder_path)}</code><br><br>
+            <i>Обработка выполняется в фоновом режиме без блокировки сервера. Статус обновляется автоматически.</i>
+        </div>'''
+        csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+        body = render_upload_form(msg, csrf_token=csrf_tok, active_job_id=task.job_id)
+        self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
 
     def _handle_upload(self):
         if not self._verify_csrf():
             csrf_tok = auth_service.get_csrf_token(self._get_session_token())
-            body = render_forbidden_page('Недействительный или отсутствующий CSRF-токен.')
+            body = render_forbidden_page(CSRF_INVALID_MSG)
             self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok), 403)
             return
 
@@ -1180,59 +1208,27 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return
 
         if tmp_dir is None or not pdf_files:
-            body = render_upload_form('<div class="err">Файлы не выбраны или не удалось разобрать запрос.</div>')
-            self.send_html(layout(body, 'upload', is_admin=True))
+            csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+            body = render_upload_form('<div class="err">Файлы не выбраны или не удалось разобрать запрос.</div>', csrf_token=csrf_tok)
+            self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
             return
 
-        total_added = 0
-        total_skipped = 0
-        total_orphan = 0
-        total_duplicates = 0
+        task = task_manager.submit_pdf_job(
+            files=pdf_files,
+            source='web_upload',
+            spool_dir=tmp_dir
+        )
+
         total_files = len(pdf_files)
-        all_details = []
-        all_receipts = []
-
-        con = get_db()
-        try:
-            known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
-
-            for file_name, tmp_path in pdf_files:
-                added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(tmp_path, file_name, known_accounts, existing_hashes)
-                total_added += added
-                total_orphan += orphan
-                total_skipped += skipped
-                total_duplicates += dups
-                status_icon = '✅' if orphan == 0 and skipped == 0 and dups == 0 else '⚠'
-                all_details.append(f'📄 {file_name}: {status_icon} привязано {added}, сирот {orphan}, пропущено {skipped}, дубликатов {dups}')
-                all_details.extend(details)
-                all_receipts.extend(receipts)
-
-            if total_added > 0 or total_orphan > 0:
-                ws_manager.broadcast('upload_completed', {
-                    'files_count': len(pdf_files),
-                    'added': total_added,
-                    'orphan': total_orphan,
-                    'duplicates': total_duplicates,
-                    'skipped': total_skipped
-                })
-        finally:
-            con.close()
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-
-        detail_html = '<br>'.join(html.escape(d) for d in all_details)
-        cls = 'ok' if total_orphan == 0 and total_skipped == 0 else 'warn'
         files_label = f'{total_files} файл' + ('ов' if total_files >= 5 else ('а' if 2 <= total_files <= 4 else ''))
-        msg = f'''<div class="{cls}">
-            <b>Обработано: {files_label}</b><br><br>
-            Привязано к счетам: <b>{total_added}</b><br>
-            Счёта нет в базе: <b>{total_orphan}</b><br>
-            Не удалось распознать: <b>{total_skipped}</b><br>
-            Дубликатов пропущено: <b>{total_duplicates}</b><br><br>
-            <details><summary>Подробности по файлам</summary><br>{detail_html}</details>
+        msg = f'''<div class="ok">
+            <b>Загрузка успешно принята в фоновую обработку: {files_label}</b><br><br>
+            Идентификатор задачи: <code>{task.job_id}</code><br><br>
+            <i>Файлы обрабатываются в фоновом режиме. Вы можете следить за прогрессом или закрыть страницу.</i>
         </div>'''
-        body = render_upload_form(msg)
-        self.send_html(layout(body, 'upload', is_admin=True))
+        csrf_tok = auth_service.get_csrf_token(self._get_session_token())
+        body = render_upload_form(msg, csrf_token=csrf_tok, active_job_id=task.job_id)
+        self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
 
     def _serve_pdf(self, path: str, q: dict):
         token = q.get('token', [''])[0].strip()
@@ -1246,17 +1242,44 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self.send_html(layout(body, 'search', is_admin=self._is_admin()), 404)
             return
 
-        with open(fp, 'rb') as f:
-            data = f.read()
-
         disp = 'attachment; ' if path == '/download' else 'inline; '
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/pdf')
-        self.send_header('Content-Length', str(len(data)))
-        self.send_header('Content-Disposition', disp + 'filename="receipt.pdf"')
-        self.send_header('Cache-Control', 'no-store')
-        self.end_headers()
-        self.wfile.write(data)
+        filename = os.path.basename(fp)
+
+        # 1. Nginx X-Accel-Redirect (нулевое использование CPU/RAM Python для передачи файла)
+        if getattr(config, 'ENABLE_X_ACCEL_REDIRECT', False):
+            try:
+                rel_path = os.path.relpath(fp, config.RECEIPTS_DIR).replace('\\', '/')
+            except ValueError:
+                rel_path = filename
+            x_accel_uri = f"{getattr(config, 'X_ACCEL_PREFIX', '/internal_receipts/')}{rel_path}"
+
+            self.send_response(200)
+            self._send_security_headers()
+            self.send_header('X-Accel-Redirect', x_accel_uri)
+            self.send_header('Content-Type', 'application/pdf')
+            self.send_header('Content-Disposition', f'{disp}filename="{filename}"')
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            return
+
+        # 2. Потоковая передача фиксированными блоками 64 KB без чтения файла целиком в память
+        try:
+            file_size = os.path.getsize(fp)
+            self.send_response(200)
+            self._send_security_headers()
+            self.send_header('Content-Type', 'application/pdf')
+            self.send_header('Content-Length', str(file_size))
+            self.send_header('Content-Disposition', f'{disp}filename="{filename}"')
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+
+            with open(fp, 'rb') as f:
+                shutil.copyfileobj(f, self.wfile, length=65536)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+        except Exception as e:
+            logger.error(f"[Server] Ошибка при потоковой отдаче PDF ({fp}): {e}")
+
 
     # ────────────────────── CMS Обработчики ──────────────────────
 

@@ -67,8 +67,23 @@ DB = DB_PATH if os.path.isabs(DB_PATH) else os.path.join(BASE, DB_PATH)
 RECEIPTS_PATH = os.environ.get('RECEIPTS_DIR', 'receipts')
 RECEIPTS_DIR = RECEIPTS_PATH if os.path.isabs(RECEIPTS_PATH) else os.path.join(BASE, RECEIPTS_PATH)
 
+# Pipeline каталоги для безопасной staged-обработки PDF
+SPOOL_PATH = os.environ.get('SPOOL_DIR', os.path.join('data', 'spool'))
+SPOOL_DIR = SPOOL_PATH if os.path.isabs(SPOOL_PATH) else os.path.join(BASE, SPOOL_PATH)
+
+PROCESSING_PATH = os.environ.get('PROCESSING_DIR', os.path.join('data', 'processing'))
+PROCESSING_DIR = PROCESSING_PATH if os.path.isabs(PROCESSING_PATH) else os.path.join(BASE, PROCESSING_PATH)
+
+FAILED_PATH = os.environ.get('FAILED_DIR', os.path.join('data', 'failed'))
+FAILED_DIR = FAILED_PATH if os.path.isabs(FAILED_PATH) else os.path.join(BASE, FAILED_PATH)
+
 STATIC_PATH = os.environ.get('STATIC_DIR', 'static')
 STATIC_DIR = STATIC_PATH if os.path.isabs(STATIC_PATH) else os.path.join(BASE, STATIC_PATH)
+
+# Создаем базовые каталоги pipeline
+for _d in (RECEIPTS_DIR, SPOOL_DIR, PROCESSING_DIR, FAILED_DIR):
+    os.makedirs(_d, exist_ok=True)
+
 
 # ────────────────────── OCR Настройки ──────────────────────
 # ────────────────────── OCR Настройки и Защита от DoS ──────────────────────
@@ -181,11 +196,30 @@ WS_SOCKET_TIMEOUT = float(os.environ.get('WS_SOCKET_TIMEOUT', '60.0'))  # 60 с�
 RATE_LIMIT_API = int(os.environ.get('RATE_LIMIT_API', '60'))        # 60 запросов в минуту для API
 RATE_LIMIT_LOGIN = int(os.environ.get('RATE_LIMIT_LOGIN', '10'))    # 10 попыток в минуту для логина
 RATE_LIMIT_SEARCH = int(os.environ.get('RATE_LIMIT_SEARCH', '60'))  # 60 запросов в минуту для поиска/квитанций
+RATE_LIMIT_UPLOAD = int(os.environ.get('RATE_LIMIT_UPLOAD', '10'))  # 10 загрузок в минуту для админ-панели
 RATE_LIMIT_GRPC = int(os.environ.get('RATE_LIMIT_GRPC', '120'))        # 120 запросов в минуту для gRPC
 RATE_LIMIT_GRPC_RECONCILE = int(os.environ.get('RATE_LIMIT_GRPC_RECONCILE', '30')) # 30 запросов в минуту для тяжелой gRPC сверки
 
 THROTTLE_MAX_CONCURRENT = int(os.environ.get('THROTTLE_MAX_CONCURRENT', '5')) # Макс. 5 одновременных запросов с одного IP
 THROTTLE_BURST_RPS = int(os.environ.get('THROTTLE_BURST_RPS', '10'))          # Макс. 10 запросов в секунду с одного IP (всплеск)
+
+# ────────────────────── Очередь задач и Воркеры ──────────────────────
+REDIS_URL = os.environ.get('REDIS_URL', '').strip()
+REDIS_ENABLED = bool(REDIS_URL)
+REDIS_SOCKET_TIMEOUT = float(os.environ.get('REDIS_SOCKET_TIMEOUT', '5.0'))
+REDIS_QUEUE_KEY = os.environ.get('REDIS_QUEUE_KEY', 'kvit:tasks:pdf_queue')
+REDIS_TASKS_HASH = os.environ.get('REDIS_TASKS_HASH', 'kvit:tasks:metadata')
+
+WORKER_COUNT = int(os.environ.get('WORKER_COUNT', '4'))
+OCR_WORKERS = int(os.environ.get('OCR_WORKERS', '2'))
+JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '300'))          # 5 минут макс на одну задачу
+JOB_RETRY_COUNT = int(os.environ.get('JOB_RETRY_COUNT', '3'))    # 3 попытки при сбоях
+BATCH_CHUNK_SIZE = int(os.environ.get('BATCH_CHUNK_SIZE', '100')) # Размер пачки 2PC коммита
+RUN_EMBEDDED_WORKER = os.environ.get('RUN_EMBEDDED_WORKER', 'true').lower() in ('true', '1', 'yes')
+
+# ────────────────────── Nginx / X-Accel-Redirect ──────────────────────
+ENABLE_X_ACCEL_REDIRECT = os.environ.get('ENABLE_X_ACCEL_REDIRECT', 'false').lower() in ('true', '1', 'yes')
+X_ACCEL_PREFIX = os.environ.get('X_ACCEL_PREFIX', '/internal_receipts/').rstrip('/') + '/'
 
 # ────────────────────── Лимиты загрузки и PDF (DoS Protection) ──────────────────────
 MAX_UPLOAD_BYTES = int(os.environ.get('MAX_UPLOAD_BYTES', 100 * 1024 * 1024))  # 100 MB максимум на весь multipart запрос
@@ -193,6 +227,7 @@ MAX_FILES_PER_REQUEST = int(os.environ.get('MAX_FILES_PER_REQUEST', '500'))   # 
 MAX_PDF_PAGES = int(os.environ.get('MAX_PDF_PAGES', '2000'))                  # Максимум 2000 страниц в одном PDF (PDF Bomb protection)
 MAX_PDF_OUTPUT_SIZE = int(os.environ.get('MAX_PDF_OUTPUT_SIZE', 25 * 1024 * 1024)) # 25 MB максимум на одну сохраненную квитанцию
 MAX_OCR_TIME = float(os.environ.get('MAX_OCR_TIME', '30.0'))                 # 30 сек таймаут OCR на одну страницу/документ
+
 
 
 # ────────────────────── Безопасность импорта из папки ──────────────────────
