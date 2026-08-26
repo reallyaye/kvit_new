@@ -227,6 +227,25 @@ def run_all():
             traceback.print_exc()
             failed += 1
 
+    # 9. test_portal_cms (CMS, Медиа-менеджер, Безопасность и Редактор)
+    from tests import test_portal_cms
+    for fn_name in [
+        'test_portal_cms_list_and_get_pages',
+        'test_portal_cms_save_and_delete_page',
+        'test_portal_cms_media_save_and_delete',
+        'test_portal_cms_documents_lifecycle',
+        'test_admin_bar_rendering',
+        'test_admin_cms_security_access'
+    ]:
+        try:
+            getattr(test_portal_cms, fn_name)()
+            print(f"  [OK] test_portal_cms.{fn_name}")
+            passed += 1
+        except Exception as e:
+            print(f"  [FAIL] test_portal_cms.{fn_name}: {e}")
+            traceback.print_exc()
+            failed += 1
+
     shutil.rmtree(test_dir, ignore_errors=True)
 
     print("=" * 65)

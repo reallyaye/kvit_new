@@ -159,8 +159,18 @@ SESSION_DB_FAILURE_POLICY = os.environ.get('SESSION_DB_FAILURE_POLICY', 'fail_cl
 COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'auto').strip().lower()  # 'true', 'false', или 'auto' (по HTTPS/X-Forwarded-Proto)
 CSRF_ENABLED = os.environ.get('CSRF_ENABLED', 'true').strip().lower() in ('true', '1', 'yes')
 
-PROTECTED_PATHS = {'/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts'}
-CSRF_PROTECTED_PATHS = {'/upload', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts'}
+PROTECTED_PATHS = {
+    '/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts',
+    '/admin', '/admin/pages', '/admin/pages/edit', '/admin/pages/new', '/admin/pages/save', '/admin/pages/delete',
+    '/admin/media', '/admin/media/upload', '/admin/media/delete',
+    '/admin/documents', '/admin/documents/edit', '/admin/documents/new', '/admin/documents/save', '/admin/documents/delete'
+}
+CSRF_PROTECTED_PATHS = {
+    '/upload', '/import-folder', '/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts',
+    '/admin/pages/save', '/admin/pages/delete',
+    '/admin/media/upload', '/admin/media/delete',
+    '/admin/documents/save', '/admin/documents/delete'
+}
 
 
 # ────────────────────── WebSocket ──────────────────────

@@ -7,9 +7,11 @@ def layout(body, active='search', is_admin=False, csrf_token=''):
     
     if is_admin:
         nav_items = [
-            ('search',  '/kvit/',     'Поиск квитанции', False, 'search'),
-            ('upload',  '/upload',    'Загрузка PDF', True, 'upload'),
-            ('reconcile', '/reconcile', 'Сверка', True, 'reconcile'),
+            ('pages',     '/admin/pages', 'Страницы сайта', True, 'edit'),
+            ('media',     '/admin/media', 'Медиа и файлы', True, 'image'),
+            ('upload',    '/upload',      'Загрузка PDF', True, 'upload'),
+            ('reconcile', '/reconcile',   'Сверка', True, 'reconcile'),
+            ('search',    '/kvit/',       'Поиск квитанций', False, 'search'),
         ]
         for key, href, label, protected, icon_name in nav_items:
             cls = ' active' if key == active else ''
@@ -20,7 +22,16 @@ def layout(body, active='search', is_admin=False, csrf_token=''):
     csrf_meta = f'<meta name="csrf-token" content="{csrf_token}">\n' if csrf_token else ''
 
     return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="/manifest.json">
+<script>
+if ('serviceWorker' in navigator) {{
+    window.addEventListener('load', function() {{
+        navigator.serviceWorker.register('/sw.js').catch(function() {{}});
+    }});
+}}
+</script>
 {csrf_meta}<title>КРЭК | Квитанции</title>
 <style>
 *{{box-sizing:border-box}}

@@ -22,6 +22,7 @@ from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
 from services.security import auth_service, ip_throttler, rate_limiter
 from services.websocket import ws_manager
+from services.portal_cms import portal_cms
 from templates import (
     layout,
     render_404_page,
@@ -35,6 +36,13 @@ from templates import (
     render_search_result,
     render_throttled_page,
     render_upload_form,
+)
+from templates.admin_cms_views import (
+    render_admin_document_editor,
+    render_admin_documents_list,
+    render_admin_media_gallery,
+    render_admin_page_editor,
+    render_admin_pages_list,
 )
 from templates.portal_views import PORTAL_PAGES, DOCUMENTS_REGISTRY, render_page as render_portal_page, render_document as render_portal_document
 
@@ -217,11 +225,20 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             if not mime_type:
                 mime_type = 'application/octet-stream'
 
+            if path == '/sw.js':
+                mime_type = 'application/javascript; charset=utf-8'
+            elif path == '/manifest.json':
+                mime_type = 'application/manifest+json; charset=utf-8'
+            elif path == '/offline.html':
+                mime_type = 'text/html; charset=utf-8'
+
             with open(abs_target, 'rb') as f:
                 data = f.read()
 
             self.send_response(200)
             self._send_security_headers()
+            if path == '/sw.js':
+                self.send_header('Service-Worker-Allowed', '/')
             self.send_header('Content-Type', mime_type)
             self.send_header('Content-Length', str(len(data)))
             self.send_header('Cache-Control', 'no-cache, must-revalidate')
@@ -330,8 +347,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self._handle_websocket()
             return
 
-        # Статические файлы (CSS, JS, изображения, PDF, favicon, robots, sitemap)
-        if path.startswith(('/css/', '/images/', '/files/')) or path in ('/favicon.ico', '/robots.txt', '/sitemap.xml'):
+        # Статические файлы (CSS, JS, изображения, PDF, favicon, robots, sitemap, PWA)
+        if path.startswith(('/css/', '/images/', '/files/')) or path in ('/favicon.ico', '/robots.txt', '/sitemap.xml', '/sw.js', '/manifest.json', '/offline.html'):
             self._serve_static(path)
             return
 
@@ -457,7 +474,40 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     return
                 session_token = self._get_session_token()
                 csrf_tok = auth_service.get_csrf_token(session_token) if is_admin else ''
-                if path == '/upload':
+                msg = q.get('msg', [None])[0]
+                err = q.get('err', [None])[0]
+
+                if path in ('/admin', '/admin/pages'):
+                    pages = portal_cms.get_all_pages()
+                    body = render_admin_pages_list(pages, csrf_tok, message=msg, error=err)
+                    self.send_html(layout(body, 'pages', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/pages/edit':
+                    slug = q.get('slug', [''])[0]
+                    page_data = portal_cms.get_page(slug) or {'title': slug, 'html': ''}
+                    media_files = portal_cms.list_media_files()
+                    body = render_admin_page_editor(slug, page_data, csrf_tok, media_files, is_new=False, message=msg, error=err)
+                    self.send_html(layout(body, 'pages', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/pages/new':
+                    media_files = portal_cms.list_media_files()
+                    body = render_admin_page_editor('', {'title': '', 'html': ''}, csrf_tok, media_files, is_new=True, message=msg, error=err)
+                    self.send_html(layout(body, 'pages', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/media':
+                    media_files = portal_cms.list_media_files()
+                    body = render_admin_media_gallery(media_files, csrf_tok, message=msg, error=err)
+                    self.send_html(layout(body, 'media', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/documents':
+                    docs = portal_cms.get_all_documents()
+                    body = render_admin_documents_list(docs, csrf_tok, message=msg, error=err)
+                    self.send_html(layout(body, 'documents', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/documents/edit':
+                    key = q.get('key', [''])[0]
+                    doc_data = portal_cms.get_document(key) or {}
+                    body = render_admin_document_editor(key, doc_data, csrf_tok, is_new=False, message=msg, error=err)
+                    self.send_html(layout(body, 'documents', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/documents/new':
+                    body = render_admin_document_editor('', {}, csrf_tok, is_new=True, message=msg, error=err)
+                    self.send_html(layout(body, 'documents', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/upload':
                     body = render_upload_form(csrf_token=csrf_tok)
                     self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/reconcile':
@@ -474,22 +524,22 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
             # ── 5. Роутинг информационного портала КРЭК ─────────────────────
             elif path in ('/', '/index.php', '/index.html'):
-                self.send_html(render_portal_page('home'))
+                self.send_html(render_portal_page('home', is_admin=is_admin))
             else:
                 clean_name = path.strip('/').removesuffix('.php').strip('/')
                 if clean_name in PORTAL_PAGES:
-                    self.send_html(render_portal_page(clean_name))
+                    self.send_html(render_portal_page(clean_name, is_admin=is_admin))
                     return
 
                 doc_key = os.path.basename(path).strip('/')
                 if not doc_key.endswith('.php'):
                     doc_key += '.php'
                 if doc_key in DOCUMENTS_REGISTRY:
-                    self.send_html(render_portal_document(DOCUMENTS_REGISTRY[doc_key]))
+                    self.send_html(render_portal_document(DOCUMENTS_REGISTRY[doc_key], is_admin=is_admin, doc_key=doc_key))
                     return
 
                 # 404 Not Found
-                self.send_html(render_portal_page('404'), 404)
+                self.send_html(render_portal_page('404', is_admin=is_admin), 404)
         finally:
             ip_throttler.release(client_ip)
 
@@ -555,6 +605,18 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self._redirect('/login')
                     return
                 self._handle_import_folder()
+            elif u.path == '/admin/pages/save':
+                self._handle_admin_pages_save()
+            elif u.path == '/admin/pages/delete':
+                self._handle_admin_pages_delete()
+            elif u.path == '/admin/media/upload':
+                self._handle_admin_media_upload()
+            elif u.path == '/admin/media/delete':
+                self._handle_admin_media_delete()
+            elif u.path == '/admin/documents/save':
+                self._handle_admin_documents_save()
+            elif u.path == '/admin/documents/delete':
+                self._handle_admin_documents_delete()
             elif u.path == '/api/upload-batch':
                 self._handle_api_upload_batch()
             elif u.path == '/api/sync-receipts':
@@ -1191,3 +1253,209 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store')
         self.end_headers()
         self.wfile.write(data)
+
+    # ────────────────────── CMS Обработчики ──────────────────────
+
+    def _read_form_params(self) -> dict:
+        """Считывает и декодирует application/x-www-form-urlencoded параметры формы."""
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            data = self.rfile.read(length)
+            return parse_qs(data.decode('utf-8', errors='replace'))
+        except Exception:
+            return {}
+
+    def _parse_multipart_fields_and_files(self):
+        """
+        Разбирает multipart/form-data на текстовые поля и список файлов:
+        Возвращает: (fields: dict, files: list of (field_name, filename, bytes))
+        """
+        content_type = self.headers.get('Content-Type', '')
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+        except (ValueError, TypeError):
+            content_length = 0
+
+        if content_length > config.MAX_UPLOAD_BYTES:
+            return {}, []
+
+        boundary = None
+        for part in content_type.split(';'):
+            part = part.strip()
+            if part.startswith('boundary='):
+                boundary = part[len('boundary='):].strip('"\'')
+                break
+        if not boundary or content_length <= 0:
+            return {}, []
+
+        data = self.rfile.read(content_length)
+        boundary_bytes = boundary.encode('latin1')
+        parts = data.split(b'--' + boundary_bytes)
+
+        fields = {}
+        files = []
+
+        for part in parts:
+            if not part or part == b'--\r\n' or part == b'--\r\n\r\n' or part == b'--':
+                continue
+            if part.startswith(b'\r\n'):
+                part = part[2:]
+            if part.endswith(b'\r\n'):
+                part = part[:-2]
+
+            hdr_end = part.find(b'\r\n\r\n')
+            if hdr_end < 0:
+                hdr_end = part.find(b'\n\n')
+                hdr_len = 2
+            else:
+                hdr_len = 4
+            if hdr_end < 0:
+                continue
+
+            header_bytes = part[:hdr_end]
+            body_bytes = part[hdr_end + hdr_len:]
+            header_text = header_bytes.decode('utf-8', errors='replace')
+
+            m_name = re.search(r'name="([^"]*)"', header_text)
+            m_fn = re.search(r'filename="([^"]*)"', header_text)
+            f_name = m_name.group(1) if m_name else ''
+            f_filename = m_fn.group(1) if m_fn else ''
+
+            if f_filename:
+                files.append((f_name, f_filename, body_bytes))
+            elif f_name:
+                val_text = body_bytes.decode('utf-8', errors='replace')
+                if f_name not in fields:
+                    fields[f_name] = []
+                fields[f_name].append(val_text)
+
+        return fields, files
+
+    def _handle_admin_pages_save(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        params = self._read_form_params()
+        csrf_token = params.get('csrf_token', [''])[0]
+        if not self._verify_csrf(csrf_token):
+            self.send_html(layout(render_forbidden_page('Недействительный или отсутствующий CSRF-токен.'), is_admin=True), 403)
+            return
+        slug = params.get('slug', [''])[0]
+        title = params.get('title', [''])[0]
+        html_content = params.get('html', [''])[0]
+        ok, saved_slug = portal_cms.save_page(slug, title, html_content)
+        if ok:
+            import urllib.parse
+            msg = urllib.parse.quote('Страница успешно сохранена.')
+            self._redirect(f'/admin/pages/edit?slug={saved_slug}&msg={msg}')
+        else:
+            import urllib.parse
+            err = urllib.parse.quote('Ошибка сохранения страницы.')
+            self._redirect(f'/admin/pages?err={err}')
+
+    def _handle_admin_pages_delete(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        params = self._read_form_params()
+        csrf_token = params.get('csrf_token', [''])[0]
+        if not self._verify_csrf(csrf_token):
+            self.send_html(layout(render_forbidden_page('Недействительный или отсутствующий CSRF-токен.'), is_admin=True), 403)
+            return
+        slug = params.get('slug', [''])[0]
+        ok, msg = portal_cms.delete_page(slug)
+        import urllib.parse
+        param_name = 'msg' if ok else 'err'
+        self._redirect(f'/admin/pages?{param_name}={urllib.parse.quote(msg)}')
+
+    def _handle_admin_media_upload(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        fields, files = self._parse_multipart_fields_and_files()
+        csrf_token = fields.get('csrf_token', [''])[0] if fields else ''
+        if not self._verify_csrf(csrf_token):
+            if 'ajax' in self.path:
+                self.send_json({'ok': False, 'error': 'Недействительный CSRF-токен.'}, 403)
+            else:
+                self.send_html(layout(render_forbidden_page('Недействительный CSRF-токен.'), is_admin=True), 403)
+            return
+
+        is_ajax = 'ajax' in self.path
+        if not files:
+            if is_ajax:
+                self.send_json({'ok': False, 'error': 'Файл не выбран.'}, 400)
+            else:
+                import urllib.parse
+                self._redirect('/admin/media?err=' + urllib.parse.quote('Файл не выбран.'))
+            return
+
+        _, orig_filename, file_bytes = files[0]
+        ok, file_info, msg = portal_cms.save_media_file(orig_filename, file_bytes)
+        if is_ajax:
+            self.send_json({'ok': ok, 'file': file_info, 'error': '' if ok else msg})
+        else:
+            import urllib.parse
+            param = 'msg' if ok else 'err'
+            self._redirect(f'/admin/media?{param}={urllib.parse.quote(msg)}')
+
+    def _handle_admin_media_delete(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        params = self._read_form_params()
+        csrf_token = params.get('csrf_token', [''])[0]
+        if not self._verify_csrf(csrf_token):
+            self.send_html(layout(render_forbidden_page('Недействительный или отсутствующий CSRF-токен.'), is_admin=True), 403)
+            return
+        filename = params.get('filename', [''])[0]
+        ok, msg = portal_cms.delete_media_file(filename)
+        import urllib.parse
+        param_name = 'msg' if ok else 'err'
+        self._redirect(f'/admin/media?{param_name}={urllib.parse.quote(msg)}')
+
+    def _handle_admin_documents_save(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        params = self._read_form_params()
+        csrf_token = params.get('csrf_token', [''])[0]
+        if not self._verify_csrf(csrf_token):
+            self.send_html(layout(render_forbidden_page('Недействительный или отсутствующий CSRF-токен.'), is_admin=True), 403)
+            return
+        key = params.get('key', [''])[0]
+        title = params.get('title', [''])[0]
+        cat = params.get('category', ['other'])[0]
+        date_text = params.get('date_text', [''])[0]
+        files = [f.strip() for f in params.get('files', [''])[0].split('\n') if f.strip()]
+        iframes = [f.strip() for f in params.get('iframes', [''])[0].split('\n') if f.strip()]
+        doc_data = {
+            'title': title,
+            'category': cat,
+            'date_text': date_text,
+            'files': files,
+            'iframes': iframes
+        }
+        ok, saved_key = portal_cms.save_document(key, doc_data)
+        import urllib.parse
+        if ok:
+            msg = urllib.parse.quote('Документ успешно сохранен.')
+            self._redirect(f'/admin/documents?msg={msg}')
+        else:
+            err = urllib.parse.quote('Ошибка сохранения документа.')
+            self._redirect(f'/admin/documents?err={err}')
+
+    def _handle_admin_documents_delete(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        params = self._read_form_params()
+        csrf_token = params.get('csrf_token', [''])[0]
+        if not self._verify_csrf(csrf_token):
+            self.send_html(layout(render_forbidden_page('Недействительный или отсутствующий CSRF-токен.'), is_admin=True), 403)
+            return
+        key = params.get('key', [''])[0]
+        ok, msg = portal_cms.delete_document(key)
+        import urllib.parse
+        param_name = 'msg' if ok else 'err'
+        self._redirect(f'/admin/documents?{param_name}={urllib.parse.quote(msg)}')

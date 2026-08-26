@@ -42,7 +42,7 @@ def load_documents_registry():
 PORTAL_PAGES = load_portal_pages()
 DOCUMENTS_REGISTRY = load_documents_registry()
 
-def render_page(page_name: str) -> str:
+def render_page(page_name: str, is_admin: bool = False) -> str:
     """Рендерит именованную страницу портала (home, contacts, reports, etc.)."""
     clean_name = page_name.lower().lstrip('/').removesuffix('.php')
     if clean_name in ('', 'index', 'main'):
@@ -53,16 +53,18 @@ def render_page(page_name: str) -> str:
         # Fallback 404
         page_404 = PORTAL_PAGES.get('404', {})
         html_404 = page_404.get('html', '<h1>404 Страница не найдена</h1>')
-        return portal_layout(html_404, title="404 — Страница не найдена", active_nav='')
+        return portal_layout(html_404, title="404 — Страница не найдена", active_nav='', is_admin=is_admin, current_slug='404')
 
     active_nav = 'home' if clean_name == 'home' else clean_name
     return portal_layout(
         content=page_data.get('html', ''),
         title=page_data.get('title', 'ТОО КРЭК'),
-        active_nav=active_nav
+        active_nav=active_nav,
+        is_admin=is_admin,
+        current_slug=clean_name
     )
 
-def render_document(doc: dict) -> str:
+def render_document(doc: dict, is_admin: bool = False, doc_key: str = '') -> str:
     """Рендерит документ/отчет из реестра документов (PDF-скачивание или iframe просмотр)."""
     title = doc.get('title', 'ТОО КРЭК — Документ')
     h1 = doc.get('h1', title)
@@ -105,4 +107,4 @@ def render_document(doc: dict) -> str:
         body_parts.append('<p>Документ временно недоступен для скачивания.</p>')
 
     full_html = '\n'.join(body_parts)
-    return portal_layout(content=full_html, title=title, description=desc, active_nav='reports')
+    return portal_layout(content=full_html, title=title, description=desc, active_nav='reports', is_admin=is_admin, current_slug=doc_key)

@@ -1,0 +1,21 @@
+{
+  "name": "ТОО «КРЭК» — Карагандинская Региональная Энергетическая Компания",
+  "short_name": "ТОО КРЭК",
+  "description": "Официальный портал ТОО «КРЭК». Электронные квитанции, отчеты, технические условия.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/images/logo.png?v=8",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/logo.png?v=8",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

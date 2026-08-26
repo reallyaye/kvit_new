@@ -87,3 +87,47 @@ def test_health_and_readiness_probes():
         assert captured['data']['status'] == 'not_ready'
         assert 'Database unreachable' in captured['data']['checks']['database']
 
+
+def test_pwa_and_offline_support():
+    """Тестирует доступность Service Worker, манифеста и страницы оффлайн-режима."""
+    import os
+    from unittest import mock
+    from server import AppRequestHandler
+    import config
+
+    # 1. Проверяем существование статических файлов
+    assert os.path.isfile(os.path.join(config.STATIC_DIR, 'sw.js'))
+    assert os.path.isfile(os.path.join(config.STATIC_DIR, 'manifest.json'))
+    assert os.path.isfile(os.path.join(config.STATIC_DIR, 'offline.html'))
+
+    # 2. Проверяем содержимое оффлайн страницы
+    with open(os.path.join(config.STATIC_DIR, 'offline.html'), 'r', encoding='utf-8') as f:
+        offline_content = f.read()
+    assert 'автономном режиме' in offline_content
+    assert 'КРЭК' in offline_content
+    assert '+7 (7212) 41-11-11' in offline_content
+
+    # 3. Тестируем отдачу /sw.js сервером
+    handler = AppRequestHandler.__new__(AppRequestHandler)
+    sent_headers = {}
+    response_code = None
+
+    def mock_send_response(code):
+        nonlocal response_code
+        response_code = code
+
+    def mock_send_header(name, val):
+        sent_headers[name] = val
+
+    handler.send_response = mock_send_response
+    handler.send_header = mock_send_header
+    handler._send_security_headers = lambda: None
+    handler.end_headers = lambda: None
+    handler.wfile = mock.MagicMock()
+
+    handler._serve_static('/sw.js')
+    assert response_code == 200
+    assert 'javascript' in sent_headers.get('Content-Type', '')
+    assert sent_headers.get('Service-Worker-Allowed') == '/'
+
+
