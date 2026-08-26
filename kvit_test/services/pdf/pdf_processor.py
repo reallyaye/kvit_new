@@ -262,6 +262,26 @@ class PDFProcessor:
             skipped += 1
             details.append(f'  Стр. {page_num}: ❌ {reason}')
 
+        # ─── Индексированный Batch Lookup счетов ───
+        # Если known_accounts не передан (None), запрашиваем из БД только счета текущего файла
+        valid_accounts = set()
+        if known_accounts is not None:
+            valid_accounts = known_accounts
+        else:
+            doc_accounts = [d.account for d in documents if d.account]
+            if doc_accounts:
+                from database.connection import get_db
+                con_acc = get_db()
+                try:
+                    placeholders = ','.join('?' * len(doc_accounts))
+                    rows = con_acc.execute(
+                        f"SELECT account_number FROM accounts WHERE account_number IN ({placeholders})",  # nosec B608
+                        doc_accounts
+                    ).fetchall()
+                    valid_accounts = {row[0] for row in rows}
+                finally:
+                    con_acc.close()
+
         for doc in documents:
             account = doc.account
             period = doc.period
@@ -295,7 +315,7 @@ class PDFProcessor:
                 details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 дубликат в текущем запросе, пропущен')
                 continue
 
-            # Проверка дедупликации по хешам
+            # Проверка дедупликации по хешам (внутри текущего сеанса)
             is_file_dup = file_hash in existing_hashes
             is_semantic_dup = semantic_hash in existing_hashes
 
@@ -305,32 +325,43 @@ class PDFProcessor:
                 details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 {dup_type}, пропущен')
                 continue
 
-            # Проверка существования записи в БД для (account, period) ДО создания файла на диске
+            # Индексированная проверка существования записи и хешей в БД
             from database.connection import get_db
             con_check = get_db()
             try:
+                # 1. Проверка по уникальной паре (account_number, period)
                 existing_rec = con_check.execute(
                     "SELECT id, content_hash, file_hash, semantic_hash, pdf_file FROM receipts WHERE account_number = ? AND period = ?",
                     (account, period)
                 ).fetchone()
+
+                if existing_rec:
+                    existing_file_hash = existing_rec['file_hash'] if 'file_hash' in existing_rec.keys() else None
+                    existing_semantic_hash = existing_rec['semantic_hash'] if 'semantic_hash' in existing_rec.keys() else None
+                    existing_content_hash = existing_rec['content_hash'] if 'content_hash' in existing_rec.keys() else None
+
+                    if (file_hash and file_hash == existing_file_hash) or \
+                       (semantic_hash and semantic_hash == existing_semantic_hash) or \
+                       (content_hash and content_hash == existing_content_hash):
+                        duplicates += 1
+                        details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 дубликат (уже в базе), пропущен')
+                        continue
+                    else:
+                        duplicates += 1
+                        details.append(f'  {page_range_str}: счёт {account}, период «{period}» → ⚠ конфликт: квитанция за этот период уже существует с другим содержимым, пропущен')
+                        continue
+
+                # 2. Индексированная проверка по хешам в БД (если хеш уже был сохранен ранее)
+                hash_dup = con_check.execute(
+                    "SELECT 1 FROM receipts WHERE file_hash = ? OR semantic_hash = ? OR content_hash = ? LIMIT 1",
+                    (file_hash, semantic_hash, content_hash)
+                ).fetchone()
+                if hash_dup:
+                    duplicates += 1
+                    details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 дубликат по содержимому (хеш найден в базе), пропущен')
+                    continue
             finally:
                 con_check.close()
-
-            if existing_rec:
-                existing_file_hash = existing_rec['file_hash'] if 'file_hash' in existing_rec.keys() else None
-                existing_semantic_hash = existing_rec['semantic_hash'] if 'semantic_hash' in existing_rec.keys() else None
-                existing_content_hash = existing_rec['content_hash'] if 'content_hash' in existing_rec.keys() else None
-
-                if (file_hash and file_hash == existing_file_hash) or \
-                   (semantic_hash and semantic_hash == existing_semantic_hash) or \
-                   (content_hash and content_hash == existing_content_hash):
-                    duplicates += 1
-                    details.append(f'  {page_range_str}: счёт {account}, период «{period}» → 🔄 дубликат (уже в базе), пропущен')
-                    continue
-                else:
-                    duplicates += 1
-                    details.append(f'  {page_range_str}: счёт {account}, период «{period}» → ⚠ конфликт: квитанция за этот период уже существует с другим содержимым, пропущен')
-                    continue
 
             batch_account_periods.add((account, period))
             existing_hashes.add(file_hash)
@@ -338,7 +369,7 @@ class PDFProcessor:
             existing_hashes.add(content_hash)
 
             # Создаем подготовленную квитанцию (StagedReceipt) без прямой записи на диск
-            is_orphan = (known_accounts is not None and account not in known_accounts)
+            is_orphan = (account not in valid_accounts)
             staged_item = AtomicReceiptImporter.stage_receipt(
                 account=account,
                 period=period,
@@ -360,19 +391,16 @@ class PDFProcessor:
                 staged_item.address
             ))
 
-            # Сохраняем объект для транзакционной фиксации
-            if not hasattr(cls, '_temp_staged_collector'):
-                pass
-
             # Атомарная фиксация квитанции через 2-Phase Commit
             AtomicReceiptImporter.commit_staged_batch([staged_item])
 
-            if account in known_accounts:
+            if account in valid_accounts:
                 added += 1
                 details.append(f'  {page_range_str}: счёт {account}, период «{period}» → ✅ привязан (READY)')
             else:
                 orphan += 1
                 details.append(f'  {page_range_str}: счёт {account}, период «{period}» → ⚠ счёта нет в базе')
+
 
         pdf.close()
         return added, orphan, skipped, duplicates, details, receipts_to_insert

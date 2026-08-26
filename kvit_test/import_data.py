@@ -191,8 +191,7 @@ def main():
                 print(f"❌ Ошибка безопасности пути к квитанциям: {e}")
                 sys.exit(1)
 
-            known_accounts = {row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()}
-            existing_hashes = {h for row in con.execute('SELECT content_hash, file_hash, semantic_hash FROM receipts').fetchall() for h in row if h}
+            session_hashes = set()
 
             pdf_files = []
             if os.path.isfile(receipts_path):
@@ -216,7 +215,7 @@ def main():
             for pdf_path in pdf_files:
                 base_name = os.path.basename(pdf_path)
                 added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(
-                    pdf_path, base_name, known_accounts, existing_hashes
+                    pdf_path, base_name, known_accounts=None, existing_hashes=session_hashes
                 )
                 total_added += added
                 total_orphan += orphan

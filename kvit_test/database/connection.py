@@ -13,19 +13,32 @@ _DB_WRITE_LOCK = threading.Lock()
 def is_postgres_configured() -> bool:
     """Проверяет, настроена ли работа через PostgreSQL."""
     db_url = getattr(config, 'DATABASE_URL', '') or ''
-    return db_url.startswith(('postgresql://', 'postgres://'))
+    db_type = getattr(config, 'DB_TYPE', '').lower()
+    return db_url.startswith(('postgresql://', 'postgres://')) or db_type == 'postgres'
 
 def get_db():
     """
     Создаёт и возвращает соединение с базой данных:
-    - PostgreSQL: соединение из пула ThreadedConnectionPool с адаптером строк и плейсхолдеров
-    - SQLite: оптимизированное соединение (WAL, busy_timeout=60s, mmap_size=256MB, кэш 64MB)
+    - Production: строго PostgreSQL (при отсутствии DATABASE_URL выдает Fail-Fast ошибку).
+    - Development / Small installations / Tests: SQLite (WAL, mmap_size=256MB, кэш 64MB).
     """
     if is_postgres_configured():
         from database.postgres_backend import _PG_POOL, get_postgres_db, init_postgres_pool
         if _PG_POOL is None:
+            if not config.DATABASE_URL:
+                raise RuntimeError(
+                    "[DB] ❌ КРИТИЧЕСКАЯ ОШИБКА: Задана конфигурация PostgreSQL, но переменная DATABASE_URL пуста! "
+                    "Укажите DATABASE_URL=postgresql://user:password@host:5432/dbname"
+                )
             init_postgres_pool(config.DATABASE_URL)
         return get_postgres_db()
+
+    if getattr(config, 'IS_PRODUCTION', False):
+        # В продакшне принудительно требуем PostgreSQL
+        raise RuntimeError(
+            "[DB] ❌ КРИТИЧЕСКАЯ ОШИБКА: В режиме Production (APP_ENV=production) обязательно использование PostgreSQL! "
+            "SQLite разрешен только в development/test/small-installations. Настройте DATABASE_URL."
+        )
 
     con = sqlite3.connect(config.DB, timeout=60.0, check_same_thread=False)
     con.row_factory = sqlite3.Row
@@ -36,6 +49,7 @@ def get_db():
     con.execute('PRAGMA temp_store = MEMORY;')  # Временные таблицы и индексы в RAM
     con.execute('PRAGMA mmap_size = 268435456;')  # 256 MB Memory-mapped I/O для ускорения чтения
     return con
+
 
 @contextmanager
 def write_transaction(max_retries: int = 10, base_delay: float = 0.05):

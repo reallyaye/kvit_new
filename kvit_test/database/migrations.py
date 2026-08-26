@@ -12,11 +12,24 @@ class DatabaseMigrationError(RuntimeError):
 def migrate_db():
     """
     Гарантирует инициализацию схемы и миграции (accounts, receipts, app_sessions, security_blocks).
+    Поддерживает как PostgreSQL (production), так и SQLite (dev/test).
     При любой ошибке выбрасывает DatabaseMigrationError и останавливает запуск приложения.
     """
+    from database.connection import is_postgres_configured
+    import os
+
     try:
         with write_transaction() as con:
-            # 1. Создание базовых таблиц
+            if is_postgres_configured():
+                schema_path = os.path.join(os.path.dirname(__file__), 'schema.postgres.sql')
+                if os.path.exists(schema_path):
+                    with open(schema_path, 'r', encoding='utf-8') as f:
+                        pg_sql = f.read()
+                    con.executescript(pg_sql)
+                    logger.info("[DB] Схема PostgreSQL успешно проверена и применена.")
+                    return
+
+            # 1. Создание базовых таблиц (SQLite)
             con.executescript('''
                 CREATE TABLE IF NOT EXISTS schema_migrations (
                     version INTEGER PRIMARY KEY,
@@ -117,6 +130,7 @@ def migrate_db():
     except Exception as e:
         logger.exception("[DB] Migration failed: %s", e)
         raise DatabaseMigrationError(f"Database migration failed: {e}") from e
+
 
 def migrate_receipts_to_sharding():
     """

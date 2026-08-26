@@ -263,6 +263,8 @@ class TaskQueueManager:
         all_jobs = self.list_tasks(limit=100)
         stats = {
             'queue_length': self.backend.queue_length,
+            'processing_queue_length': getattr(self.backend, 'processing_length', 0),
+            'dlq_length': getattr(self.backend, 'dlq_length', 0),
             'active_workers': len([w for w in self._workers if w.is_alive()]) if self._running else 0,
             'total_jobs': len(all_jobs),
             'pending_count': 0,
@@ -295,12 +297,22 @@ class TaskQueueManager:
     def recover_stale_jobs(self, timeout_sec: Optional[float] = None):
         """
         Восстанавливает зависшие задачи (Dead Worker Recovery).
-        Если задача находится в PROCESSING дольше JOB_TIMEOUT — возвращает её в PENDING или RETRY.
+        1. Сначала использует надежный механизм reclaim_stale_jobs из ZSET очереди обработки.
+        2. При необходимости восстанавливает устаревшие метаданные.
         """
-        timeout = timeout_sec or getattr(config, 'JOB_TIMEOUT', 300)
+        timeout = timeout_sec or getattr(config, 'QUEUE_VISIBILITY_TIMEOUT', 300)
         now = time.time()
-        jobs = self.backend.list_jobs(limit=100)
 
+        # Надежный Reclaim из ZSET processing бэкенда
+        try:
+            reclaimed_ids = self.backend.reclaim_stale_jobs(timeout_sec=timeout)
+            if reclaimed_ids:
+                logger.warning(f"[TaskManager] Возвращено в очередь {len(reclaimed_ids)} зависших задач: {reclaimed_ids}")
+        except Exception as e:
+            logger.debug(f"[TaskManager] Ошибка бэкенда reclaim_stale_jobs: {e}")
+
+        # Дополнительная проверка метаданных
+        jobs = self.backend.list_jobs(limit=100)
         for j in jobs:
             if j.get('status') == TaskStatus.PROCESSING:
                 updated_at = j.get('updated_at') or j.get('started_at') or j.get('created_at', now)
@@ -328,17 +340,24 @@ class TaskQueueManager:
         """Периодический фоновый цикл проверки зависших задач."""
         while self._running:
             try:
-                time.sleep(30.0)
+                time.sleep(15.0)
                 if self._running:
                     self.recover_stale_jobs()
             except Exception as e:
                 logger.debug(f"[TaskManager] Ошибка в цикле восстановления: {e}")
 
     def _worker_loop(self):
-        """Основной цикл фонового воркера."""
+        """Основной цикл фонового воркера с надёжным Claim и Visibility Timeout."""
+        worker_name = threading.current_thread().name
+        visibility_timeout = getattr(config, 'QUEUE_VISIBILITY_TIMEOUT', 300)
+
         while self._running:
             try:
-                job_data = self.backend.pop_job(timeout=1.0)
+                job_data = self.backend.pop_job(
+                    timeout=1.0,
+                    visibility_timeout=visibility_timeout,
+                    worker_id=worker_name
+                )
             except Exception as err:
                 logger.debug(f"[TaskManager] Ошибка извлечения задачи из очереди: {err}")
                 time.sleep(1.0)
@@ -380,27 +399,8 @@ class TaskQueueManager:
         except Exception:
             pass
 
-        # Инициализация контекста БД
-        con = None
-        try:
-            con = get_db()
-            known_accounts = {
-                row[0] for row in con.execute('SELECT account_number FROM accounts').fetchall()
-            }
-            existing_hashes = {
-                h for row in con.execute(
-                    'SELECT content_hash, file_hash, semantic_hash FROM receipts'
-                ).fetchall() for h in row if h
-            }
-        except Exception as db_err:
-            logger.error(f"[TaskManager] Ошибка БД при инициализации задачи {task.job_id}: {db_err}", exc_info=True)
-            self._handle_task_failure(task, f"Ошибка доступа к базе данных: {db_err}")
-            if con:
-                con.close()
-            return
-        finally:
-            if con:
-                con.close()
+        # Сессионный кэш дедупликации хешей в рамках текущей задачи
+        task_hashes = set()
 
         try:
             for base_name, raw_file_path in task.files:
@@ -411,8 +411,9 @@ class TaskQueueManager:
                 proc_file_path = storage_pipeline.move_to_processing(raw_file_path, task.job_id, base_name)
 
                 try:
+                    # Индексированная обработка без предварительной загрузки всей базы в память
                     added, orphan, skipped, dups, details, _ = pdf_processor.process_single_pdf(
-                        proc_file_path, base_name, known_accounts, existing_hashes
+                        proc_file_path, base_name, known_accounts=None, existing_hashes=task_hashes
                     )
                     task.added += added
                     task.orphan += orphan
@@ -467,11 +468,13 @@ class TaskQueueManager:
             logger.warning(f"[TaskManager] Задача {task.job_id} завершилась сбоем ({error_msg}). Назначен Retry ({task.retry_count}/{task.max_retries}).")
             self._sync_task_state(task)
             # Возвращаем задачу в очередь для повторной попытки
+            self.backend.nack_job(task.job_id, requeue=False)
             self.backend.push_job(task.to_dict())
         else:
             task.status = TaskStatus.FAILED
             task.finished_at = now
             self._sync_task_state(task)
+            self.backend.ack_job(task.job_id)
 
     def _sync_task_state(self, task: BackgroundTask):
         """Синхронизирует состояние задачи с бэкендом очереди."""
@@ -481,9 +484,15 @@ class TaskQueueManager:
             logger.debug(f"[TaskManager] Ошибка сохранения состояния {task.job_id}: {e}")
 
     def _finalize_task(self, task: BackgroundTask):
-        """Завершает задачу: отправляет оповещения, вызывает callbacks и чистит спул."""
+        """Завершает задачу: отправляет оповещения, подтверждает ACK в очереди, вызывает callbacks и чистит спул."""
         if task.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED):
             return
+
+        # Подтверждаем удаление из очереди активной обработки (ACK)
+        try:
+            self.backend.ack_job(task.job_id)
+        except Exception as ack_err:
+            logger.debug(f"[TaskManager] Ошибка ACK для задачи {task.job_id}: {ack_err}")
 
         # 1. Рассылка WebSocket событий
         try:

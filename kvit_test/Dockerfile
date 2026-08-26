@@ -15,11 +15,12 @@ RUN pip install --no-cache-dir --only-binary :all: --user \
     PyMuPDF==1.25.3 \
     xlrd==2.0.1 \
     openpyxl==3.1.5 \
-    grpcio==1.70.0 \
-    protobuf==5.29.3 \
+    grpcio>=1.83.0 \
+    protobuf>=7.35.1 \
     pytest==8.3.4 \
     pytest-cov==6.0.0 \
-    psycopg2-binary==2.9.10
+    psycopg2-binary==2.9.10 \
+    redis>=5.0.0
 
 # --- Этап 2: Финальный легковесный образ ---
 FROM python:3.11-slim AS runner
@@ -36,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Создаём непривилегированного пользователя appuser для безопасности
 RUN useradd -m -u 1000 appuser && \
-    mkdir -p /app/receipts /app/logs /app/data && \
+    mkdir -p /app/receipts /app/logs /app/data /app/data/spool /app/data/processing /app/data/failed && \
     chown -R appuser:appuser /app/receipts /app/logs /app/data
 
 # Копируем установленные пакеты из builder
@@ -46,7 +47,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Копируем только необходимые модули и каталоги приложения
-COPY app.py bot.py config.py logger.py server.py import_data.py encrypt_env.py grpc_client.py ./
+COPY app.py bot.py worker.py config.py logger.py server.py import_data.py encrypt_env.py grpc_client.py ./
 COPY database/ ./database/
 COPY services/ ./services/
 COPY templates/ ./templates/

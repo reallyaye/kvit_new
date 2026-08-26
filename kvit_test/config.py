@@ -59,6 +59,10 @@ def _load_env():
 
 _load_env()
 
+# ────────────────────── Окружение ──────────────────────
+APP_ENV = os.environ.get('APP_ENV', 'development').lower().strip()
+IS_PRODUCTION = (APP_ENV == 'production')
+
 # ────────────────────── Пути к файлам и БД ──────────────────────
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 DB_PATH = os.environ.get('DB_PATH', 'data.sqlite3')
@@ -292,9 +296,21 @@ TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN)
 # ────────────────────── Логирование ──────────────────────
 LOG_FILE = os.environ.get('LOG_FILE', 'logs/app.log')
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
-LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', str(5 * 1024 * 1024))) # 5 МБ
-LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))            # 5 ротированных файлов
+LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', str(5 * 1024 * 1024)))  # 5 МБ
+LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))             # 5 ротированных файлов
 
+# ────────────────────── Очереди задач & Redis ──────────────────────
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+REDIS_ENABLED = os.environ.get('REDIS_ENABLED', '0').lower() in ('1', 'true', 'yes')
+REDIS_SOCKET_TIMEOUT = float(os.environ.get('REDIS_SOCKET_TIMEOUT', '5.0'))
+REDIS_QUEUE_KEY = os.environ.get('REDIS_QUEUE_KEY', 'kvit:tasks:pdf_queue')
+REDIS_PROCESSING_KEY = os.environ.get('REDIS_PROCESSING_KEY', 'kvit:tasks:processing')
+REDIS_DLQ_KEY = os.environ.get('REDIS_DLQ_KEY', 'kvit:tasks:dlq')
+REDIS_TASKS_HASH = os.environ.get('REDIS_TASKS_HASH', 'kvit:tasks:metadata')
 
-
+WORKER_COUNT = int(os.environ.get('WORKER_COUNT', '4'))
+RUN_EMBEDDED_WORKER = os.environ.get('RUN_EMBEDDED_WORKER', '1').lower() in ('1', 'true', 'yes')
+JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '300'))                     # 5 минут на задачу
+JOB_RETRY_COUNT = int(os.environ.get('JOB_RETRY_COUNT', '3'))               # Количество повторов при ошибке
+QUEUE_VISIBILITY_TIMEOUT = int(os.environ.get('QUEUE_VISIBILITY_TIMEOUT', '300'))  # Visibility timeout (сек)
 
