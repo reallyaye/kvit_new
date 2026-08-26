@@ -26,14 +26,14 @@ chmod 755 "$KVIT_DIR"
 
 # 3. Настройка виртуального окружения Python
 echo "[*] Создание Python venv и установка зависимостей..."
-if [ ! -d "$KVIT_DIR/venv" ]; then
+if [[ ! -d "$KVIT_DIR/venv" ]]; then
     python3 -m venv "$KVIT_DIR/venv"
 fi
 "$KVIT_DIR/venv/bin/pip" install --upgrade pip
 "$KVIT_DIR/venv/bin/pip" install -r "$KVIT_DIR/requirements.txt"
 
 # 4. Настройка файла переменных окружения (.env)
-if [ ! -f "$KVIT_DIR/.env" ]; then
+if [[ ! -f "$KVIT_DIR/.env" ]]; then
     echo "[*] Создание .env из шаблона..."
     cp "$KVIT_DIR/.env.example" "$KVIT_DIR/.env"
     
@@ -56,7 +56,7 @@ systemctl restart kvit
 
 # 6. Настройка Nginx
 echo "[*] Настройка конфигурации Nginx..."
-if [ -f "$NGINX_CONF_SRC" ]; then
+if [[ -f "$NGINX_CONF_SRC" ]]; then
     cp "$NGINX_CONF_SRC" /etc/nginx/sites-available/krec
     ln -sf /etc/nginx/sites-available/krec /etc/nginx/sites-enabled/krec
     nginx -t && systemctl reload nginx

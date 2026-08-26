@@ -28,7 +28,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install ruff bandit pip-audit
-          if [ -f kvit_test/requirements.txt ]; then pip install -r kvit_test/requirements.txt; fi
+          if [[ -f kvit_test/requirements.txt ]]; then pip install -r kvit_test/requirements.txt; fi
 
       - name: Run Ruff Linter & Formatter Check
         run: |
@@ -72,7 +72,7 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f kvit_test/requirements.txt ]; then pip install -r kvit_test/requirements.txt; fi
+          if [[ -f kvit_test/requirements.txt ]]; then pip install -r kvit_test/requirements.txt; fi
           pip install pytest pytest-cov
 
       - name: Run Full Unit & Integration Test Suite
@@ -113,7 +113,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f kvit_test/requirements.txt ]; then pip install -r kvit_test/requirements.txt; fi
+          if [[ -f kvit_test/requirements.txt ]]; then pip install -r kvit_test/requirements.txt; fi
 
       - name: Verify Clean Database Migration Fail-Fast
         run: |
