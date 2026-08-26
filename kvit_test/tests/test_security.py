@@ -397,18 +397,20 @@ def test_session_store_db_failure_policies():
     # 3. Тест политики STRICT
     store_strict = DatabaseSessionStore(l1_ttl_seconds=10.0, db_failure_policy=DBFailurePolicy.STRICT)
     with mock.patch("services.security.session_store.write_transaction", side_effect=RuntimeError("Fatal DB Error")):
+        caught_save = False
         try:
             store_strict.save_session(token, now + 3600, now)
-            assert False, "Ожидалось исключение в режиме STRICT"
         except RuntimeError:
-            pass
+            caught_save = True
+        assert caught_save is True, "Ожидалось исключение в режиме STRICT"
 
     with mock.patch("services.security.session_store.get_db", side_effect=RuntimeError("Fatal DB Read Error")):
+        caught_get = False
         try:
             store_strict.get_session_expiry(token)
-            assert False, "Ожидалось исключение в режиме STRICT"
         except RuntimeError:
-            pass
+            caught_get = True
+        assert caught_get is True, "Ожидалось исключение в режиме STRICT"
 
 def test_env_crypto_encode_decode():
     from config import _decode_env_val
@@ -437,11 +439,15 @@ def test_database_migration_fail_fast():
 
     # 2. Имитация критического сбоя (например, повреждение структуры или ошибка доступа)
     with mock.patch("database.connection.sqlite3.connect", side_effect=Exception("Disk I/O failure or permission denied")):
+        caught_migration = False
+        migration_msg = ""
         try:
             migrate_db()
-            assert False, "Миграция обязана выбросить DatabaseMigrationError при сбое"
         except DatabaseMigrationError as e:
-            assert "Database migration failed" in str(e)
+            caught_migration = True
+            migration_msg = str(e)
+        assert caught_migration is True, "Миграция обязана выбросить DatabaseMigrationError при сбое"
+        assert "Database migration failed" in migration_msg
 
 def test_postgres_backend_wrapper_and_dialect():
     """Тестирует PostgresRowWrapper, PostgresCursorWrapper и трансляцию диалекта SQL."""
@@ -522,6 +528,7 @@ def test_csrf_token_lifecycle_and_validation():
 
     from server import AppRequestHandler
     from services.security.auth_service import auth_service
+    import config
 
     session_token = auth_service.create_session()
     csrf_token = auth_service.get_csrf_token(session_token)
@@ -559,11 +566,12 @@ def test_csrf_token_lifecycle_and_validation():
     old_secret = config.SECRET_KEY
     try:
         config.SECRET_KEY = ""
+        caught_secret = False
         try:
             auth_service.get_csrf_token(new_session)
-            assert False, "Ожидалось исключение ValueError при отсутствии SECRET_KEY"
         except ValueError:
-            pass
+            caught_secret = True
+        assert caught_secret is True, "Ожидалось исключение ValueError при отсутствии SECRET_KEY"
         assert auth_service.verify_csrf_token(new_session, "any_token") is False
     finally:
         config.SECRET_KEY = old_secret
@@ -687,25 +695,34 @@ def test_validate_safe_path_canonicalization_and_traversal():
         assert safe_res2 == os.path.realpath(inside_file)
 
         # 3. Path Traversal побег наружу
+        caught_traversal = False
+        traversal_msg = ""
         try:
             validate_safe_path(os.path.join(base_dir, '..', '..', 'etc', 'passwd'), base_dir=base_dir)
-            assert False, "Должен выбросить ValueError при попытке path traversal"
         except ValueError as e:
-            assert "выходит за пределы" in str(e)
+            caught_traversal = True
+            traversal_msg = str(e)
+        assert caught_traversal is True, "Должен выбросить ValueError при попытке path traversal"
+        assert "выходит за пределы" in traversal_msg
 
         # 4. Partial Path Traversal атака (совпадение префикса без разделителя)
+        caught_partial = False
+        partial_msg = ""
         try:
             validate_safe_path(trap_file, base_dir=base_dir)
-            assert False, "Должен выбросить ValueError при попытке partial path traversal"
         except ValueError as e:
-            assert "выходит за пределы" in str(e)
+            caught_partial = True
+            partial_msg = str(e)
+        assert caught_partial is True, "Должен выбросить ValueError при попытке partial path traversal"
+        assert "выходит за пределы" in partial_msg
 
         # 5. Пустой путь
+        caught_empty = False
         try:
             validate_safe_path('', base_dir=base_dir)
-            assert False, "Должен выбросить ValueError при пустом пути"
         except ValueError:
-            pass
+            caught_empty = True
+        assert caught_empty is True, "Должен выбросить ValueError при пустом пути"
 
     finally:
         shutil.rmtree(base_dir, ignore_errors=True)

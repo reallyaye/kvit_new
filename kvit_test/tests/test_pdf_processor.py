@@ -414,11 +414,12 @@ def test_atomic_importer_2phase_commit_and_rollback(tmp_path):
     )
 
     with mock.patch("database.connection.sqlite3.connect", side_effect=Exception("Database lock/disk crash simulation")):
+        caught_batch_err = False
         try:
             AtomicReceiptImporter.commit_staged_batch([fail_staged])
-            assert False, "Должно было произойти исключение"
         except Exception:
-            pass
+            caught_batch_err = True
+        assert caught_batch_err is True, "Должно было произойти исключение при сбое БД"
 
     # Проверяем, что файл НЕ остался на диске (0 висячих файлов)
     assert not os.path.isfile(fail_staged.target_full_path)
