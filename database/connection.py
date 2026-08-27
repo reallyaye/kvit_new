@@ -9,12 +9,27 @@ from logger import logger
 
 # Глобальный мьютекс для строгой сериализации параллельных операций записи в SQLite
 _DB_WRITE_LOCK = threading.Lock()
+# Глобальный мьютекс для потокобезопасной инициализации пула PostgreSQL
+_PG_INIT_LOCK = threading.Lock()
 
 def is_postgres_configured() -> bool:
     """Проверяет, настроена ли работа через PostgreSQL."""
     db_url = getattr(config, 'DATABASE_URL', '') or ''
     db_type = getattr(config, 'DB_TYPE', '').lower()
     return db_url.startswith(('postgresql://', 'postgres://')) or db_type == 'postgres'
+
+def _ensure_postgres_initialized():
+    """Потокобезопасно гарантирует инициализацию пула PostgreSQL."""
+    from database import postgres_backend
+    if postgres_backend._PG_POOL is None:
+        with _PG_INIT_LOCK:
+            if postgres_backend._PG_POOL is None:
+                if not getattr(config, 'DATABASE_URL', None):
+                    raise RuntimeError(
+                        "[DB] ❌ КРИТИЧЕСКАЯ ОШИБКА: Задана конфигурация PostgreSQL, но переменная DATABASE_URL пуста! "
+                        "Укажите DATABASE_URL=postgresql://user:password@host:5432/dbname"
+                    )
+                postgres_backend.init_postgres_pool(config.DATABASE_URL)
 
 def get_db():
     """
@@ -23,14 +38,8 @@ def get_db():
     - Development / Small installations / Tests: SQLite (WAL, mmap_size=256MB, кэш 64MB).
     """
     if is_postgres_configured():
-        from database.postgres_backend import _PG_POOL, get_postgres_db, init_postgres_pool
-        if _PG_POOL is None:
-            if not config.DATABASE_URL:
-                raise RuntimeError(
-                    "[DB] ❌ КРИТИЧЕСКАЯ ОШИБКА: Задана конфигурация PostgreSQL, но переменная DATABASE_URL пуста! "
-                    "Укажите DATABASE_URL=postgresql://user:password@host:5432/dbname"
-                )
-            init_postgres_pool(config.DATABASE_URL)
+        _ensure_postgres_initialized()
+        from database.postgres_backend import get_postgres_db
         return get_postgres_db()
 
     if getattr(config, 'IS_PRODUCTION', False):
@@ -59,6 +68,7 @@ def write_transaction(max_retries: int = 10, base_delay: float = 0.05):
     - SQLite: строгая сериализация через мьютекс и BEGIN IMMEDIATE с jitter-backoff
     """
     if is_postgres_configured():
+        _ensure_postgres_initialized()
         from database.postgres_backend import postgres_write_transaction
         with postgres_write_transaction() as con:
             yield con
