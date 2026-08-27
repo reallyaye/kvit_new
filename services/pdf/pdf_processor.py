@@ -369,7 +369,7 @@ class PDFProcessor:
             existing_hashes.add(content_hash)
 
             # Создаем подготовленную квитанцию (StagedReceipt) без прямой записи на диск
-            is_orphan = (account not in valid_accounts)
+            is_orphan = (known_accounts is not None and account not in known_accounts)
             staged_item = AtomicReceiptImporter.stage_receipt(
                 account=account,
                 period=period,
@@ -394,7 +394,7 @@ class PDFProcessor:
             # Атомарная фиксация квитанции через 2-Phase Commit
             AtomicReceiptImporter.commit_staged_batch([staged_item])
 
-            if account in valid_accounts:
+            if not is_orphan:
                 added += 1
                 details.append(f'  {page_range_str}: счёт {account}, период «{period}» → ✅ привязан (READY)')
             else:
