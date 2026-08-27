@@ -70,7 +70,7 @@ services:
       - GRPC_API_KEY=${GRPC_API_KEY:?Обязательно укажите GRPC_API_KEY в .env}
       - TRUST_PROXY=true
     volumes:
-      - kvit-data:/app/data
+      - ./data:/app/data
       - kvit-receipts:/app/receipts
       - kvit-logs:/app/logs
     networks:
@@ -110,7 +110,7 @@ services:
       - MAX_OCR_CONCURRENT_WORKERS=${MAX_OCR_CONCURRENT_WORKERS:-2}
       - SECRET_KEY=${SECRET_KEY:?Обязательно укажите SECRET_KEY в .env}
     volumes:
-      - kvit-data:/app/data
+      - ./data:/app/data
       - kvit-receipts:/app/receipts
       - kvit-logs:/app/logs
     networks:
@@ -140,6 +140,5 @@ networks:
 volumes:
   postgres-data:
   redis-data:
-  kvit-data:
   kvit-receipts:
   kvit-logs:

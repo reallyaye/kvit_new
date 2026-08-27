@@ -46,6 +46,10 @@ DOCUMENTS_REGISTRY = load_documents_registry()
 
 def render_page(page_name: str, is_admin: bool = False) -> str:
     """Рендерит именованную страницу портала (home, contacts, reports, etc.)."""
+    global PORTAL_PAGES
+    if not PORTAL_PAGES:
+        PORTAL_PAGES = load_portal_pages()
+
     clean_name = page_name.lower().lstrip('/').removesuffix('.php')
     if clean_name in ('', 'index', 'main'):
         clean_name = 'home'

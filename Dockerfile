@@ -53,6 +53,7 @@ COPY services/ ./services/
 COPY templates/ ./templates/
 COPY static/ ./static/
 COPY proto/ ./proto/
+COPY data/ ./data/
 
 USER appuser
 
