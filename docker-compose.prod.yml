@@ -89,10 +89,13 @@ services:
       - kvit-api
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/nginx/ssl/live:ro
+      - ${SSL_CERT_PATH:-/etc/letsencrypt/live/krec.kz/fullchain.pem}:/etc/nginx/ssl/fullchain.pem:ro
+      - ${SSL_KEY_PATH:-/etc/letsencrypt/live/krec.kz/privkey.pem}:/etc/nginx/ssl/privkey.pem:ro
+      - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
       - ./static:/app/static:ro
       - /opt/kvit/receipts:/app/receipts:ro
       - /opt/kvit/logs/nginx:/var/log/nginx
+
     networks:
       - kvit-net
 

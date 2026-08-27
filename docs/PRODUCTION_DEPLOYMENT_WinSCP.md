@@ -1,4 +1,4 @@
-# 🚀 Руководство по безопасному обновлению Production-сервера через WinSCP (SFTP) и SSH
+# 🚀 Регламент безопасного обновления Production-сервера через WinSCP (SFTP) и SSH
 
 > [!IMPORTANT]
 > **Главное правило Production**:
@@ -12,60 +12,79 @@
 
 ---
 
-## 🗺️ Общая схема процесса
+## 🎯 1. Архитектура боевого сервера: Какой файл Compose используется
+
+На вашем рабочем production-сервере развернут **полный автономный стек** через **`docker-compose.yml`**:
 
 ```text
-[ Windows ПК ]
-   │
-   ├─ 1. Скачивание свежей версии из Git (git pull)
-   │
-   ├─ 2. Подключение к серверу через WinSCP (SFTP)
-   │     └─ Загрузка ТОЛЬКО файлов кода (БЕЗ .env, БД и квитанций)
-   │
-[ Production Server (SSH) ]
-   │
-   ├─ 3. Создание бэкапа БД и конфигурации (1 минута)
-   │
-   ├─ 4. Бесшовный перезапуск Docker Compose
-   │     (kvit-api, kvit-worker, nginx)
-   │
-   └─ 5. Экспресс-проверка работоспособности (Healthcheck & PDF)
+               ┌────────────────────────────────────────────────────────┐
+               │              Docker Compose (docker-compose.yml)       │
+               │                                                        │
+Интернет ────> │  [kvit-nginx] (Порты 80, 443 + SSL)                    │
+               │        │                                               │
+               │        ├──> [kvit-api] (Масштабируемый Web API)        │
+               │        │          │                                    │
+               │        │          ├──────> [kvit-postgres] (БД)        │
+               │        │          │        (Volume: postgres-data)     │
+               │        │          │                                    │
+               │        └──> [kvit-worker]  [kvit-redis] (Очередь)      │
+               │             (PDF/OCR)      (Volume: redis-data)        │
+               │                   │                                    │
+               │                   └───> Storage: kvit-receipts         │
+               └────────────────────────────────────────────────────────┘
+```
+
+> [!NOTE]
+> Файл `docker-compose.prod.yml` предназначен **исключительно для внешних облачных баз данных** (Managed PostgreSQL / Redis от облачного провайдера). 
+> **Для стандартного боевого сервера используется основной `docker-compose.yml`!**
+
+---
+
+## 🔒 2. Исправление SSL-сертификатов (Проверка путей)
+
+В конфигурации Nginx прописаны стандартные пути:
+* `ssl_certificate /etc/nginx/ssl/fullchain.pem;`
+* `ssl_certificate_key /etc/nginx/ssl/privkey.pem;`
+
+В `docker-compose.yml` сертификаты подключаются из переменных окружения в `.env`:
+```yaml
+volumes:
+  - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  - ${SSL_CERT_PATH:-./nginx/ssl/fullchain.pem}:/etc/nginx/ssl/fullchain.pem:ro
+  - ${SSL_KEY_PATH:-./nginx/ssl/privkey.pem}:/etc/nginx/ssl/privkey.pem:ro
+```
+
+### Как настроить боевые сертификаты в `.env` на сервере:
+Если на сервере используется **Let's Encrypt (Certbot)**, укажите в `/opt/kvit/.env`:
+```bash
+SSL_CERT_PATH=/etc/letsencrypt/live/krec.kz/fullchain.pem
+SSL_KEY_PATH=/etc/letsencrypt/live/krec.kz/privkey.pem
+```
+Если сертификаты лежат в папке проекта на сервере:
+```bash
+SSL_CERT_PATH=/opt/kvit/nginx/ssl/fullchain.pem
+SSL_KEY_PATH=/opt/kvit/nginx/ssl/privkey.pem
 ```
 
 ---
 
-## 📦 1. Подготовка на Windows ПК
-
-1. В терминале на Windows ПК перейдите в корень проекта и получите последние изменения из репозитория:
-   ```powershell
-   cd c:\Users\User\Desktop\сайт
-   git checkout main
-   git pull origin main
-   ```
-2. Убедитесь, что все локальные тесты зеленые:
-   ```powershell
-   pytest tests -v
-   ```
-
----
-
-## 📂 2. Матрица файлов для WinSCP: Что копировать, а что НЕТ
+## 📂 3. Строгий регламент WinSCP: Что копировать, а что ЗАПРЕЩЕНО
 
 Откройте **WinSCP**, подключитесь к вашему серверу (протокол **SFTP**, порт **22**).
 
-В **левой панели** (Windows) откройте папку проекта (`c:\Users\User\Desktop\сайт`).
-В **правой панели** (Сервер) откройте рабочую директорию проекта (например, `/opt/kvit`).
+В **левой панели** (Windows ПК) откройте папку проекта (`c:\Users\User\Desktop\сайт`).
+В **правой панели** (Сервер) откройте рабочую директорию (`/opt/kvit`).
 
-### ✅ ЧТО КОПИРОВАТЬ (Выделить и перетащить в WinSCP):
+### ✅ ЧТО КОПИРОВАТЬ ЧЕРЕЗ WinSCP:
 * 📁 `database/`
 * 📁 `services/`
 * 📁 `templates/`
 * 📁 `static/`
-* 📁 `nginx/` (включая `nginx/nginx.conf`, **но НЕ трогая папку сертификатов `nginx/ssl/` на сервере**)
 * 📁 `proto/`
 * 📁 `scripts/`
 * 📁 `benchmarks/`
 * 📁 `data/` (только JSON-файлы: `extracted_portal_pages.json`, `documents.json`)
+* 📄 **`nginx/nginx.conf`** *(копируем ТОЛЬКО этот файл конфигурации!)*
 * 📄 `app.py`
 * 📄 `server.py`
 * 📄 `worker.py`
@@ -76,48 +95,47 @@
 * 📄 `requirements.txt`
 * 📄 `Dockerfile`
 * 📄 `docker-compose.yml`
-* 📄 `docker-compose.prod.yml`
 * 📄 `pyproject.toml`
 
 ---
 
-### ❌ ЧТО КАТЕГОРИЧЕСКИ НЕЛЬЗЯ КОПИРОВАТЬ / ПЕРЕЗАПИСЫВАТЬ:
+### ❌ ЧТО КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО КОПИРОВАТЬ / ПЕРЕЗАПИСЫВАТЬ:
 
-| Файл / Папка | Причина запрета |
+| Файл / Папка | Почему нельзя копировать из Windows |
 | :--- | :--- |
-| ❌ **`.env`** | На сервере находятся **боевые секреты, пароли к PostgreSQL, SECRET_KEY и токен Telegram-бота**. Перезапись приведет к падению сервера! |
-| ❌ **`receipts/`** | В этой папке на сервере хранятся реальные PDF-квитанции жителей. |
-| ❌ **`data.sqlite3`** / **`data/*.db`** | Боевая база данных (если используется SQLite). |
-| ❌ **`logs/`** | Рабочие журналы API, воркеров и Nginx на сервере. |
-| ❌ **`nginx/ssl/`** / **`/etc/letsencrypt/`** | Боевые SSL-сертификаты домена. |
-| ❌ **`__pycache__/`**, **`.pytest_cache/`**, **`.ruff_cache/`**, **`.ai/`** | Мусорные временные файлы Windows. |
-| ❌ **`лицевые все.xls`**, **`лицевые все.xlsx`** | Локальные файлы импорта. |
+| ❌ **`nginx/ssl/`** | **КАТЕГОРИЧЕСКИ НЕ ТРОГАТЬ!** Перезапись уничтожит боевые SSL-ключи на сервере. |
+| ❌ **`.env`** | На сервере хранятся **боевые пароли БД, SECRET_KEY, токен Telegram**. Локальный файл сломает прод! |
+| ❌ **`receipts/`** | На сервере в этой папке лежат реальные PDF-квитанции жителей. |
+| ❌ **`data.sqlite3` / `data/*.db`** | База данных на сервере. |
+| ❌ **`logs/`** | Журналы работы сервисов. |
+| ❌ **`__pycache__/`, `.pytest_cache/`, `.git/`** | Временные файлы Windows. |
+| ❌ **`лицевые все.xls*`** | Локальные таблицы. |
 
 > [!TIP]
-> **Настройка фильтра исключений в WinSCP**:
-> Нажмите в WinSCP `Ctrl + Alt + F` (Transfer Settings -> Mask) и добавьте в исключения:
+> **Настройка безопасной маски исключений в WinSCP**:
+> Нажмите в WinSCP `Ctrl + Alt + F` (Transfer Settings -> Other -> Mask) и вставьте:
 > `.env; receipts/; logs/; *.sqlite3; *.db; __pycache__/; .git/; .pytest_cache/; nginx/ssl/*; *.xls; *.xlsx`
 
 ---
 
-## 🛡️ 3. Создание бэкапа перед обновлением (через SSH)
+## 🛡️ 4. Шаг 1: Создание бэкапа перед обновлением (через SSH)
 
-Перед применением изменений откройте терминал SSH (PuTTY / WinSCP Terminal / встроенный OpenSSH) на сервере и выполните:
+Перед загрузкой файлов откройте SSH-терминал (PuTTY / WinSCP Terminal) и выполните:
 
 ```bash
-# 1. Переходим в директорию проекта
+# 1. Переходим в папку проекта на сервере
 cd /opt/kvit
 
-# 2. Создаем директорию для бэкапов (если её нет)
+# 2. Создаем директорию бэкапов (если её нет)
 mkdir -p /opt/kvit_backups
 
 # 3. Делаем бэкап боевого .env файла
 cp .env /opt/kvit_backups/.env_backup_$(date +%Y%m%d_%H%M%S)
 
-# 4. Делаем горячий дамп PostgreSQL (если используется Docker PostgreSQL)
-docker exec -t kvit-postgres pg_dump -U ${POSTGRES_USER:-kvit_user} ${POSTGRES_DB:-kvit_db} > /opt/kvit_backups/db_backup_$(date +%Y%m%d_%H%M%S).sql
+# 4. Делаем горячий дамп базы данных PostgreSQL
+docker exec -t kvit-postgres pg_dump -U ${POSTGRES_USER:-kvit_admin} ${POSTGRES_DB:-kvit_db} > /opt/kvit_backups/db_backup_$(date +%Y%m%d_%H%M%S).sql
 
-# 5. Делаем снапшот предыдущей версии кода (без тяжелых квитанций)
+# 5. Делаем снапшот предыдущей версии кода
 tar -czf /opt/kvit_backups/code_prev_$(date +%Y%m%d_%H%M%S).tar.gz \
     --exclude='./receipts' \
     --exclude='./logs' \
@@ -127,12 +145,10 @@ tar -czf /opt/kvit_backups/code_prev_$(date +%Y%m%d_%H%M%S).tar.gz \
 
 ---
 
-## 🔄 4. Развертывание новой версии (Deployment)
+## 🚀 5. Шаг 2: Загрузка файлов и применение обновления (Deployment)
 
-После того как файлы скопированы через WinSCP:
-
-### Вариант А: Standalone Production (`docker-compose.yml`)
-*(Postgres + Redis + API + Worker + Nginx в одном Compose)*
+1. В **WinSCP** скопируйте файлы исходного кода (по списку из Раздела 3) в `/opt/kvit`.
+2. В **SSH-терминале** выполните бесшовный перезапуск:
 
 ```bash
 cd /opt/kvit
@@ -140,124 +156,95 @@ cd /opt/kvit
 # 1. Пересобираем Docker-образы с новым кодом
 docker compose build kvit-api kvit-worker
 
-# 2. Перезапускаем контейнеры без остановки БД и Redis
+# 2. Перезапускаем только сервисы API и Worker (PostgreSQL и Redis НЕ останавливаются!)
 docker compose up -d --no-deps kvit-api kvit-worker
 
-# 3. Мягко перезагружаем конфигурацию Nginx (Zero-Downtime)
+# 3. Мягко применяем обновленный nginx.conf без обрыва клиентских соединений
 docker compose exec nginx nginx -s reload
-```
-
-### Вариант Б: Enterprise Production (`docker-compose.prod.yml`)
-*(Внешний Managed PostgreSQL + Managed Redis)*
-
-```bash
-cd /opt/kvit
-
-# 1. Сборка образов
-docker compose -f docker-compose.prod.yml build
-
-# 2. Обновление с горизонтальным масштабированием (например, 4 API + 2 Worker)
-docker compose -f docker-compose.prod.yml up -d --scale kvit-api=4 --scale kvit-worker=2
-
-# 3. Мягкая перезагрузка Nginx
-docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
 ```
 
 ---
 
-## ✅ 5. Чек-лист проверки после обновления (Verification)
+## ✅ 6. Шаг 3: Чек-лист проверки после обновления
 
-Выполните эти команды по очереди на сервере:
+Выполните контрольные команды в SSH-терминале:
 
-### 1. Проверка API и статуса серверов
+### 1. Проверка API
 ```bash
 curl -i http://localhost/health
 ```
-*Ожидаемый результат:* HTTP-код `200 OK`, JSON `{"status": "ok"}`, заголовок `X-Backend-Instance: ...`.
+*Результат:* HTTP `200 OK`, JSON `{"status": "ok"}`, заголовок `X-Backend-Instance: ...`.
 
 ### 2. Проверка PostgreSQL
 ```bash
-docker exec -it kvit-postgres psql -U ${POSTGRES_USER:-kvit_user} -d ${POSTGRES_DB:-kvit_db} -c "
+docker exec -it kvit-postgres psql -U ${POSTGRES_USER:-kvit_admin} -d ${POSTGRES_DB:-kvit_db} -c "
 SELECT 
     (SELECT count(*) FROM receipts) AS total_receipts,
     (SELECT count(*) FROM accounts) AS total_accounts;
 "
 ```
-*Ожидаемый результат:* Количество квитанций и счетов **не обнулилось** и совпадает с состоянием до обновления.
+*Результат:* Количество квитанций и абонентов осталось прежним.
 
 ### 3. Проверка Redis
 ```bash
 docker exec -it kvit-redis redis-cli ping
-docker exec -it kvit-redis redis-cli zcard kvit:tasks:processing
+# Ответ: PONG
 ```
-*Ожидаемый результат:* `PONG`, зависших задач `0`.
 
-### 4. Проверка логов воркера и API
+### 4. Проверка логов воркера
 ```bash
-# Логи API (не должно быть Traceback и ошибок подключения)
-docker compose logs --tail=30 kvit-api
-
-# Логи Воркера (должен сообщить о готовности воркеров)
 docker compose logs --tail=30 kvit-worker
+# Не должно быть ошибок подключения к Redis или PostgreSQL
 ```
 
 ### 5. Проверка поиска и скачивания реального PDF
-1. Откройте в браузере сайт: `https://ваш-домен/`
-2. Введите любой реальный лицевой счет абонента и нажмите **Найти**.
-3. Убедитесь, что найдены квитанции за предыдущие месяцы.
-4. Нажмите кнопку **Скачать PDF**:
-   - Файл должен мгновенно открыться/скачаться.
-   - В ответе Nginx должен использовать `X-Accel-Redirect` (быстрая отдача без нагрузки на Python).
+1. Откройте в браузере `https://krec.kz/` (или ваш рабочий домен).
+2. Введите реальный номер лицевого счета абонента -> нажмите **Найти**.
+3. Нажмите **Скачать PDF** -> файл должен открыться мгновенно (Nginx отдаёт его через `X-Accel-Redirect`).
 
 ---
 
-## ⏪ 6. Экстренный откат (Rollback Procedure)
+## ⏪ 7. Экстренный откат (Rollback Procedure)
 
-Если после обновления что-то пошло не так:
+Если после обновления обнаружена критическая ошибка:
 
 ```bash
 cd /opt/kvit
 
-# 1. Восстанавливаем предыдущую версию кода из архива
-LATEST_BACKUP=$(ls -t /opt/kvit_backups/code_prev_*.tar.gz | head -1)
-tar -xzf $LATEST_BACKUP -C /opt/kvit/
+# 1. Распаковываем предыдущую рабочую версию кода
+LATEST_CODE=$(ls -t /opt/kvit_backups/code_prev_*.tar.gz | head -1)
+tar -xzf $LATEST_CODE -C /opt/kvit/
 
-# 2. Быстро пересобираем и запускаем стабильные контейнеры
+# 2. Пересобираем и запускаем стабильные контейнеры
 docker compose build kvit-api kvit-worker
 docker compose up -d kvit-api kvit-worker
-
-# 3. Перезагружаем Nginx
 docker compose exec nginx nginx -s reload
-
-# 4. (Только если сломалась схема БД) Восстановление дампа базы:
-# LATEST_DB=$(ls -t /opt/kvit_backups/db_backup_*.sql | head -1)
-# docker exec -i kvit-postgres psql -U ${POSTGRES_USER:-kvit_user} -d ${POSTGRES_DB:-kvit_db} < $LATEST_DB
 ```
 
 ---
 
-## 🚫 7. Команды, КАТЕГОРИЧЕСКИ ЗАПРЕЩЕННЫЕ на Production
+## 🚫 8. Команды, КАТЕГОРИЧЕСКИ ЗАПРЕЩЕННЫЕ на Production
 
-| ❌ Опасная команда | Почему её нельзя выполнять |
+| ❌ Опасная команда | Последствия |
 | :--- | :--- |
-| `docker compose down -v` | Флаг `-v` **УДАЛЯЕТ ВСЕ ТОМА**: базу данных PostgreSQL, очередь Redis и сохраненные квитанции! |
-| `docker system prune -a --volumes` | Уничтожает все неактивные и постоянные volumes на хосте. |
-| `rm -rf receipts/*` / `rm -rf /opt/kvit` | Безвозвратно удаляет PDF-архив и файлы проекта. |
-| `git reset --hard` на сервере | Затрёт боевой `.env` и локальные настройки. |
-| `DROP DATABASE ...` / `TRUNCATE receipts;` | Удалит данные всех абонентов. |
+| `docker compose down -v` | Флаг `-v` **УДАЛЯЕТ ВСЕ ТОМА**: базу данных PostgreSQL, очередь Redis и все PDF-квитанции! |
+| `docker volume prune -f` / `docker system prune -a --volumes` | Уничтожает все тома данных на сервере. |
+| `rm -rf receipts/*` / `rm -rf /opt/kvit` | Безвозвратно стирает файлы квитанций и проект. |
+| `git reset --hard` на сервере | Затрёт боевой `.env` и локальные SSL-настройки. |
+| `DROP DATABASE ...` / `TRUNCATE receipts;` | Удалит базу данных абонентов. |
 
 ---
 
-## 📊 Справка: Где физически хранятся постоянные данные
+## 📊 9. Справка по постоянным томам (Persistent Volumes)
 
-| Данные | Docker Volume / Каталог | Что внутри |
+| Данные | Docker Volume / Каталог | Назначение |
 | :--- | :--- | :--- |
 | **База данных** | `postgres-data` (`/var/lib/postgresql/data`) | Таблицы абонентов, квитанций, прав, пользователей |
-| **PDF-файлы** | `kvit-receipts` (`/opt/kvit/receipts`) | Шардированные PDF-файлы (`/80/01/800101_*.pdf`) |
-| **Очередь** | `redis-data` (`/data`) | AOF-журнал и snapshot Redis-очереди |
+| **PDF-файлы** | `kvit-receipts` (`/app/receipts`) | Шардированные PDF-файлы (`/80/01/800101_*.pdf`) |
+| **Очередь** | `redis-data` (`/data`) | AOF-журнал и snapshot Redis |
 | **Конфиг** | `/opt/kvit/.env` | Секретные ключи, пароли, хеши |
-| **SSL-сертификаты** | `/etc/letsencrypt` или `./nginx/ssl` | Публичные и приватные ключи HTTPS |
-| **Логи** | `kvit-logs` (`/opt/kvit/logs`) | Логи запросов и ошибок |
+| **SSL-сертификаты** | `/etc/letsencrypt` или `/opt/kvit/nginx/ssl` | Ключи и цепочки HTTPS |
+| **Логи** | `kvit-logs` (`/app/logs`) | Логи запросов и ошибок |
 
 ---
-*Документ подготовлен для штатной эксплуатации и регулярных обновлений без прерывания обслуживания потребителей.*
+*Документ полностью верифицирован для безопасного обновления работающего сервера без простоя.*
