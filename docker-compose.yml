@@ -69,7 +69,7 @@ services:
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:?Обязательно укажите ADMIN_PASSWORD_HASH в .env}
       - GRPC_API_KEY=${GRPC_API_KEY:?Обязательно укажите GRPC_API_KEY в .env}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-8814516515:AAF8WY7PD1_vvvcBbTD1hP2Xg7mOGsFkuPc}
-      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-}
+      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-6910951442}
       - TRUST_PROXY=true
     volumes:
       - ./data:/app/data

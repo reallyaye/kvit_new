@@ -62,7 +62,7 @@ class TelegramBotService:
 
     def is_admin(self, user_id: int) -> bool:
         """Проверяет, является ли пользователь администратором."""
-        if user_id in self.admin_ids:
+        if user_id in self.admin_ids or user_id in config.TELEGRAM_ADMIN_IDS:
             return True
         if user_id in self.authenticated_users:
             return True
@@ -82,7 +82,7 @@ class TelegramBotService:
 
     def get_all_admin_ids(self) -> Set[int]:
         """Возвращает множество всех ID администраторов (из config, активных сессий и БД)."""
-        admins = set(self.admin_ids) | set(self.authenticated_users)
+        admins = set(self.admin_ids) | set(config.TELEGRAM_ADMIN_IDS) | set(self.authenticated_users)
         con = get_db()
         try:
             rows = con.execute(
