@@ -890,9 +890,13 @@ class TelegramBotService:
 
     def run_polling(self):
         """Цикл long polling обновлений."""
-        if not self.token:
-            logger.warning("[Telegram] TELEGRAM_BOT_TOKEN не настроен. Бот отключен.")
+        token = (self.token or config.TELEGRAM_BOT_TOKEN or '').strip()
+        if not token:
+            logger.warning("[Telegram] TELEGRAM_BOT_TOKEN не настроен в .env. Бот отключен.")
             return
+
+        self.token = token
+        self.client = TelegramClient(self.token, timeout=config.TELEGRAM_POLLING_TIMEOUT)
 
         logger.info("[Telegram] Запуск Telegram-бота...")
         try:
@@ -930,10 +934,14 @@ class TelegramBotService:
 
         logger.info("[Telegram] Бот остановлен.")
 
-    def start_in_thread(self) -> threading.Thread:
+    def start_in_thread(self) -> Optional[threading.Thread]:
         """Запускает long polling в отдельном фоновом потоке-демоне."""
-        if not self.token:
+        token = (self.token or config.TELEGRAM_BOT_TOKEN or '').strip()
+        if not token:
+            logger.info("[Telegram] TELEGRAM_BOT_TOKEN не задан в .env — Telegram-бот выключен.")
             return None
+        self.token = token
+        self.client = TelegramClient(self.token, timeout=config.TELEGRAM_POLLING_TIMEOUT)
         self._thread = threading.Thread(target=self.run_polling, name="TelegramBotThread", daemon=True)
         self._thread.start()
         return self._thread
