@@ -56,10 +56,11 @@ class PostgresCursorWrapper:
         self._cur = raw_cursor
 
     def _convert_query(self, query: str) -> str:
-        """Конвертирует плейсхолдеры SQLite '?' в плейсхолдеры PostgreSQL '%s'."""
-        # Заменяем '?' на '%s', если это не внутри строкового литерала
-        # В нашей кодовой базе все параметризованные запросы используют ?
-        return query.replace('?', '%s')
+        """Конвертирует плейсхолдеры SQLite '?' в '%s' и санитизирует литералы пустых строк."""
+        # Заменяем кавычки пустых строк SQLite "" на стандартные SQL ''
+        converted = query.replace('!= ""', "!= ''").replace('!=  ""', "!= ''").replace('= ""', "= ''").replace('<> ""', "<> ''")
+        # Заменяем плейсхолдеры '?' на '%s'
+        return converted.replace('?', '%s')
 
     def execute(self, query: str, params: Any = None):
         converted_sql = self._convert_query(query)

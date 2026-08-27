@@ -29,11 +29,9 @@ ENV/
 *.csv
 
 # Receipts & Storage files
-receipts/
-data/
-logs/
-*.log
-logs/
+/receipts/
+/data/
+/logs/
 *.log
 
 # IDE & OS

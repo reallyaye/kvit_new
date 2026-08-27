@@ -91,7 +91,7 @@ class ReceiptService:
 
             # Проверяем наличие точного адреса из квитанции
             rec_row = con.execute(
-                'SELECT address FROM receipts WHERE account_number = ? AND address IS NOT NULL AND address != "" ORDER BY period DESC LIMIT 1',
+                "SELECT address FROM receipts WHERE account_number = ? AND address IS NOT NULL AND address != '' ORDER BY period DESC LIMIT 1",
                 (account_number,)
             ).fetchone()
             rec_addr = rec_row['address'] if rec_row and rec_row['address'] else None
@@ -148,9 +148,9 @@ class ReceiptService:
 
         # Собираем все уникальные адреса из БД
         rows = con.execute('''
-            SELECT DISTINCT address FROM receipts WHERE address IS NOT NULL AND address != ""
+            SELECT DISTINCT address FROM receipts WHERE address IS NOT NULL AND address != ''
             UNION
-            SELECT DISTINCT address FROM accounts WHERE address IS NOT NULL AND address != ""
+            SELECT DISTINCT address FROM accounts WHERE address IS NOT NULL AND address != ''
         ''').fetchall()
 
         if not rows:
@@ -238,7 +238,7 @@ class ReceiptService:
             sql_receipts = f'''
                 SELECT DISTINCT r.account_number, r.address
                 FROM receipts r
-                WHERE {conds_r} AND r.address IS NOT NULL AND r.address != ""
+                WHERE {conds_r} AND r.address IS NOT NULL AND r.address != ''
             '''
             rows = con.execute(sql_receipts, params_r).fetchall()
 
@@ -248,7 +248,7 @@ class ReceiptService:
                 sql_accounts = f'''
                     SELECT DISTINCT a.account_number, a.address
                     FROM accounts a
-                    WHERE {conds_a} AND a.address IS NOT NULL AND a.address != ""
+                    WHERE {conds_a} AND a.address IS NOT NULL AND a.address != ''
                 '''
                 rows = con.execute(sql_accounts, params_a).fetchall()
 
@@ -262,14 +262,14 @@ class ReceiptService:
                     sql_fuzzy_r = '''
                         SELECT DISTINCT r.account_number, r.address
                         FROM receipts r
-                        WHERE r.address LIKE ? AND r.address IS NOT NULL AND r.address != ""
+                        WHERE r.address LIKE ? AND r.address IS NOT NULL AND r.address != ''
                     '''
                     rows = con.execute(sql_fuzzy_r, [f'%{fuzzy_token}%']).fetchall()
                     if not rows:
                         sql_fuzzy_a = '''
                             SELECT DISTINCT a.account_number, a.address
                             FROM accounts a
-                            WHERE a.address LIKE ? AND a.address IS NOT NULL AND a.address != ""
+                            WHERE a.address LIKE ? AND a.address IS NOT NULL AND a.address != ''
                         '''
                         rows = con.execute(sql_fuzzy_a, [f'%{fuzzy_token}%']).fetchall()
 

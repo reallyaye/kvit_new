@@ -774,7 +774,7 @@ class TelegramBotService:
                 WHERE a.account_number IS NULL
             ''').fetchone()[0]
             periods_rows = con.execute(
-                'SELECT DISTINCT period FROM receipts WHERE period IS NOT NULL AND period != "" ORDER BY period DESC'
+                "SELECT DISTINCT period FROM receipts WHERE period IS NOT NULL AND period != '' ORDER BY period DESC"
             ).fetchall()
             periods = [r['period'] for r in periods_rows]
         finally:

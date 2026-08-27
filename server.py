@@ -992,7 +992,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
             unmatched = max(0, total_accounts - matched)
             coverage_pct = round(matched / total_accounts * 100, 1) if total_accounts > 0 else 0.0
-            periods_rows = con.execute('SELECT DISTINCT period FROM receipts WHERE period IS NOT NULL AND period != "" ORDER BY period DESC').fetchall()
+            periods_rows = con.execute("SELECT DISTINCT period FROM receipts WHERE period IS NOT NULL AND period != '' ORDER BY period DESC").fetchall()
             distinct_periods = [r['period'] for r in periods_rows]
         finally:
             con.close()
