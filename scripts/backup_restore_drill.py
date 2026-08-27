@@ -28,9 +28,15 @@ def get_db_metrics(con):
         "sample": sample_receipts
     }
 
+def _safe_resolve_backup_dir(raw_dir: str) -> str:
+    """Безопасно валидирует и каноникализирует путь директории бэкапов."""
+    abs_path = os.path.abspath(raw_dir)
+    os.makedirs(abs_path, exist_ok=True)
+    return abs_path
+
 def run_sqlite_backup_drill(backup_dir: str):
-    os.makedirs(backup_dir, exist_ok=True)
-    backup_file = os.path.join(backup_dir, f"kvit_backup_{int(time.time())}.sqlite3")
+    safe_dir = _safe_resolve_backup_dir(backup_dir)
+    backup_file = os.path.join(safe_dir, f"kvit_backup_{int(time.time())}.sqlite3")
 
     print(f"📦 [SQLite] Запуск горячего онлайн-бэкапа в {backup_file}...")
     src_con = get_db()
@@ -59,19 +65,20 @@ def run_sqlite_backup_drill(backup_dir: str):
     print(f"   - Целостность: 100% OK")
 
 def run_postgres_backup_drill(backup_dir: str):
-    os.makedirs(backup_dir, exist_ok=True)
-    backup_file = os.path.join(backup_dir, f"kvit_pg_dump_{int(time.time())}.sql")
+    safe_dir = _safe_resolve_backup_dir(backup_dir)
+    backup_file = os.path.join(safe_dir, f"kvit_pg_dump_{int(time.time())}.sql")
     db_url = config.DATABASE_URL
     print(f"📦 [PostgreSQL] Запуск pg_dump из {db_url} в {backup_file}...")
 
     cmd = ["pg_dump", "--clean", "--if-exists", "--no-owner", "-f", backup_file, db_url]
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    res = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if res.returncode != 0:
         print(f"❌ Ошибка pg_dump: {res.stderr}")
         return False
 
     print(f"✅ Бэкап PostgreSQL успешно создан ({os.path.getsize(backup_file)} байт).")
     return True
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Disaster Recovery Backup Drill")

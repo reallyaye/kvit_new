@@ -417,63 +417,57 @@ class RedisTaskQueueBackend(BaseTaskQueueBackend):
         if isinstance(job_id, dict):
             job_id = job_id.get('job_id', '')
         try:
-            self._script_nack(
+            res = self._script_nack(
                 keys=[self._processing_key, self._queue_key],
                 args=[job_id, '1' if requeue else '0']
             )
-            return True
+            return bool(res)
         except Exception as e:
             logger.warning(f"[RedisQueue] Ошибка NACK для задачи {job_id}: {e}")
-            pipe = self._client.pipeline()
-            pipe.zrem(self._processing_key, job_id)
-            if requeue:
-                pipe.lpush(self._queue_key, job_id)
-            pipe.execute()
-            return True
-
-
-    def extend_visibility(self, job_id: str, extra_timeout: float = 300.0) -> bool:
-        """Продлевает время видимости для задачи в обработке."""
-        try:
-            score = self._client.zscore(self._processing_key, job_id)
-            if score is not None:
-                new_expire = time.time() + extra_timeout
-                self._client.zadd(self._processing_key, {job_id: new_expire})
+            try:
+                pipe = self._client.pipeline()
+                pipe.zrem(self._processing_key, job_id)
+                if requeue:
+                    pipe.lpush(self._queue_key, job_id)
+                pipe.execute()
                 return True
-        except Exception as e:
-            logger.debug(f"[RedisQueue] Ошибка extend_visibility {job_id}: {e}")
+            except Exception as e2:
+                logger.exception(f"[RedisQueue] Критическая ошибка fallback NACK для {job_id}: {e2}")
+                return False
+
+    def extend_visibility(self, job_id: str, extra_seconds: int = 300) -> bool:
+        """Продлевает visibility timeout для длительных задач."""
+        if isinstance(job_id, dict):
+            job_id = job_id.get('job_id', '')
+        new_expire = time.time() + extra_seconds
+        score = self._client.zscore(self._processing_key, job_id)
+        if score is not None:
+            self._client.zadd(self._processing_key, {job_id: new_expire})
+            return True
         return False
 
-    def reclaim_stale_jobs(self, timeout_sec: Optional[float] = None, max_reclaim: int = 50) -> List[str]:
+    def reclaim_stale_jobs(self, batch_size: int = 50) -> int:
         """
-        Находит задачи в processing ZSET с истекшим visibility timeout (score <= now).
-        Атомарно возвращает их в очередь или отправляет в DLQ.
+        Перехватывает зависшие задачи из ZSET (у которых истек visibility timeout).
+        Если попытки исчерпаны -> перемещает в DLQ (Dead Letter Queue).
         """
         now = time.time()
-        reclaimed: List[str] = []
+        stale_jobs = self._client.zrangebyscore(self._processing_key, 0, now, start=0, num=batch_size)
+        if not stale_jobs:
+            return 0
+
+        reclaimed = 0
         try:
-            stale_job_ids = self._client.zrangebyscore(
-                self._processing_key,
-                min=0,
-                max=now,
-                start=0,
-                num=max_reclaim
-            )
-            if not stale_job_ids:
-                return []
-
-            for jid in stale_job_ids:
-                raw = self._client.hget(self._hash_key, jid)
-                job_data = json.loads(raw) if raw else {'job_id': jid}
-
-                retries = job_data.get('retry_count', 0)
+            for job_bytes in stale_jobs:
+                jid = job_bytes if isinstance(job_bytes, str) else job_bytes.decode('utf-8')
+                job_data = self.get_job_state(jid) or {'job_id': jid, 'retries': 0}
+                retries = job_data.get('retries', 0)
                 max_retries = job_data.get('max_retries', getattr(config, 'JOB_RETRY_COUNT', 3))
 
                 pipe = self._client.pipeline()
                 pipe.zrem(self._processing_key, jid)
 
                 if retries < max_retries:
-                    job_data['retry_count'] = retries + 1
                     job_data['status'] = 'RETRY'
                     job_data['updated_at'] = now
                     pipe.hset(self._hash_key, jid, json.dumps(job_data, ensure_ascii=False))

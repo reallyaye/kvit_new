@@ -86,8 +86,14 @@ X_ACCEL_PREFIX=/internal_receipts/
 RECEIPTS_DIR=/app/receipts
 """
 
+    out_path = os.path.abspath(args.output)
+    parent_dir = os.path.dirname(out_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(env_content)
+
 
     print(f"✅ Файл секретов успешно сгенерирован: {out_path}")
     print(f"🔑 Пароль администратора (сохраните в защищенном месте!): {admin_password}")

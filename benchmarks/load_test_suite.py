@@ -14,10 +14,10 @@ Production Load & Stress Test Suite:
 import argparse
 import collections
 import concurrent.futures
-import io
-import math
 import os
-import random
+import secrets
+
+
 import sys
 import threading
 import time
@@ -61,6 +61,7 @@ def run_concurrent_api_load_test(target_url: str, total_requests: int = 5000, co
     start_time = time.time()
 
     def _worker_task():
+
         # Имитируем типичные действия пользователя (поиск по адресу, запрос статики, проверка статуса)
         sub_paths = [
             "/",
@@ -68,7 +69,8 @@ def run_concurrent_api_load_test(target_url: str, total_requests: int = 5000, co
             "/api/search?q=%D0%90%D0%B1%D0%B0%D1%8F",
             "/health"
         ]
-        url = target_url.rstrip("/") + random.choice(sub_paths)
+        url = target_url.rstrip("/") + secrets.choice(sub_paths)
+
         req = urllib.request.Request(url, headers={'User-Agent': 'KvitStressTestRunner/1.0'})
 
         t0 = time.time()
