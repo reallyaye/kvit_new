@@ -363,6 +363,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
     # ────────────────────── GET ──────────────────────
 
+    def do_HEAD(self):
+        """Обрабатывает HTTP HEAD запросы идентично GET для healthcheck и curl -I."""
+        self.do_GET()
+
     def do_GET(self):
         u = urlparse(self.path)
         path = u.path
