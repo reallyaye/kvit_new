@@ -99,9 +99,23 @@ class AtomicReceiptImporter:
 
                 created_temp_files.append((temp_file_path, item.target_full_path))
 
-            # Фаза 2: Транзакция SQLite + Атомарное перемещение
+            # Фаза 2: Транзакция БД + Атомарное перемещение
             with write_transaction() as con:
-                # Вставляем записи со статусом 'READY'
+                # 1. Автоматическая регистрация/обновление лицевых счетов в таблице accounts
+                for r in staged_receipts:
+                    if r.account:
+                        con.execute('''
+                            INSERT INTO accounts(account_number, customer_name, address)
+                            VALUES (?, '', ?)
+                            ON CONFLICT(account_number) DO UPDATE SET
+                                address = CASE 
+                                    WHEN accounts.address IS NULL OR accounts.address = '' 
+                                    THEN excluded.address 
+                                    ELSE accounts.address 
+                                END
+                        ''', (str(r.account).strip(), r.address or ''))
+
+                # 2. Вставляем записи квитанций со статусом 'READY'
                 insert_rows = [
                     (
                         r.account,
