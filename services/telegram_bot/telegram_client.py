@@ -29,7 +29,7 @@ class TelegramClient:
         self.base_url = f"https://api.telegram.org/bot{self.token}"
         self.file_base_url = f"https://api.telegram.org/file/bot{self.token}"
         self.timeout = timeout
-        ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         self.ssl_ctx = ctx
 
