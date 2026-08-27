@@ -32,6 +32,8 @@ services:
       - SECRET_KEY=${SECRET_KEY:?Укажите SECRET_KEY}
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:?Укажите ADMIN_PASSWORD_HASH}
       - GRPC_API_KEY=${GRPC_API_KEY:?Укажите GRPC_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-}
       - TRUST_PROXY=true
     volumes:
       - /opt/kvit/receipts:/app/receipts
