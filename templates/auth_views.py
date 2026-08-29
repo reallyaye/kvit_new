@@ -5,18 +5,23 @@ from templates.icons import icon
 
 
 def render_login_form(error_msg: str = None):
-    err_html = f'<div class="err">{html.escape(error_msg)}</div>' if error_msg else ''
-    return f'''<div class="card login-card">
-        <h1><span style="display:inline-flex;align-items:center;gap:8px">{icon('lock', 22, '#3b82f6')} Вход в систему</span></h1>
-        <p class="subtitle">Введите пароль администратора для доступа к загрузке и сверке.</p>
+    err_html = f'<div class="err" style="margin-bottom:16px">{html.escape(error_msg)}</div>' if error_msg else ''
+    return f'''<div class="card login-card" style="max-width:440px;margin:40px auto;padding:36px 32px">
+        <div style="display:flex;justify-content:center;margin-bottom:16px">
+            <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#006FEE 0%,#7828C8 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,111,238,0.3)">
+                {icon('lock', 24, '#ffffff')}
+            </div>
+        </div>
+        <h1 style="text-align:center;margin-bottom:6px">Вход в систему</h1>
+        <p class="subtitle" style="text-align:center;margin-bottom:24px">Панель администрирования ТОО &laquo;КРЭК&raquo;</p>
         {err_html}
         <form action="/login" method="post">
-            <label>Пароль</label>
-            <input name="password" type="password" placeholder="Введите пароль" autofocus required>
-            <button class="btn" style="width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('login', 16)} Войти</button>
+            <label style="display:block;margin-bottom:6px">Пароль администратора</label>
+            <input name="password" type="password" placeholder="••••••••" autofocus required style="width:100%;margin-bottom:16px">
+            <button class="btn" style="width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px">{icon('login', 16)} Войти в панель</button>
         </form>
-        <div style="margin-top:16px;text-align:center">
-            <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} На главную</a>
+        <div style="margin-top:20px;text-align:center">
+            <a class="btn-outline btn" href="/kvit/" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:8px 16px">{icon('arrow_left', 13)} На главную квитанций</a>
         </div>
     </div>'''
 
