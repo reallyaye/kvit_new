@@ -771,7 +771,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         delimiter = b'--' + boundary_bytes
         delimiter_crlf = b'\r\n--' + boundary_bytes
 
-        tmp_dir = tempfile.mkdtemp(prefix='kvit_upload_')
+        tmp_dir = tempfile.mkdtemp(prefix='kvit_upload_', dir=config.SPOOL_DIR)
         pdf_files = []
 
         remaining = content_length

@@ -442,7 +442,7 @@ class TelegramBotService:
             reply_to_message_id=message.get('message_id')
         )
 
-        tmp_dir = tempfile.mkdtemp(prefix='kvit_tg_upload_')
+        tmp_dir = tempfile.mkdtemp(prefix='kvit_tg_upload_', dir=config.SPOOL_DIR)
         tmp_path = os.path.join(tmp_dir, file_name)
 
         try:
