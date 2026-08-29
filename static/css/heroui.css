@@ -1,0 +1,319 @@
+/* ==========================================================================
+   HeroUI (NextUI) Design System for Kvit-App
+   Beautiful, fast and modern UI theme with vibrant colors, fluid animations,
+   tactile feedback and glassmorphism effects.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* HeroUI Color Tokens */
+  --heroui-primary: #006FEE;
+  --heroui-primary-hover: #005BC4;
+  --heroui-primary-active: #004493;
+  --heroui-primary-50: #E6F1FE;
+  --heroui-primary-100: #CCE3FD;
+  --heroui-primary-shadow: rgba(0, 111, 238, 0.35);
+
+  --heroui-secondary: #7828C8;
+  --heroui-secondary-hover: #6020A0;
+  --heroui-secondary-50: #F2EAFA;
+
+  --heroui-success: #17C964;
+  --heroui-success-hover: #13A452;
+  --heroui-success-50: #E8FAF0;
+  --heroui-success-text: #0E7036;
+
+  --heroui-warning: #F5A524;
+  --heroui-warning-hover: #C4841D;
+  --heroui-warning-50: #FEF6E9;
+  --heroui-warning-text: #894B00;
+
+  --heroui-danger: #F31260;
+  --heroui-danger-hover: #C20E4D;
+  --heroui-danger-50: #FEE7EF;
+  --heroui-danger-text: #8E0B38;
+
+  --heroui-default-50: #FAFAFA;
+  --heroui-default-100: #F4F4F5;
+  --heroui-default-200: #E4E4E7;
+  --heroui-default-300: #D4D4D8;
+  --heroui-default-400: #A1A1AA;
+  --heroui-default-500: #71717A;
+  --heroui-default-600: #52525B;
+  --heroui-default-700: #3F3F46;
+  --heroui-default-800: #27272A;
+  --heroui-default-900: #18181B;
+
+  /* Typography & Layout */
+  --heroui-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --heroui-radius-sm: 8px;
+  --heroui-radius-md: 12px;
+  --heroui-radius-lg: 16px;
+  --heroui-radius-xl: 22px;
+  --heroui-radius-full: 9999px;
+
+  /* Elevation Shadows */
+  --heroui-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --heroui-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --heroui-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --heroui-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+/* Base Body Styles */
+body {
+  font-family: var(--heroui-font) !important;
+  background: #F8FAFC !important;
+  color: var(--heroui-default-900) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Topbar Header (Glassmorphic) */
+.topbar {
+  background: rgba(15, 23, 42, 0.92) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* HeroUI Card Component */
+.card, .hero-card {
+  background: #FFFFFF !important;
+  border: 1px solid var(--heroui-default-200) !important;
+  border-radius: var(--heroui-radius-lg) !important;
+  box-shadow: var(--heroui-shadow-md) !important;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.card:hover {
+  box-shadow: var(--heroui-shadow-lg) !important;
+}
+
+/* HeroUI Headings */
+h1 {
+  font-family: var(--heroui-font) !important;
+  font-weight: 700 !important;
+  font-size: 22px !important;
+  letter-spacing: -0.02em !important;
+  color: var(--heroui-default-900) !important;
+}
+
+.subtitle {
+  color: var(--heroui-default-500) !important;
+  font-size: 14.5px !important;
+  line-height: 1.5 !important;
+}
+
+/* HeroUI Button Styles */
+.btn, .hero-btn {
+  font-family: var(--heroui-font) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 10px 20px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  border-radius: var(--heroui-radius-md) !important;
+  background: var(--heroui-primary) !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 14px 0 var(--heroui-primary-shadow) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  text-decoration: none !important;
+  user-select: none !important;
+}
+
+.btn:hover, .hero-btn:hover {
+  background: var(--heroui-primary-hover) !important;
+  transform: translateY(-1.5px) !important;
+  box-shadow: 0 6px 20px 0 var(--heroui-primary-shadow) !important;
+}
+
+.btn:active, .hero-btn:active {
+  transform: scale(0.97) !important;
+  background: var(--heroui-primary-active) !important;
+}
+
+.btn-outline {
+  background: transparent !important;
+  color: var(--heroui-primary) !important;
+  border: 1.5px solid var(--heroui-default-300) !important;
+  box-shadow: none !important;
+}
+
+.btn-outline:hover {
+  background: var(--heroui-primary-50) !important;
+  border-color: var(--heroui-primary) !important;
+  color: var(--heroui-primary) !important;
+}
+
+.btn-green {
+  background: var(--heroui-success) !important;
+  box-shadow: 0 4px 14px 0 rgba(23, 201, 100, 0.35) !important;
+}
+
+.btn-green:hover {
+  background: var(--heroui-success-hover) !important;
+}
+
+/* HeroUI Inputs and Form Controls */
+label {
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  color: var(--heroui-default-700) !important;
+  margin-bottom: 6px !important;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="password"],
+select {
+  font-family: var(--heroui-font) !important;
+  background: var(--heroui-default-100) !important;
+  border: 1.5px solid transparent !important;
+  border-radius: var(--heroui-radius-md) !important;
+  padding: 12px 16px !important;
+  font-size: 15px !important;
+  color: var(--heroui-default-900) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  outline: none !important;
+}
+
+input[type="text"]:hover,
+input[type="search"]:hover,
+input[type="password"]:hover,
+select:hover {
+  background: var(--heroui-default-200) !important;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus,
+input[type="password"]:focus,
+select:focus {
+  background: #FFFFFF !important;
+  border-color: var(--heroui-primary) !important;
+  box-shadow: 0 0 0 3px var(--heroui-primary-50) !important;
+}
+
+/* HeroUI Tabs / Pill Selectors */
+.mode-tabs, .search-tabs, .sub-tabs {
+  display: flex !important;
+  gap: 6px !important;
+  background: var(--heroui-default-100) !important;
+  padding: 5px !important;
+  border-radius: var(--heroui-radius-lg) !important;
+  margin-bottom: 20px !important;
+  border: 1px solid var(--heroui-default-200) !important;
+}
+
+.mode-tab, .sub-tab {
+  flex: 1 !important;
+  padding: 9px 16px !important;
+  border-radius: var(--heroui-radius-md) !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  color: var(--heroui-default-500) !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+}
+
+.mode-tab:hover, .sub-tab:hover {
+  color: var(--heroui-default-900) !important;
+}
+
+.mode-tab.active, .sub-tab.active {
+  background: #FFFFFF !important;
+  color: var(--heroui-default-900) !important;
+  box-shadow: var(--heroui-shadow-sm) !important;
+}
+
+/* HeroUI Badges & Chips */
+.tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 4px 10px !important;
+  border-radius: var(--heroui-radius-full) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px !important;
+}
+
+.tag-ok {
+  background: var(--heroui-success-50) !important;
+  color: var(--heroui-success-text) !important;
+  border: 1px solid rgba(23, 201, 100, 0.2) !important;
+}
+
+.tag-err {
+  background: var(--heroui-danger-50) !important;
+  color: var(--heroui-danger-text) !important;
+  border: 1px solid rgba(243, 18, 96, 0.2) !important;
+}
+
+.tag-warn {
+  background: var(--heroui-warning-50) !important;
+  color: var(--heroui-warning-text) !important;
+  border: 1px solid rgba(245, 165, 36, 0.25) !important;
+}
+
+/* HeroUI Alerts / Notices */
+.ok {
+  background: var(--heroui-success-50) !important;
+  border: 1px solid rgba(23, 201, 100, 0.3) !important;
+  color: var(--heroui-success-text) !important;
+  border-radius: var(--heroui-radius-md) !important;
+  font-weight: 500 !important;
+}
+
+.err {
+  background: var(--heroui-danger-50) !important;
+  border: 1px solid rgba(243, 18, 96, 0.3) !important;
+  color: var(--heroui-danger-text) !important;
+  border-radius: var(--heroui-radius-md) !important;
+  font-weight: 500 !important;
+}
+
+.warn {
+  background: var(--heroui-warning-50) !important;
+  border: 1px solid rgba(245, 165, 36, 0.35) !important;
+  color: var(--heroui-warning-text) !important;
+  border-radius: var(--heroui-radius-md) !important;
+  font-weight: 500 !important;
+}
+
+/* Upload Dropzone (HeroUI Drag & Drop) */
+.upload-zone {
+  border: 2px dashed var(--heroui-default-300) !important;
+  border-radius: var(--heroui-radius-xl) !important;
+  background: var(--heroui-default-50) !important;
+  padding: 48px 24px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.upload-zone:hover, .upload-zone.drag {
+  border-color: var(--heroui-primary) !important;
+  background: var(--heroui-primary-50) !important;
+  transform: scale(1.01) !important;
+}
+
+/* Modal Backdrop & Window */
+.modal-backdrop {
+  backdrop-filter: blur(12px) !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+
+.modal-window {
+  border-radius: var(--heroui-radius-xl) !important;
+  box-shadow: var(--heroui-shadow-xl) !important;
+  border: 1px solid var(--heroui-default-200) !important;
+}
