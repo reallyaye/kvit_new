@@ -94,7 +94,8 @@ class DatabaseSessionStore(BaseSessionStore):
         try:
             with write_transaction() as con:
                 con.execute(
-                    'INSERT OR REPLACE INTO app_sessions(token, expires_at, created_at) VALUES (?, ?, ?)',
+                    'INSERT INTO app_sessions(token, expires_at, created_at) VALUES (?, ?, ?) '
+                    'ON CONFLICT(token) DO UPDATE SET expires_at=EXCLUDED.expires_at, created_at=EXCLUDED.created_at',
                     (token, expires_at, created_at)
                 )
             now = time.time()
