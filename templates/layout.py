@@ -151,6 +151,24 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
 .modal-body{{flex:1;background:#f8fafc;position:relative}}
 .modal-body iframe{{width:100%;height:100%;border:0}}
 
+/* Modern Admin Top Navigation Bar */
+.admin-top-nav-card{{background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:10px 16px;margin-bottom:24px;box-shadow:0 4px 20px -2px rgba(15,23,42,0.06),0 2px 6px -1px rgba(15,23,42,0.04);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}}
+.admin-brand-badge{{display:flex;align-items:center;gap:10px;padding-right:14px;border-right:1.5px solid #f1f5f9}}
+.admin-brand-icon{{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(37,99,235,0.28)}}
+.admin-brand-text{{display:flex;flex-direction:column}}
+.admin-brand-title{{font-weight:700;font-size:13.5px;color:#0f172a;line-height:1.2}}
+.admin-brand-sub{{font-size:10.5px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px}}
+.admin-tabs-list{{display:flex;align-items:center;gap:4px;flex-wrap:wrap;background:#f8fafc;padding:4px;border-radius:12px;border:1px solid #e2e8f0}}
+.admin-tab-item{{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:8px;font-size:13.5px;font-weight:600;color:#475569;text-decoration:none;transition:all .18s cubic-bezier(0.4,0,0.2,1)}}
+.admin-tab-item:hover{{background:#ffffff;color:#1e293b;box-shadow:0 2px 8px rgba(0,0,0,0.06)}}
+.admin-tab-item.active{{background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);color:#ffffff!important;box-shadow:0 4px 12px rgba(37,99,235,0.32)}}
+.admin-nav-actions{{display:flex;align-items:center;gap:8px;margin-left:auto}}
+.admin-btn-portal{{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:8px;background:#eff6ff;color:#2563eb;font-size:13px;font-weight:600;text-decoration:none;border:1px solid #bfdbfe;transition:all .15s}}
+.admin-btn-portal:hover{{background:#dbeafe;color:#1d4ed8;transform:translateY(-1px)}}
+.admin-btn-logout{{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;background:#fff1f2;color:#e11d48;font-size:13px;font-weight:600;text-decoration:none;border:1px solid #fecdd3;transition:all .15s}}
+.admin-btn-logout:hover{{background:#ffe4e6;color:#be123c;transform:translateY(-1px)}}
+
+@media(max-width:900px){{.admin-brand-badge{{border-right:0;width:100%;justify-content:space-between}}.admin-nav-actions{{margin-left:0;width:100%;justify-content:flex-end}}.admin-tabs-list{{width:100%}}}}
 @media(max-width:768px){{.topbar{{height:auto;padding:12px 16px;gap:12px}}.ws-indicator{{order:2;margin-left:auto}}.grid-fields{{grid-template-columns:1fr 1fr}}.grid-fields > div:first-child{{grid-column:1/-1}}.modal-window{{height:95vh;max-width:100%}}}}
 @media(max-width:600px){{.wrap{{margin:16px auto;padding:0 12px}}.card{{padding:20px 18px}}.stats{{grid-template-columns:1fr 1fr}}.period-card{{flex-direction:column;align-items:flex-start;gap:12px}}.period-card .period-actions{{width:100%}}.period-card .period-actions a,.period-card .period-actions button{{flex:1;text-align:center}}.address-item{{flex-direction:column;align-items:flex-start;gap:12px}}.address-item .btn{{width:100%;text-align:center}}.grid-fields{{grid-template-columns:1fr}}}}
 </style></head><body>

@@ -8,28 +8,44 @@ from templates.icons import icon
 
 
 def _admin_nav_bar(active_tab: str = 'pages') -> str:
-    """Верхняя навигационная полоса внутри разделов админ-панели."""
+    """Современная премиальная навигационная панель админ-зоны."""
     tabs = [
-        ('pages', '/admin/pages', 'pages', 'Страницы сайта'),
+        ('pages', '/admin/pages', 'file_text', 'Страницы сайта'),
         ('media', '/admin/media', 'image', 'Медиа и файлы'),
-        ('documents', '/admin/documents', 'files', 'Реестр отчетов и документов'),
-        ('kvit', '/upload', 'upload', 'Квитанции'),
-        ('reconcile', '/reconcile', 'reconcile', 'Сверка'),
+        ('documents', '/admin/documents', 'files', 'Реестр документов'),
+        ('upload', '/upload', 'upload', 'Загрузка квитанций'),
+        ('reconcile', '/reconcile', 'reconcile', 'Сверка базы'),
     ]
     links_html = []
     for key, href, ic, label in tabs:
         active_cls = ' active' if key == active_tab else ''
-        links_html.append(f'<a href="{href}" class="admin-tab-btn{active_cls}">{icon(ic, 15)} {label}</a>')
+        ic_color = '#ffffff' if key == active_tab else '#64748b'
+        links_html.append(f'''<a href="{href}" class="admin-tab-item{active_cls}">
+            {icon(ic, 15, ic_color)} <span>{label}</span>
+        </a>''')
     
     return f'''
-    <div class="admin-nav-tabs" style="display:flex;gap:8px;margin-bottom:24px;border-bottom:2px solid #e2e8f0;padding-bottom:12px;flex-wrap:wrap;align-items:center;">
-        <div style="font-weight:700;color:#1e293b;margin-right:12px;font-size:15px;display:flex;align-items:center;gap:6px;">
-            {icon('shield', 18, '#2563eb')} Панель управления
+    <div class="admin-top-nav-card">
+        <div class="admin-brand-badge">
+            <div class="admin-brand-icon">
+                {icon('shield', 18, '#ffffff')}
+            </div>
+            <div class="admin-brand-text">
+                <span class="admin-brand-title">ТОО &laquo;КРЭК&raquo;</span>
+                <span class="admin-brand-sub">Панель управления</span>
+            </div>
         </div>
-        {''.join(links_html)}
-        <a href="/" target="_blank" class="admin-tab-btn" style="margin-left:auto;background:#f1f5f9;color:#2563eb;">
-            {icon('external_link', 14, '#2563eb')} Перейти на сайт ↗
-        </a>
+        <nav class="admin-tabs-list">
+            {''.join(links_html)}
+        </nav>
+        <div class="admin-nav-actions">
+            <a href="/" target="_blank" class="admin-btn-portal" title="Открыть сайт в новой вкладке">
+                {icon('external_link', 14, '#2563eb')} <span>На сайт ↗</span>
+            </a>
+            <a href="/logout" class="admin-btn-logout" title="Завершить сеанс администратора">
+                {icon('logout', 14, '#e11d48')} <span>Выйти</span>
+            </a>
+        </div>
     </div>
     '''
 
