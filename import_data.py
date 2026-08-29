@@ -177,9 +177,17 @@ def main():
             if accounts_to_insert:
                 with write_transaction() as con_write:
                     con_write.executemany('''
-                        INSERT OR REPLACE INTO accounts(
+                        INSERT INTO accounts(
                             account_number, customer_name, address, street, building, corpus, district, organization
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(account_number) DO UPDATE SET
+                            customer_name = COALESCE(NULLIF(excluded.customer_name, ''), accounts.customer_name),
+                            address = COALESCE(NULLIF(excluded.address, ''), accounts.address),
+                            street = COALESCE(NULLIF(excluded.street, ''), accounts.street),
+                            building = COALESCE(NULLIF(excluded.building, ''), accounts.building),
+                            corpus = COALESCE(NULLIF(excluded.corpus, ''), accounts.corpus),
+                            district = COALESCE(NULLIF(excluded.district, ''), accounts.district),
+                            organization = COALESCE(NULLIF(excluded.organization, ''), accounts.organization)
                     ''', accounts_to_insert)
                 print(f"✅ Успешно импортировано/обновлено счетов: {len(accounts_to_insert)}")
 
