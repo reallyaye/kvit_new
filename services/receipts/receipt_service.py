@@ -239,7 +239,7 @@ class ReceiptService:
                 SELECT DISTINCT r.account_number, r.address
                 FROM receipts r
                 WHERE {conds_r} AND r.address IS NOT NULL AND r.address != ''
-            '''
+            '''  # nosec B608 - параметризованный запрос через params_r
             rows = con.execute(sql_receipts, params_r).fetchall()
 
             if not rows:
@@ -249,7 +249,7 @@ class ReceiptService:
                     SELECT DISTINCT a.account_number, a.address
                     FROM accounts a
                     WHERE {conds_a} AND a.address IS NOT NULL AND a.address != ''
-                '''
+                '''  # nosec B608 - параметризованный запрос через params_a
                 rows = con.execute(sql_accounts, params_a).fetchall()
 
             # 2. Если точный поиск не нашел совпадений, пробуем нечеткий поиск (Fuzzy Matching / опечатки)
