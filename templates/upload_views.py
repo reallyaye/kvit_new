@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from templates.icons import icon
 from templates.admin_cms_views import _admin_nav_bar
+from templates.icons import icon
 
 
 def render_upload_form(message=None, csrf_token='', active_job_id=''):
@@ -193,13 +193,13 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
                     const t = await res.json();
                     const pct = t.progress_pct || 0;
                     progressFill.style.width = pct + '%';
-                    
+
                     const speedText = t.speed_files_per_sec > 0 ? (' • ' + t.speed_files_per_sec + ' файл/сек') : '';
                     const etaText = (t.eta_seconds !== null && t.eta_seconds > 0) ? (' • осталось ~' + t.eta_seconds + ' сек') : '';
                     const retryText = t.retry_count > 0 ? (' • Повтор ' + t.retry_count + '/' + t.max_retries) : '';
-                    
+
                     progressText.textContent = pct + '% (' + (t.processed_files || 0) + '/' + (t.total_files || 0) + speedText + etaText + retryText + ')';
-                    
+
                     if (t.current_file) {{
                         statusLabel.textContent = 'Обработка: ' + t.current_file + speedText + etaText;
                     }}

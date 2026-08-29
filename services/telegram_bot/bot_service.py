@@ -13,11 +13,9 @@ import config
 from database import get_db
 from database.connection import write_transaction
 from logger import logger
-from services.pdf import pdf_processor
 from services.receipts import receipt_service
 from services.security import auth_service
 from services.tasks import task_manager
-from services.websocket import ws_manager
 
 from .telegram_client import TelegramAPIError, TelegramClient
 

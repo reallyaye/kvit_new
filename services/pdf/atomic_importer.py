@@ -108,10 +108,10 @@ class AtomicReceiptImporter:
                             INSERT INTO accounts(account_number, customer_name, address)
                             VALUES (?, '', ?)
                             ON CONFLICT(account_number) DO UPDATE SET
-                                address = CASE 
-                                    WHEN accounts.address IS NULL OR accounts.address = '' 
-                                    THEN excluded.address 
-                                    ELSE accounts.address 
+                                address = CASE
+                                    WHEN accounts.address IS NULL OR accounts.address = ''
+                                    THEN excluded.address
+                                    ELSE accounts.address
                                 END
                         ''', (str(r.account).strip(), r.address or ''))
 

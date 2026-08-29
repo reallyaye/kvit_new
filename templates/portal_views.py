@@ -1,6 +1,7 @@
-import os
 import json
+import os
 import urllib.parse
+
 from templates.portal_layout import portal_layout
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

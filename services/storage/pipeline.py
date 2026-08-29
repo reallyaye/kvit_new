@@ -11,9 +11,8 @@ import logging
 import os
 import shutil
 import time
-from typing import Dict, Optional, Tuple
+from typing import Tuple
 
-import config
 from config import FAILED_DIR, PROCESSING_DIR, RECEIPTS_DIR, SPOOL_DIR, get_receipt_shard_parts
 
 logger = logging.getLogger(__name__)
