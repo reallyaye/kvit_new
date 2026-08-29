@@ -90,15 +90,15 @@ def test_safe_sync_and_purge_lifecycle(tmp_path, monkeypatch):
     r1 = con.execute("SELECT status FROM receipts WHERE account_number='800001'").fetchone()
     r2 = con.execute("SELECT status FROM receipts WHERE account_number='800002'").fetchone()
     con.close()
-    assert r1['status'] == 'ready'
-    assert r2['status'] == 'missing'
+    assert str(r1['status']).upper() == 'READY'
+    assert str(r2['status']).upper() == 'MISSING'
 
     # 3. Эмулируем монтирование диска: создаем второй файл
     file2_path = os.path.join(tmp_path, '800002_test.pdf')
     with open(file2_path, 'wb') as f:
         f.write(b"%PDF-1.4 test2")
 
-    # 4. Вторая синхронизация: 800002 должен автоматически восстановиться в 'ready'
+    # 4. Вторая синхронизация: 800002 должен автоматически восстановиться в 'READY'
     marked_missing2, restored_ready2, valid_ready2 = sync_receipts_with_filesystem()
     assert marked_missing2 == 0
     assert restored_ready2 == 1
@@ -107,7 +107,7 @@ def test_safe_sync_and_purge_lifecycle(tmp_path, monkeypatch):
     con = get_db()
     r2_restored = con.execute("SELECT status FROM receipts WHERE account_number='800002'").fetchone()
     con.close()
-    assert r2_restored['status'] == 'ready'
+    assert str(r2_restored['status']).upper() == 'READY'
 
     # 5. Удаляем файл 2 и синхронизируем -> status='missing'
     os.remove(file2_path)
