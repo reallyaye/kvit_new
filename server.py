@@ -590,7 +590,21 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             elif path in ('/', '/index.php', '/index.html'):
                 self.send_html(render_portal_page('home', is_admin=is_admin))
             else:
+                PAGE_ALIASES = {
+                    'potreb': 'consumers',
+                    'potrebitelyam': 'consumers',
+                    'potrebitel': 'consumers',
+                    'consumer': 'consumers',
+                    'contact': 'contacts',
+                    'kontakty': 'contacts',
+                    'otchety': 'reports',
+                    'tarify': 'tarif',
+                    'zayavka': 'online',
+                    'zayavki': 'online',
+                }
                 clean_name = path.strip('/').removesuffix('.php').strip('/')
+                clean_name = PAGE_ALIASES.get(clean_name, clean_name)
+
                 if clean_name in PORTAL_PAGES:
                     self.send_html(render_portal_page(clean_name, is_admin=is_admin))
                     return
