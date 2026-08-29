@@ -45,8 +45,11 @@ class IPThrottler:
 
         try:
             with write_transaction() as con:
-                con.execute('INSERT OR REPLACE INTO security_blocks(ip, blocked_until, reason) VALUES (?, ?, ?)',
-                            (ip, blocked_until, reason))
+                con.execute(
+                    'INSERT INTO security_blocks(ip, blocked_until, reason) VALUES (?, ?, ?) '
+                    'ON CONFLICT(ip) DO UPDATE SET blocked_until=EXCLUDED.blocked_until, reason=EXCLUDED.reason',
+                    (ip, blocked_until, reason)
+                )
             logger.warning(f"[Security] IP {ip} заблокирован на {duration_seconds}с. Причина: {reason}")
         except Exception as e:
             logger.warning(f"[Security] Не удалось персистировать бан IP {ip}: {e}")
