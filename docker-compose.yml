@@ -73,6 +73,14 @@ services:
       - TRUST_PROXY=true
     volumes:
       - ./data:/app/data
+      - ./services:/app/services:ro
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
+      - ./server.py:/app/server.py:ro
+      - ./config.py:/app/config.py:ro
+      - ./import_accounts.py:/app/import_accounts.py:ro
+      - ./set_password.py:/app/set_password.py:ro
+      - ./accounts_all.xlsx:/app/accounts_all.xlsx:ro
       - kvit-receipts:/app/receipts
       - kvit-logs:/app/logs
     networks:
@@ -113,6 +121,10 @@ services:
       - SECRET_KEY=${SECRET_KEY:?Обязательно укажите SECRET_KEY в .env}
     volumes:
       - ./data:/app/data
+      - ./services:/app/services:ro
+      - ./templates:/app/templates:ro
+      - ./worker.py:/app/worker.py:ro
+      - ./config.py:/app/config.py:ro
       - kvit-receipts:/app/receipts
       - kvit-logs:/app/logs
     networks:
