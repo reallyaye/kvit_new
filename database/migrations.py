@@ -227,10 +227,10 @@ def sync_receipts_with_filesystem():
 
             if file_exists:
                 valid_ready += 1
-                if current_status != 'ready':
+                if str(current_status).upper() != 'READY':
                     to_mark_ready.append(rec_id)
             else:
-                if current_status != 'missing':
+                if str(current_status).upper() != 'MISSING':
                     to_mark_missing.append(rec_id)
     finally:
         con_read.close()
@@ -241,14 +241,14 @@ def sync_receipts_with_filesystem():
                 for i in range(0, len(to_mark_missing), 500):
                     chunk = to_mark_missing[i:i + 500]
                     placeholders = ','.join('?' * len(chunk))
-                    con_write.execute(f"UPDATE receipts SET status = 'missing' WHERE id IN ({placeholders})", chunk)  # nosec B608
+                    con_write.execute(f"UPDATE receipts SET status = 'MISSING' WHERE id IN ({placeholders})", chunk)  # nosec B608
                 marked_missing = len(to_mark_missing)
 
             if to_mark_ready:
                 for i in range(0, len(to_mark_ready), 500):
                     chunk = to_mark_ready[i:i + 500]
                     placeholders = ','.join('?' * len(chunk))
-                    con_write.execute(f"UPDATE receipts SET status = 'ready' WHERE id IN ({placeholders})", chunk)  # nosec B608
+                    con_write.execute(f"UPDATE receipts SET status = 'READY' WHERE id IN ({placeholders})", chunk)  # nosec B608
                 restored_ready = len(to_mark_ready)
 
     return marked_missing, restored_ready, valid_ready

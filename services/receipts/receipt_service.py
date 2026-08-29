@@ -343,17 +343,18 @@ class ReceiptService:
 
     @staticmethod
     def get_receipts(account_number: str, period_filter: str = None):
+        acc = str(account_number or '').strip()
         con = get_db()
         try:
             if period_filter:
                 return con.execute(
-                    "SELECT period, pdf_file, access_token FROM receipts WHERE account_number = ? AND period = ? AND (status = 'READY' OR status IS NULL) ORDER BY period DESC",
-                    (account_number, period_filter)
+                    "SELECT period, pdf_file, access_token FROM receipts WHERE account_number = ? AND period = ? AND (UPPER(status) = 'READY' OR status IS NULL OR status = '') ORDER BY period DESC",
+                    (acc, period_filter)
                 ).fetchall()
             else:
                 return con.execute(
-                    "SELECT period, pdf_file, access_token FROM receipts WHERE account_number = ? AND (status = 'READY' OR status IS NULL) ORDER BY period DESC",
-                    (account_number,)
+                    "SELECT period, pdf_file, access_token FROM receipts WHERE account_number = ? AND (UPPER(status) = 'READY' OR status IS NULL OR status = '') ORDER BY period DESC",
+                    (acc,)
                 ).fetchall()
         finally:
             con.close()
@@ -362,7 +363,7 @@ class ReceiptService:
     def get_distinct_periods():
         con = get_db()
         try:
-            return con.execute("SELECT DISTINCT period FROM receipts WHERE status = 'READY' OR status IS NULL ORDER BY period").fetchall()
+            return con.execute("SELECT DISTINCT period FROM receipts WHERE (UPPER(status) = 'READY' OR status IS NULL OR status = '') ORDER BY period").fetchall()
         finally:
             con.close()
 
@@ -373,7 +374,7 @@ class ReceiptService:
             return None
         con = get_db()
         try:
-            r = con.execute("SELECT pdf_file, account_number FROM receipts WHERE access_token=? AND (status = 'READY' OR status IS NULL)", (token,)).fetchone()
+            r = con.execute("SELECT pdf_file, account_number FROM receipts WHERE access_token=? AND (UPPER(status) = 'READY' OR status IS NULL OR status = '')", (token,)).fetchone()
             if not r:
                 return None
 
