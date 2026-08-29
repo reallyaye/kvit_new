@@ -510,19 +510,65 @@ class TaskQueueManager:
             logger.debug(f"[TaskManager] Ошибка WS broadcast завершения: {ws_err}")
 
         # 2. Вызов зарегистрированных колбэков
+        callback_called = False
         for cb in task.callbacks:
             try:
                 cb(task)
+                callback_called = True
             except Exception as cb_err:
                 logger.error(f"[TaskManager] Ошибка в callback задачи {task.job_id}: {cb_err}", exc_info=True)
 
-        # 3. Очистка временных спул-директорий
+        # 3. Кросс-процессная отправка отчёта в Telegram (для Docker воркеров)
+        if not callback_called and task.meta and task.meta.get('chat_id'):
+            self._notify_telegram_completion(task)
+
+        # 4. Очистка временных спул-директорий
         storage_pipeline.cleanup_job(task.job_id)
         if task.spool_dir and os.path.exists(task.spool_dir):
             try:
                 shutil.rmtree(task.spool_dir, ignore_errors=True)
             except Exception:
                 pass
+
+    def _notify_telegram_completion(self, task: BackgroundTask):
+        """Отправляет отчёт о завершении задачи в Telegram напрямую из воркера."""
+        try:
+            import html
+            import config
+            if not config.TELEGRAM_BOT_TOKEN or not task.meta:
+                return
+
+            chat_id = int(task.meta.get('chat_id', 0))
+            if not chat_id:
+                return
+
+            file_name = task.meta.get('file_name', 'Документ PDF')
+            status_icon = "✅" if (task.orphan == 0 and task.skipped == 0 and task.duplicates == 0) else "⚠️"
+            report_lines = [
+                f"{status_icon} <b>Обработан файл:</b> <code>{html.escape(file_name)}</code>",
+                "───────────────────",
+                f"✅ Привязано к счетам: <b>{task.added}</b>",
+                f"⚠️ Без счёта в базе: <b>{task.orphan}</b>",
+                f"🔄 Дубликатов: <b>{task.duplicates}</b>",
+                f"❌ Ошибок/не распознано: <b>{task.skipped}</b>"
+            ]
+
+            if task.details:
+                report_lines.append("\n📋 <b>Детализация страниц:</b>")
+                max_lines = 15
+                for d in task.details[:max_lines]:
+                    report_lines.append(f"• {html.escape(d.strip())}")
+                if len(task.details) > max_lines:
+                    report_lines.append(f"<i>...и ещё {len(task.details) - max_lines} записей</i>")
+
+            if task.error_message:
+                report_lines.append(f"\n⚠️ Ошибка: {html.escape(task.error_message)}")
+
+            from services.telegram_bot.telegram_client import TelegramClient
+            client = TelegramClient(config.TELEGRAM_BOT_TOKEN)
+            client.send_message(chat_id, "\n".join(report_lines))
+        except Exception as tg_err:
+            logger.debug(f"[TaskManager] Не удалось отправить TG-уведомление из воркера: {tg_err}")
 
 
 # Глобальный синглтон менеджера фоновых задач
