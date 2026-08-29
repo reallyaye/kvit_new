@@ -127,17 +127,15 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         Формирует заголовок Set-Cookie с атрибутами безопасности:
         - HttpOnly: защита от XSS кражи токена
         - SameSite=Strict: защита от CSRF атак
-        - Secure: защита от отправки cookie по открытому HTTP-каналу
+        - Secure: выставляется только если запрос реально идет по HTTPS
         """
         mode = getattr(config, 'COOKIE_SECURE', 'auto').strip().lower()
-        use_secure = False
         if mode in ('true', '1', 'yes'):
             use_secure = True
         elif mode in ('false', '0', 'no'):
             use_secure = False
-        else:  # auto
-            if self._is_request_https() or os.environ.get('ENVIRONMENT', '').lower() == 'production':
-                use_secure = True
+        else:  # auto: проверяем реальный HTTPS трафик
+            use_secure = self._is_request_https()
 
         secure_flag = "; Secure" if use_secure else ""
         return f"session={token}; Path=/; Max-Age={max_age}; HttpOnly; SameSite=Strict{secure_flag}"
