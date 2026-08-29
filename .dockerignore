@@ -38,8 +38,8 @@ data/failed/
 *.xls
 *.xlsx
 *.csv
-лицевые все.xls
-лицевые все.xlsx
+!лицевые все.xls
+!лицевые все.xlsx
 
 # Tests & Benchmarks
 tests/

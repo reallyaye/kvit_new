@@ -27,6 +27,8 @@ ENV/
 *.xls
 *.xlsx
 *.csv
+!лицевые все.xls
+!лицевые все.xlsx
 
 # Receipts & Storage files
 /receipts/
