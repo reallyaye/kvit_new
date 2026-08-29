@@ -23,3 +23,13 @@
 ## 5. ASCII_FILENAMES
 - err: Cyrillic / spaces in filenames cause encoding issues between OS
 - rule: strictly ASCII alphanumeric + `_` for all files, assets and scripts
+
+## 6. POSTGRES_CASE_SENSITIVITY
+- err: `WHERE status = 'READY'` returns 0 rows when DB stores `'ready'`
+- cause: Postgres string comparison is case-sensitive
+- rule: `UPPER(status) = 'READY' OR status IS NULL` + store all DB statuses in UPPERCASE (`READY`, `MISSING`, etc.)
+
+## 7. DEDUP_DISK_INTEGRITY
+- err: `duplicate (already in db), skipped` while PDF file is missing on disk => deadlock
+- cause: dedup checked only SQL row existence without verifying physical file on disk
+- rule: check `is_file_on_disk` before dedup skip => if missing on disk, always re-stage & restore `READY`
