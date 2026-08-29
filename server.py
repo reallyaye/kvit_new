@@ -719,7 +719,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
         if auth_service.verify_password(password):
             token = auth_service.create_session()
-            self._redirect('/', extra_headers={
+            self._redirect('/admin/pages', extra_headers={
                 'Set-Cookie': self._get_session_cookie_header(token, max_age=config.SESSION_LIFETIME)
             })
         else:
