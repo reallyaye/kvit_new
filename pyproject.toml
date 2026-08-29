@@ -25,10 +25,7 @@ ignore = [
 "tests/*" = ["B011", "E701"]  # Специфика синтаксиса тестов
 
 
-[tool.bandit]
-exclude_dirs = ["tests", "tmp", "receipts", "logs", ".pytest_cache"]
-skips = [
-    "B101",  # Использование assert в тестах
-    "B104",  # Привязка к 0.0.0.0 (для контейнеров/gRPC)
-    "B108",  # Использование /tmp
-]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+

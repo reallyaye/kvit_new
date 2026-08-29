@@ -51,7 +51,7 @@ class TelegramClient:
         req = urllib.request.Request(url, data=req_data, headers=headers)
 
         try:
-            with urllib.request.urlopen(req, timeout=req_timeout, context=self.ssl_ctx) as resp:
+            with urllib.request.urlopen(req, timeout=req_timeout, context=self.ssl_ctx) as resp:  # nosec B310 - проверенный HTTPS эндпоинт Telegram API
                 resp_bytes = resp.read()
                 result = json.loads(resp_bytes.decode('utf-8'))
                 if not result.get('ok'):
@@ -120,7 +120,7 @@ class TelegramClient:
         req = urllib.request.Request(url, headers={'User-Agent': 'KvitApp-TelegramBot/1.0'})
 
         try:
-            with urllib.request.urlopen(req, timeout=60, context=self.ssl_ctx) as resp:
+            with urllib.request.urlopen(req, timeout=60, context=self.ssl_ctx) as resp:  # nosec B310 - проверенный HTTPS эндпоинт Telegram API
                 with open(dest_path, 'wb') as f:
                     while True:
                         chunk = resp.read(64 * 1024)
@@ -194,7 +194,7 @@ class TelegramClient:
 
         req = urllib.request.Request(url, data=full_body, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout, context=self.ssl_ctx) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout, context=self.ssl_ctx) as resp:  # nosec B310 - проверенный HTTPS эндпоинт Telegram API
                 resp_bytes = resp.read()
                 result = json.loads(resp_bytes.decode('utf-8'))
                 if not result.get('ok'):
