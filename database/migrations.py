@@ -15,8 +15,9 @@ def migrate_db():
     Поддерживает как PostgreSQL (production), так и SQLite (dev/test).
     При любой ошибке выбрасывает DatabaseMigrationError и останавливает запуск приложения.
     """
-    from database.connection import is_postgres_configured
     import os
+
+    from database.connection import is_postgres_configured
 
     try:
         with write_transaction() as con:

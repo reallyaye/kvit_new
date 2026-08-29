@@ -1,7 +1,7 @@
 import html
 
-from templates.icons import icon
 from templates.admin_cms_views import _admin_nav_bar
+from templates.icons import icon
 
 
 def render_reconcile_page(data: dict):

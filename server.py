@@ -3,6 +3,7 @@ import hashlib
 import html
 import ipaddress
 import json
+import mimetypes
 import os
 import re
 import shutil
@@ -12,19 +13,17 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-import mimetypes
 import config
 from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, RATE_LIMIT_UPLOAD, WS_GUID
 from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem
 from logger import logger
 from services.metrics import metrics_collector
-from services.pdf import pdf_processor
+from services.portal_cms import portal_cms
 from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
 from services.security import auth_service, ip_throttler, rate_limiter
-from services.websocket import ws_manager
-from services.portal_cms import portal_cms
 from services.tasks import task_manager
+from services.websocket import ws_manager
 from templates import (
     layout,
     render_404_page,
@@ -46,7 +45,9 @@ from templates.admin_cms_views import (
     render_admin_page_editor,
     render_admin_pages_list,
 )
-from templates.portal_views import PORTAL_PAGES, DOCUMENTS_REGISTRY, render_page as render_portal_page, render_document as render_portal_document
+from templates.portal_views import DOCUMENTS_REGISTRY, PORTAL_PAGES
+from templates.portal_views import render_document as render_portal_document
+from templates.portal_views import render_page as render_portal_page
 
 START_TIME = time.time()
 SW_JS_PATH = '/sw.js'

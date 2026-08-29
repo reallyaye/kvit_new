@@ -40,7 +40,7 @@ def _load_env():
 
     try:
         with open(env_path, 'r', encoding='utf-8') as f:
-            for line_no, line in enumerate(f, start=1):
+            for _line_no, line in enumerate(f, start=1):
                 line = line.strip()
                 if not line or line.startswith('#') or '=' not in line:
                     continue

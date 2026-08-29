@@ -1,5 +1,7 @@
 import html
+
 from templates.icons import icon
+
 
 def portal_layout(
     content: str,
@@ -20,7 +22,7 @@ def portal_layout(
             edit_btn = f'''<a href="/admin/pages/edit?slug={html.escape(current_slug)}" style="background:#2563eb;color:#fff;padding:5px 12px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;">
                 {icon('edit', 13, '#fff')} Редактировать эту страницу
             </a>'''
-        
+
         admin_bar_html = f'''
         <div class="portal-admin-bar" style="background:rgba(15,23,42,0.92);backdrop-filter:blur(16px) saturate(180%);color:#e2e8f0;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;font-size:13.5px;font-family:'Inter',-apple-system,sans-serif;border-bottom:1px solid rgba(255,255,255,0.1);position:sticky;top:0;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,0.25);flex-wrap:wrap;gap:12px;">
             <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
@@ -322,16 +324,16 @@ function toggleMobileSubmenu(e, elem) {{
     }}
     const parentLi = elem ? elem.closest('li.has-submenu') : null;
     if (!parentLi) return;
-    
+
     const wasOpen = parentLi.classList.contains('submenu-open');
-    
+
     // Закрываем другие подменю
     document.querySelectorAll('.nav > ul > li.has-submenu.submenu-open').forEach(li => {{
         if (li !== parentLi) {{
             li.classList.remove('submenu-open');
         }}
     }});
-    
+
     if (wasOpen) {{
         parentLi.classList.remove('submenu-open');
     }} else {{

@@ -17,7 +17,6 @@ import time
 from typing import Callable, Dict, List, Optional, Tuple
 
 import config
-from database.connection import get_db
 from logger import logger
 from services.pdf import pdf_processor
 from services.storage.pipeline import storage_pipeline

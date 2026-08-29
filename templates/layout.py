@@ -4,7 +4,7 @@ from templates.icons import icon
 def layout(body, active='search', is_admin=False, csrf_token=''):
     nav_html = ''
     ws_indicator_html = ''
-    
+
     if is_admin:
         nav_items = [
             ('pages',     '/admin/pages', 'Страницы сайта', True, 'edit'),
@@ -13,7 +13,7 @@ def layout(body, active='search', is_admin=False, csrf_token=''):
             ('reconcile', '/reconcile',   'Сверка', True, 'reconcile'),
             ('search',    '/kvit/',       'Поиск квитанций', False, 'search'),
         ]
-        for key, href, label, protected, icon_name in nav_items:
+        for key, href, label, _protected, icon_name in nav_items:
             cls = ' active' if key == active else ''
             nav_html += f'<a class="nav-link{cls}" href="{href}">{icon(icon_name, 15)} {label}</a>'
         nav_html += f'<a class="nav-link nav-auth" href="/logout">{icon("logout", 15)} Выход</a>'

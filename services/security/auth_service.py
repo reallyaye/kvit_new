@@ -40,7 +40,7 @@ def verify_password_hash(password: str, stored_hash: str) -> bool:
 class AuthService:
     """
     Потокобезопасный сервис аутентификации, использующий абстракцию SessionStore.
-    
+
     Архитектура хранилища:
     - L1 Fast In-Memory Cache (RAM с коротким TTL 10с) для мгновенной валидации O(1).
     - L2 Persistent Database Storage (app_sessions) / Redis как источник истины.

@@ -11,7 +11,7 @@
 import threading
 import time
 from collections import deque
-from typing import Deque, Dict, List, Optional
+from typing import Deque, Dict
 
 
 class MetricsCollector:

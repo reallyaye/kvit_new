@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import html
 import json
-import urllib.parse
 from typing import Any, Dict, List, Optional
 
 from templates.icons import icon
@@ -23,7 +22,7 @@ def _admin_nav_bar(active_tab: str = 'pages') -> str:
         links_html.append(f'''<a href="{href}" class="admin-tab-item{active_cls}">
             {icon(ic, 15, ic_color)} <span>{label}</span>
         </a>''')
-    
+
     return f'''
     <div class="admin-top-nav-card">
         <div class="admin-brand-badge">
@@ -73,7 +72,7 @@ def render_admin_pages_list(
             snippet = snippet[:120] + '...'
 
         main_badge = '<span class="tag tag-ok" style="font-size:11px;">Основное меню</span>' if is_main else '<span class="tag" style="background:#e2e8f0;color:#475569;font-size:11px;">Страница</span>'
-        
+
         # Кнопка удаления (запрещено удалять home и 404)
         delete_btn = ''
         if slug not in ('home', '404'):
@@ -119,7 +118,7 @@ def render_admin_pages_list(
     return f'''
     <div class="card" style="max-width:1100px;margin:24px auto;">
         {_admin_nav_bar('pages')}
-        
+
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
             <div>
                 <h1 style="font-size:22px;color:#1e293b;margin:0 0 4px;">Управление страницами сайта</h1>
@@ -192,7 +191,7 @@ def render_admin_page_editor(
         <form action="/admin/pages/save" method="post" id="pageEditorForm">
             <input type="hidden" name="csrf_token" value="{csrf_token}">
             <input type="hidden" name="is_new" value="{'1' if is_new else '0'}">
-            
+
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
                 <div>
                     <label style="margin-top:0;">Название страницы (Заголовок / Title)</label>
@@ -208,7 +207,7 @@ def render_admin_page_editor(
             <!-- ТУЛБАР БЫСТРЫХ ДЕЙСТВИЙ И ВСТАВОК -->
             <div class="cms-toolbar" style="background:#f8fafc;border:1.5px solid #cbd5e1;border-bottom:none;border-radius:10px 10px 0 0;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                 <span style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;margin-right:4px;">Вставка:</span>
-                
+
                 <button type="button" class="tool-btn" onclick="openMediaModal('image')" title="Вставить изображение из медиатеки">
                     {icon('image', 14, '#2563eb')} Фото / Картинка
                 </button>
@@ -279,7 +278,7 @@ def render_admin_page_editor(
                 </div>
                 <button type="button" onclick="closeMediaModal()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b;">✕</button>
             </div>
-            
+
             <div style="padding:16px 20px;overflow-y:auto;flex:1;">
                 <div id="modalMediaList" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:14px;"></div>
             </div>
@@ -426,12 +425,12 @@ def render_admin_page_editor(
         const title = document.getElementById('modalTitle');
         list.innerHTML = '';
 
-        title.innerHTML = filterType === 'image' 
-            ? '{icon('image', 18, '#2563eb')} Выберите изображение для вставки' 
+        title.innerHTML = filterType === 'image'
+            ? '{icon('image', 18, '#2563eb')} Выберите изображение для вставки'
             : '{icon('file_text', 18, '#16a34a')} Выберите документ для прикрепления';
 
         const filtered = mediaFilesData.filter(m => filterType === 'all' || m.type === filterType);
-        
+
         if (filtered.length === 0) {{
             list.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#64748b;padding:30px;">Нет загруженных файлов данного типа. Воспользуйтесь быстрой загрузкой ниже.</div>';
         }} else {{
@@ -457,11 +456,11 @@ def render_admin_page_editor(
                     previewHtml = '<div style="height:90px;display:flex;align-items:center;justify-content:center;color:#16a34a;">' + `{icon('file_text', 36, '#16a34a')}` + '</div>';
                 }}
 
-                item.innerHTML = previewHtml + 
+                item.innerHTML = previewHtml +
                     '<div style="font-size:12px;font-weight:600;color:#1e293b;word-break:break-all;text-align:center;">' + m.filename + '</div>' +
                     '<div style="font-size:11px;color:#64748b;">' + m.size + '</div>' +
                     '<button type="button" class="btn btn-sm" style="width:100%;padding:4px 8px;font-size:12px;margin:0;">Выбрать</button>';
-                
+
                 item.onclick = () => {{
                     if (m.type === 'image') {{
                         insertAtCursor('<img src="' + m.url + '" alt="' + m.filename + '" style="max-width:100%; border-radius:8px; margin:16px 0; box-shadow:0 2px 8px rgba(0,0,0,0.08);" />\\n');

@@ -264,9 +264,8 @@ class PDFProcessor:
 
         # ─── Индексированный Batch Lookup счетов ───
         # Если known_accounts не передан (None), запрашиваем из БД только счета текущего файла
-        valid_accounts = set()
         if known_accounts is not None:
-            valid_accounts = known_accounts
+            pass
         else:
             doc_accounts = [d.account for d in documents if d.account]
             if doc_accounts:
@@ -278,7 +277,7 @@ class PDFProcessor:
                         f"SELECT account_number FROM accounts WHERE account_number IN ({placeholders})",  # nosec B608
                         doc_accounts
                     ).fetchall()
-                    valid_accounts = {row[0] for row in rows}
+                    {row[0] for row in rows}
                 finally:
                     con_acc.close()
 

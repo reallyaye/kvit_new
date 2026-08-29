@@ -3,7 +3,6 @@ import datetime
 import json
 import os
 import re
-import shutil
 import tempfile
 import threading
 from typing import Any, Dict, List, Optional, Tuple
@@ -44,7 +43,7 @@ class PortalCMSService:
         self.docs_json_path = os.path.join(self.base_dir, 'data', 'documents.json')
         self.upload_files_dir = os.path.join(config.STATIC_DIR, 'files')
         self.upload_images_dir = os.path.join(config.STATIC_DIR, 'images', 'uploads')
-        
+
         # Гарантируем существование необходимых папок
         os.makedirs(os.path.join(self.base_dir, 'data'), exist_ok=True)
         os.makedirs(self.upload_files_dir, exist_ok=True)
@@ -75,7 +74,7 @@ class PortalCMSService:
         """Атомарная запись JSON через временный файл с защитой от повреждений."""
         dir_name = os.path.dirname(file_path)
         os.makedirs(dir_name, exist_ok=True)
-        
+
         fd, temp_path = tempfile.mkstemp(dir=dir_name, prefix='cms_save_', suffix='.tmp')
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -126,7 +125,7 @@ class PortalCMSService:
                     'content_length': len(html_content),
                     'snippet': re.sub(r'<[^>]+>', ' ', html_content[:200]).strip()
                 })
-            
+
             # Сортировка: сначала основные разделы меню в фиксированном порядке, затем остальные
             main_slug_order = ['home', 'reports', 'load', 'tarif', 'zakup', 'tu', 'consumers', 'contacts']
             def sort_key(item):
@@ -276,7 +275,7 @@ class PortalCMSService:
     def list_media_files(self) -> List[Dict[str, Any]]:
         """Возвращает список всех загруженных файлов и изображений."""
         media_list = []
-        
+
         # 1. Сканируем изображения (uploads)
         if os.path.isdir(self.upload_images_dir):
             for fname in os.listdir(self.upload_images_dir):
@@ -343,7 +342,7 @@ class PortalCMSService:
         os.makedirs(target_dir, exist_ok=True)
 
         target_path = os.path.join(target_dir, clean_name)
-        
+
         # Если файл с таким именем уже есть, добавляем уникальный суффикс
         if os.path.exists(target_path):
             stem, f_ext = os.path.splitext(clean_name)
@@ -354,11 +353,11 @@ class PortalCMSService:
         try:
             with open(target_path, 'wb') as f:
                 f.write(file_bytes)
-            
+
             stat = os.stat(target_path)
             rel_url = f"/images/uploads/{clean_name}" if is_image else f"/files/{clean_name}"
             logger.info(f"[PortalCMS] Загружен медиа-файл: '{clean_name}', размер {stat.st_size} байт, url='{rel_url}'")
-            
+
             return True, {
                 'filename': clean_name,
                 'url': rel_url,
