@@ -260,7 +260,7 @@ def purge_missing_receipts() -> int:
     Возвращает: количество удаленных записей.
     """
     with write_transaction() as con:
-        cur = con.execute("DELETE FROM receipts WHERE status = 'missing'")
+        cur = con.execute("DELETE FROM receipts WHERE UPPER(status) = 'MISSING'")
         deleted_count = cur.rowcount if hasattr(cur, 'rowcount') and cur.rowcount != -1 else 0
         if deleted_count == 0:
             changes = con.execute("SELECT changes()").fetchone()
