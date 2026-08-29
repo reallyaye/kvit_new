@@ -46,8 +46,9 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Копируем только необходимые модули и каталоги приложения
-COPY --chown=appuser:appuser app.py bot.py worker.py config.py logger.py server.py import_data.py encrypt_env.py grpc_client.py ./
+# Копируем модули и каталоги приложения
+COPY --chown=appuser:appuser app.py bot.py worker.py config.py logger.py server.py import_data.py import_accounts.py encrypt_env.py grpc_client.py ./
+COPY --chown=appuser:appuser accounts_all.xlsx accounts_all.xls* ./
 COPY --chown=appuser:appuser database/ ./database/
 COPY --chown=appuser:appuser services/ ./services/
 COPY --chown=appuser:appuser templates/ ./templates/
