@@ -1,6 +1,7 @@
 import html
 
 from templates.icons import icon
+from templates.admin_cms_views import _admin_nav_bar
 
 
 def render_reconcile_page(data: dict):
@@ -130,6 +131,7 @@ def render_reconcile_page(data: dict):
         list_title = f'Все лицевые счета{period_label}'
 
     return f'''
+    {_admin_nav_bar('reconcile')}
     <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
         <div class="card stat-card">
             <div class="num" id="statTotalAccounts">{total_accounts}</div>

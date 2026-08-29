@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 from templates.icons import icon
+from templates.admin_cms_views import _admin_nav_bar
 
 
 def render_upload_form(message=None, csrf_token='', active_job_id=''):
     msg_html = message if message else ''
     csrf_input = f'<input type="hidden" name="csrf_token" value="{csrf_token}">' if csrf_token else ''
 
-    return f'''<div class="card">
+    return f'''
+    {_admin_nav_bar('upload')}
+    <div class="card">
         <h1>Загрузка квитанций</h1>
         <p class="subtitle">Загрузите отдельные PDF-файлы, целую папку с квитанциями или укажите путь к папке на компьютере.</p>
         {msg_html}
