@@ -40,6 +40,9 @@ data/failed/
 *.csv
 !лицевые все.xls
 !лицевые все.xlsx
+!static/files/*.xls
+!static/files/*.xlsx
+!static/files/*.csv
 
 # Tests & Benchmarks
 tests/
