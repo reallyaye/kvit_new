@@ -567,8 +567,9 @@ class TaskQueueManager:
             from services.telegram_bot.telegram_client import TelegramClient
             client = TelegramClient(config.TELEGRAM_BOT_TOKEN)
             client.send_message(chat_id, "\n".join(report_lines))
+            logger.info(f"[TaskManager] Уведомление о завершении задачи {task.job_id} успешно отправлено в Telegram (чат {chat_id}).")
         except Exception as tg_err:
-            logger.debug(f"[TaskManager] Не удалось отправить TG-уведомление из воркера: {tg_err}")
+            logger.warning(f"[TaskManager] Не удалось отправить TG-уведомление из воркера для задачи {task.job_id}: {tg_err}", exc_info=True)
 
 
 # Глобальный синглтон менеджера фоновых задач
