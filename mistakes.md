@@ -54,3 +54,12 @@
   1. Все строковые статусы сущностей (`READY`, `MISSING`, `PROCESSING`, `FAILED`, `PENDING`, `APPROVED`, `REJECTED`) должны храниться строго в **ВЕРХНЕМ РЕГИСТРЕ (UPPER_CASE)**.
   2. Во всех SQL-запросах фильтрации использовать регистронезависимое сравнение: `(UPPER(status) = 'READY' OR status IS NULL OR status = '')`.
 
+---
+
+## 7. Изоляция файловой системы между Docker контейнерами (Shared Spool Volume)
+- **Симптом ошибки:** `FileNotFoundError: No such file or directory: '/tmp/kvit_tg_upload_...' -> '/app/data/processing/...'` в `kvit-worker`.
+- **Причина:** Контейнер `kvit-api` (бот/веб) сохранял входящие файлы в системный `/tmp`, который изолирован внутри контейнера API и невидим для контейнера `kvit-worker`.
+- **Железное правило:**
+  1. Любые входящие файлы, передаваемые в очередь фоновых задач (`TaskManager`), должны создаваться **СТРОГО** внутри общего смонтированного тома `config.SPOOL_DIR` (`dir=config.SPOOL_DIR`), а не в системном `/tmp`.
+
+
