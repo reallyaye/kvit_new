@@ -149,6 +149,17 @@ services:
     networks:
       - kvit-network
 
+  # ────────────────────── 6. Cloudflare Tunnel (Public Internet Access) ─────────────
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: kvit-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://nginx:80
+    depends_on:
+      - nginx
+    networks:
+      - kvit-network
+
 networks:
   kvit-network:
     driver: bridge
