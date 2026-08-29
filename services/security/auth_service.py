@@ -61,12 +61,16 @@ class AuthService:
 
     def verify_password(self, password: str) -> bool:
         """Безопасная проверка пароля администратора строго по криптостойкому PBKDF2 хешу."""
-        if not isinstance(password, str) or not password or not password.strip():
+        if not isinstance(password, str) or not password:
             return False
 
-        stored_hash = (config.ADMIN_PASSWORD_HASH or '').strip()
+        clean_pwd = password.strip()
+        if not clean_pwd:
+            return False
+
+        stored_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
         if stored_hash:
-            return verify_password_hash(password, stored_hash)
+            return verify_password_hash(clean_pwd, stored_hash)
 
         return False
 
