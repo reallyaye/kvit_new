@@ -267,7 +267,7 @@
     "description": "ТОО КРЭК (Карагандинская Региональная Энергетическая Компания) - Отчет инвестиционной программы за 2 квартал 2026 года",
     "date_text": "",
     "files": [
-      "files/Исполнение ИП 2 квартал 2026 года.pdf"
+      "files/Ispolnenie_IP_2_kvartal_2026_goda.pdf"
     ],
     "iframes": [],
     "has_custom_html": false
@@ -877,13 +877,13 @@
     "date_text": "Информация актуальна на 30.03.2019",
     "files": [],
     "iframes": [
-      "files/ktp_2019_03_АРЭС.pdf",
-      "files/ktp_2019_03_ЕРЭС.pdf",
-      "files/ktp_2019_03_КРЭС.pdf",
-      "files/ktp_2019_03_МРЭС.pdf",
-      "files/ktp_2019_03_НРЭС.pdf",
-      "files/ktp_2019_03_ОРЭС.pdf",
-      "files/ktp_2019_03_Тен.уч.pdf"
+      "files/ktp_2019_03_ARES.pdf",
+      "files/ktp_2019_03_ERES.pdf",
+      "files/ktp_2019_03_KRES.pdf",
+      "files/ktp_2019_03_MRES.pdf",
+      "files/ktp_2019_03_NRES.pdf",
+      "files/ktp_2019_03_ORES.pdf",
+      "files/ktp_2019_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -895,13 +895,13 @@
     "date_text": "Информация актуальна на 30.06.2019",
     "files": [],
     "iframes": [
-      "files/ktp_2019_06_АРЭС.pdf",
-      "files/ktp_2019_06_ЕРЭС.pdf",
-      "files/ktp_2019_06_КРЭС.pdf",
-      "files/ktp_2019_06_МРЭС.pdf",
-      "files/ktp_2019_06_НРЭС.pdf",
-      "files/ktp_2019_06_ОРЭС.pdf",
-      "files/ktp_2019_06_Тен.уч.pdf"
+      "files/ktp_2019_06_ARES.pdf",
+      "files/ktp_2019_06_ERES.pdf",
+      "files/ktp_2019_06_KRES.pdf",
+      "files/ktp_2019_06_MRES.pdf",
+      "files/ktp_2019_06_NRES.pdf",
+      "files/ktp_2019_06_ORES.pdf",
+      "files/ktp_2019_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -913,13 +913,13 @@
     "date_text": "Информация актуальна на 30.09.2019",
     "files": [],
     "iframes": [
-      "files/ktp_2019_09_АРЭС.pdf",
-      "files/ktp_2019_09_ЕРЭС.pdf",
-      "files/ktp_2019_09_КРЭС.pdf",
-      "files/ktp_2019_09_МРЭС.pdf",
-      "files/ktp_2019_09_НРЭС.pdf",
-      "files/ktp_2019_09_ОРЭС.pdf",
-      "files/ktp_2019_09_Тен.уч.pdf"
+      "files/ktp_2019_09_ARES.pdf",
+      "files/ktp_2019_09_ERES.pdf",
+      "files/ktp_2019_09_KRES.pdf",
+      "files/ktp_2019_09_MRES.pdf",
+      "files/ktp_2019_09_NRES.pdf",
+      "files/ktp_2019_09_ORES.pdf",
+      "files/ktp_2019_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -931,13 +931,13 @@
     "date_text": "Информация актуальна на 30.12.2019",
     "files": [],
     "iframes": [
-      "files/ktp_2019_12_АРЭС.pdf",
-      "files/ktp_2019_12_ЕРЭС.pdf",
-      "files/ktp_2019_12_КРЭС.pdf",
-      "files/ktp_2019_12_МРЭС.pdf",
-      "files/ktp_2019_12_НРЭС.pdf",
-      "files/ktp_2019_12_ОРЭС.pdf",
-      "files/ktp_2019_12_Тен.уч.pdf"
+      "files/ktp_2019_12_ARES.pdf",
+      "files/ktp_2019_12_ERES.pdf",
+      "files/ktp_2019_12_KRES.pdf",
+      "files/ktp_2019_12_MRES.pdf",
+      "files/ktp_2019_12_NRES.pdf",
+      "files/ktp_2019_12_ORES.pdf",
+      "files/ktp_2019_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -949,13 +949,13 @@
     "date_text": "Информация актуальна на 30.03.2020",
     "files": [],
     "iframes": [
-      "files/ktp_2020_03_АРЭС.pdf",
-      "files/ktp_2020_03_ЕРЭС.pdf",
-      "files/ktp_2020_03_КРЭС.pdf",
-      "files/ktp_2020_03_МРЭС.pdf",
-      "files/ktp_2020_03_НРЭС.pdf",
-      "files/ktp_2020_03_ОРЭС.pdf",
-      "files/ktp_2020_03_Тен.уч.pdf"
+      "files/ktp_2020_03_ARES.pdf",
+      "files/ktp_2020_03_ERES.pdf",
+      "files/ktp_2020_03_KRES.pdf",
+      "files/ktp_2020_03_MRES.pdf",
+      "files/ktp_2020_03_NRES.pdf",
+      "files/ktp_2020_03_ORES.pdf",
+      "files/ktp_2020_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -967,13 +967,13 @@
     "date_text": "Информация актуальна на 30.06.2020",
     "files": [],
     "iframes": [
-      "files/ktp_2019_06_АРЭС.pdf",
-      "files/ktp_2019_06_ЕРЭС.pdf",
-      "files/ktp_2019_06_КРЭС.pdf",
-      "files/ktp_2019_06_МРЭС.pdf",
-      "files/ktp_2019_06_НРЭС.pdf",
-      "files/ktp_2019_06_ОРЭС.pdf",
-      "files/ktp_2019_06_Тен.уч.pdf"
+      "files/ktp_2019_06_ARES.pdf",
+      "files/ktp_2019_06_ERES.pdf",
+      "files/ktp_2019_06_KRES.pdf",
+      "files/ktp_2019_06_MRES.pdf",
+      "files/ktp_2019_06_NRES.pdf",
+      "files/ktp_2019_06_ORES.pdf",
+      "files/ktp_2019_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -985,13 +985,13 @@
     "date_text": "Информация актуальна на 30.09.2020",
     "files": [],
     "iframes": [
-      "files/ktp_2020_09_АРЭС.pdf",
-      "files/ktp_2020_09_ЕРЭС.pdf",
-      "files/ktp_2020_09_КРЭС.pdf",
-      "files/ktp_2020_09_МРЭС.pdf",
-      "files/ktp_2020_09_НРЭС.pdf",
-      "files/ktp_2020_09_ОРЭС.pdf",
-      "files/ktp_2020_09_Тен.уч.pdf"
+      "files/ktp_2020_09_ARES.pdf",
+      "files/ktp_2020_09_ERES.pdf",
+      "files/ktp_2020_09_KRES.pdf",
+      "files/ktp_2020_09_MRES.pdf",
+      "files/ktp_2020_09_NRES.pdf",
+      "files/ktp_2020_09_ORES.pdf",
+      "files/ktp_2020_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1003,13 +1003,13 @@
     "date_text": "Информация актуальна на 30.12.2020",
     "files": [],
     "iframes": [
-      "files/ktp_2020_12_АРЭС.pdf",
-      "files/ktp_2020_12_ЕРЭС.pdf",
-      "files/ktp_2020_12_КРЭС.pdf",
-      "files/ktp_2020_12_МРЭС.pdf",
-      "files/ktp_2020_12_НРЭС.pdf",
-      "files/ktp_2020_12_ОРЭС.pdf",
-      "files/ktp_2020_12_Тен.уч.pdf"
+      "files/ktp_2020_12_ARES.pdf",
+      "files/ktp_2020_12_ERES.pdf",
+      "files/ktp_2020_12_KRES.pdf",
+      "files/ktp_2020_12_MRES.pdf",
+      "files/ktp_2020_12_NRES.pdf",
+      "files/ktp_2020_12_ORES.pdf",
+      "files/ktp_2020_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1021,13 +1021,13 @@
     "date_text": "Информация актуальна на 30.03.2021",
     "files": [],
     "iframes": [
-      "files/ktp_2021_06_АРЭС.pdf",
-      "files/ktp_2021_06_ЕРЭС.pdf",
-      "files/ktp_2021_06_КРЭС.pdf",
-      "files/ktp_2021_06_МРЭС.pdf",
-      "files/ktp_2021_06_НРЭС.pdf",
-      "files/ktp_2021_06_ОРЭС.pdf",
-      "files/ktp_2021_06_Тен.уч.pdf"
+      "files/ktp_2021_06_ARES.pdf",
+      "files/ktp_2021_06_ERES.pdf",
+      "files/ktp_2021_06_KRES.pdf",
+      "files/ktp_2021_06_MRES.pdf",
+      "files/ktp_2021_06_NRES.pdf",
+      "files/ktp_2021_06_ORES.pdf",
+      "files/ktp_2021_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1039,13 +1039,13 @@
     "date_text": "Информация актуальна на 30.06.2021",
     "files": [],
     "iframes": [
-      "files/ktp_2021_06_АРЭС.pdf",
-      "files/ktp_2021_06_ЕРЭС.pdf",
-      "files/ktp_2021_06_КРЭС.pdf",
-      "files/ktp_2021_06_МРЭС.pdf",
-      "files/ktp_2021_06_НРЭС.pdf",
-      "files/ktp_2021_06_ОРЭС.pdf",
-      "files/ktp_2021_06_Тен.уч.pdf"
+      "files/ktp_2021_06_ARES.pdf",
+      "files/ktp_2021_06_ERES.pdf",
+      "files/ktp_2021_06_KRES.pdf",
+      "files/ktp_2021_06_MRES.pdf",
+      "files/ktp_2021_06_NRES.pdf",
+      "files/ktp_2021_06_ORES.pdf",
+      "files/ktp_2021_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1057,13 +1057,13 @@
     "date_text": "Информация актуальна на 30.09.2021",
     "files": [],
     "iframes": [
-      "files/ktp_2021_09_АРЭС.pdf",
-      "files/ktp_2021_09_ЕРЭС.pdf",
-      "files/ktp_2021_09_КРЭС.pdf",
-      "files/ktp_2021_09_МРЭС.pdf",
-      "files/ktp_2021_09_НРЭС.pdf",
-      "files/ktp_2021_09_ОРЭС.pdf",
-      "files/ktp_2021_09_Тен.уч.pdf"
+      "files/ktp_2021_09_ARES.pdf",
+      "files/ktp_2021_09_ERES.pdf",
+      "files/ktp_2021_09_KRES.pdf",
+      "files/ktp_2021_09_MRES.pdf",
+      "files/ktp_2021_09_NRES.pdf",
+      "files/ktp_2021_09_ORES.pdf",
+      "files/ktp_2021_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1075,13 +1075,13 @@
     "date_text": "Информация актуальна на 30.12.2021",
     "files": [],
     "iframes": [
-      "files/ktp_2021_12_АРЭС.pdf",
-      "files/ktp_2021_12_ЕРЭС.pdf",
-      "files/ktp_2021_12_КРЭС.pdf",
-      "files/ktp_2021_12_МРЭС.pdf",
-      "files/ktp_2021_12_НРЭС.pdf",
-      "files/ktp_2021_12_ОРЭС.pdf",
-      "files/ktp_2021_12_Тен.уч.pdf"
+      "files/ktp_2021_12_ARES.pdf",
+      "files/ktp_2021_12_ERES.pdf",
+      "files/ktp_2021_12_KRES.pdf",
+      "files/ktp_2021_12_MRES.pdf",
+      "files/ktp_2021_12_NRES.pdf",
+      "files/ktp_2021_12_ORES.pdf",
+      "files/ktp_2021_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1093,13 +1093,13 @@
     "date_text": "Информация актуальна на 30.03.2022",
     "files": [],
     "iframes": [
-      "files/ktp_2022_03_АРЭС.pdf",
-      "files/ktp_2022_03_ЕРЭС.pdf",
-      "files/ktp_2022_03_КРЭС.pdf",
-      "files/ktp_2022_03_МРЭС.pdf",
-      "files/ktp_2022_03_НРЭС.pdf",
-      "files/ktp_2022_03_ОРЭС.pdf",
-      "files/ktp_2022_03_Тен.уч.pdf"
+      "files/ktp_2022_03_ARES.pdf",
+      "files/ktp_2022_03_ERES.pdf",
+      "files/ktp_2022_03_KRES.pdf",
+      "files/ktp_2022_03_MRES.pdf",
+      "files/ktp_2022_03_NRES.pdf",
+      "files/ktp_2022_03_ORES.pdf",
+      "files/ktp_2022_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1111,13 +1111,13 @@
     "date_text": "Информация актуальна на 30.06.2022",
     "files": [],
     "iframes": [
-      "files/ktp_2022_06_АРЭС.pdf",
-      "files/ktp_2022_06_ЕРЭС.pdf",
-      "files/ktp_2022_06_КРЭС.pdf",
-      "files/ktp_2022_06_МРЭС.pdf",
-      "files/ktp_2022_06_НРЭС.pdf",
-      "files/ktp_2022_06_ОРЭС.pdf",
-      "files/ktp_2022_06_Тен.уч.pdf"
+      "files/ktp_2022_06_ARES.pdf",
+      "files/ktp_2022_06_ERES.pdf",
+      "files/ktp_2022_06_KRES.pdf",
+      "files/ktp_2022_06_MRES.pdf",
+      "files/ktp_2022_06_NRES.pdf",
+      "files/ktp_2022_06_ORES.pdf",
+      "files/ktp_2022_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1129,13 +1129,13 @@
     "date_text": "Информация актуальна на 30.09.2022",
     "files": [],
     "iframes": [
-      "files/ktp_2022_09_АРЭС.pdf",
-      "files/ktp_2022_09_ЕРЭС.pdf",
-      "files/ktp_2022_09_КРЭС.pdf",
-      "files/ktp_2022_09_МРЭС.pdf",
-      "files/ktp_2022_09_НРЭС.pdf",
-      "files/ktp_2022_09_ОРЭС.pdf",
-      "files/ktp_2022_09_Тен.уч.pdf"
+      "files/ktp_2022_09_ARES.pdf",
+      "files/ktp_2022_09_ERES.pdf",
+      "files/ktp_2022_09_KRES.pdf",
+      "files/ktp_2022_09_MRES.pdf",
+      "files/ktp_2022_09_NRES.pdf",
+      "files/ktp_2022_09_ORES.pdf",
+      "files/ktp_2022_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1147,13 +1147,13 @@
     "date_text": "Информация актуальна на 30.12.2022",
     "files": [],
     "iframes": [
-      "files/ktp_2022_12_АРЭС.pdf",
-      "files/ktp_2022_12_ЕРЭС.pdf",
-      "files/ktp_2022_12_КРЭС.pdf",
-      "files/ktp_2022_12_МРЭС.pdf",
-      "files/ktp_2022_12_НРЭС.pdf",
-      "files/ktp_2022_12_ОРЭС.pdf",
-      "files/ktp_2022_12_Тен.уч.pdf"
+      "files/ktp_2022_12_ARES.pdf",
+      "files/ktp_2022_12_ERES.pdf",
+      "files/ktp_2022_12_KRES.pdf",
+      "files/ktp_2022_12_MRES.pdf",
+      "files/ktp_2022_12_NRES.pdf",
+      "files/ktp_2022_12_ORES.pdf",
+      "files/ktp_2022_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1165,13 +1165,13 @@
     "date_text": "Информация актуальна на 30.03.2023",
     "files": [],
     "iframes": [
-      "files/ktp_2023_03_АРЭС.pdf",
-      "files/ktp_2023_03_ЕРЭС.pdf",
-      "files/ktp_2023_03_КРЭС.pdf",
-      "files/ktp_2023_03_МРЭС.pdf",
-      "files/ktp_2023_03_НРЭС.pdf",
-      "files/ktp_2023_03_ОРЭС.pdf",
-      "files/ktp_2023_03_Тен.уч.pdf"
+      "files/ktp_2023_03_ARES.pdf",
+      "files/ktp_2023_03_ERES.pdf",
+      "files/ktp_2023_03_KRES.pdf",
+      "files/ktp_2023_03_MRES.pdf",
+      "files/ktp_2023_03_NRES.pdf",
+      "files/ktp_2023_03_ORES.pdf",
+      "files/ktp_2023_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1183,13 +1183,13 @@
     "date_text": "Информация актуальна на 30.06.2023",
     "files": [],
     "iframes": [
-      "files/ktp_2023_06_АРЭС.pdf",
-      "files/ktp_2023_06_ЕРЭС.pdf",
-      "files/ktp_2023_06_КРЭС.pdf",
-      "files/ktp_2023_06_МРЭС.pdf",
-      "files/ktp_2023_06_НРЭС.pdf",
-      "files/ktp_2023_06_ОРЭС.pdf",
-      "files/ktp_2023_06_Тен.уч.pdf"
+      "files/ktp_2023_06_ARES.pdf",
+      "files/ktp_2023_06_ERES.pdf",
+      "files/ktp_2023_06_KRES.pdf",
+      "files/ktp_2023_06_MRES.pdf",
+      "files/ktp_2023_06_NRES.pdf",
+      "files/ktp_2023_06_ORES.pdf",
+      "files/ktp_2023_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1201,13 +1201,13 @@
     "date_text": "Информация актуальна на 30.09.2023",
     "files": [],
     "iframes": [
-      "files/ktp_2023_09_АРЭС.pdf",
-      "files/ktp_2023_09_ЕРЭС.pdf",
-      "files/ktp_2023_09_КРЭС.pdf",
-      "files/ktp_2023_09_МРЭС.pdf",
-      "files/ktp_2023_09_НРЭС.pdf",
-      "files/ktp_2023_09_ОРЭС.pdf",
-      "files/ktp_2023_09_Тен.уч.pdf"
+      "files/ktp_2023_09_ARES.pdf",
+      "files/ktp_2023_09_ERES.pdf",
+      "files/ktp_2023_09_KRES.pdf",
+      "files/ktp_2023_09_MRES.pdf",
+      "files/ktp_2023_09_NRES.pdf",
+      "files/ktp_2023_09_ORES.pdf",
+      "files/ktp_2023_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1219,13 +1219,13 @@
     "date_text": "Информация актуальна на 30.12.2023",
     "files": [],
     "iframes": [
-      "files/ktp_2023_12_АРЭС.pdf",
-      "files/ktp_2023_12_ЕРЭС.pdf",
-      "files/ktp_2023_12_КРЭС.pdf",
-      "files/ktp_2023_12_МРЭС.pdf",
-      "files/ktp_2023_12_НРЭС.pdf",
-      "files/ktp_2023_12_ОРЭС.pdf",
-      "files/ktp_2023_12_Тен.уч.pdf"
+      "files/ktp_2023_12_ARES.pdf",
+      "files/ktp_2023_12_ERES.pdf",
+      "files/ktp_2023_12_KRES.pdf",
+      "files/ktp_2023_12_MRES.pdf",
+      "files/ktp_2023_12_NRES.pdf",
+      "files/ktp_2023_12_ORES.pdf",
+      "files/ktp_2023_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1237,13 +1237,13 @@
     "date_text": "Информация актуальна на 30.03.2024",
     "files": [],
     "iframes": [
-      "files/ktp_2024_03_АРЭС.pdf",
-      "files/ktp_2024_03_ЕРЭС.pdf",
-      "files/ktp_2024_03_КРЭС.pdf",
-      "files/ktp_2024_03_МРЭС.pdf",
-      "files/ktp_2024_03_НРЭС.pdf",
-      "files/ktp_2024_03_ОРЭС.pdf",
-      "files/ktp_2024_03_Тен.уч.pdf"
+      "files/ktp_2024_03_ARES.pdf",
+      "files/ktp_2024_03_ERES.pdf",
+      "files/ktp_2024_03_KRES.pdf",
+      "files/ktp_2024_03_MRES.pdf",
+      "files/ktp_2024_03_NRES.pdf",
+      "files/ktp_2024_03_ORES.pdf",
+      "files/ktp_2024_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1255,13 +1255,13 @@
     "date_text": "Информация актуальна на 30.06.2024",
     "files": [],
     "iframes": [
-      "files/ktp_2024_06_АРЭС.pdf",
-      "files/ktp_2024_06_ЕРЭС.pdf",
-      "files/ktp_2024_06_КРЭС.pdf",
-      "files/ktp_2024_06_МРЭС.pdf",
-      "files/ktp_2024_06_НРЭС.pdf",
-      "files/ktp_2024_06_ОРЭС.pdf",
-      "files/ktp_2024_06_Тен.уч.pdf"
+      "files/ktp_2024_06_ARES.pdf",
+      "files/ktp_2024_06_ERES.pdf",
+      "files/ktp_2024_06_KRES.pdf",
+      "files/ktp_2024_06_MRES.pdf",
+      "files/ktp_2024_06_NRES.pdf",
+      "files/ktp_2024_06_ORES.pdf",
+      "files/ktp_2024_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1273,13 +1273,13 @@
     "date_text": "Информация актуальна на 30.09.2024",
     "files": [],
     "iframes": [
-      "files/ktp_2024_09_АРЭС.pdf",
-      "files/ktp_2024_09_ЕРЭС.pdf",
-      "files/ktp_2024_09_КРЭС.pdf",
-      "files/ktp_2024_09_МРЭС.pdf",
-      "files/ktp_2024_09_НРЭС.pdf",
-      "files/ktp_2024_09_ОРЭС.pdf",
-      "files/ktp_2024_09_Тен.уч.pdf"
+      "files/ktp_2024_09_ARES.pdf",
+      "files/ktp_2024_09_ERES.pdf",
+      "files/ktp_2024_09_KRES.pdf",
+      "files/ktp_2024_09_MRES.pdf",
+      "files/ktp_2024_09_NRES.pdf",
+      "files/ktp_2024_09_ORES.pdf",
+      "files/ktp_2024_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1291,13 +1291,13 @@
     "date_text": "Информация актуальна на 30.12.2024",
     "files": [],
     "iframes": [
-      "files/ktp_2024_12_АРЭС.pdf",
-      "files/ktp_2024_12_ЕРЭС.pdf",
-      "files/ktp_2024_12_КРЭС.pdf",
-      "files/ktp_2024_12_МРЭС.pdf",
-      "files/ktp_2024_12_НРЭС.pdf",
-      "files/ktp_2024_12_ОРЭС.pdf",
-      "files/ktp_2024_12_Тен.уч.pdf"
+      "files/ktp_2024_12_ARES.pdf",
+      "files/ktp_2024_12_ERES.pdf",
+      "files/ktp_2024_12_KRES.pdf",
+      "files/ktp_2024_12_MRES.pdf",
+      "files/ktp_2024_12_NRES.pdf",
+      "files/ktp_2024_12_ORES.pdf",
+      "files/ktp_2024_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1309,13 +1309,13 @@
     "date_text": "Информация актуальна на 30.03.2025",
     "files": [],
     "iframes": [
-      "files/ktp_2025_03_АРЭС.pdf",
-      "files/ktp_2025_03_ЕРЭС.pdf",
-      "files/ktp_2025_03_КРЭС.pdf",
-      "files/ktp_2025_03_МРЭС.pdf",
-      "files/ktp_2025_03_НРЭС.pdf",
-      "files/ktp_2025_03_ОРЭС.pdf",
-      "files/ktp_2025_03_Тен.уч.pdf"
+      "files/ktp_2025_03_ARES.pdf",
+      "files/ktp_2025_03_ERES.pdf",
+      "files/ktp_2025_03_KRES.pdf",
+      "files/ktp_2025_03_MRES.pdf",
+      "files/ktp_2025_03_NRES.pdf",
+      "files/ktp_2025_03_ORES.pdf",
+      "files/ktp_2025_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1327,13 +1327,13 @@
     "date_text": "Информация актуальна на 30.06.2025",
     "files": [],
     "iframes": [
-      "files/ktp_2025_06_АРЭС.pdf",
-      "files/ktp_2025_06_ЕРЭС.pdf",
-      "files/ktp_2025_06_КРЭС.pdf",
-      "files/ktp_2025_06_МРЭС.pdf",
-      "files/ktp_2025_06_НРЭС.pdf",
-      "files/ktp_2025_06_ОРЭС.pdf",
-      "files/ktp_2025_06_Тен.уч.pdf"
+      "files/ktp_2025_06_ARES.pdf",
+      "files/ktp_2025_06_ERES.pdf",
+      "files/ktp_2025_06_KRES.pdf",
+      "files/ktp_2025_06_MRES.pdf",
+      "files/ktp_2025_06_NRES.pdf",
+      "files/ktp_2025_06_ORES.pdf",
+      "files/ktp_2025_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1345,13 +1345,13 @@
     "date_text": "Информация актуальна на 30.09.2025",
     "files": [],
     "iframes": [
-      "files/ktp_2025_09_АРЭС.pdf",
-      "files/ktp_2025_09_ЕРЭС.pdf",
-      "files/ktp_2025_09_КРЭС.pdf",
-      "files/ktp_2025_09_МРЭС.pdf",
-      "files/ktp_2025_09_НРЭС.pdf",
-      "files/ktp_2025_09_ОРЭС.pdf",
-      "files/ktp_2025_09_Тен.уч.pdf"
+      "files/ktp_2025_09_ARES.pdf",
+      "files/ktp_2025_09_ERES.pdf",
+      "files/ktp_2025_09_KRES.pdf",
+      "files/ktp_2025_09_MRES.pdf",
+      "files/ktp_2025_09_NRES.pdf",
+      "files/ktp_2025_09_ORES.pdf",
+      "files/ktp_2025_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1363,13 +1363,13 @@
     "date_text": "Информация актуальна на 30.12.2025",
     "files": [],
     "iframes": [
-      "files/ktp_2025_12_АРЭС.pdf",
-      "files/ktp_2025_12_ЕРЭС.pdf",
-      "files/ktp_2025_12_КРЭС.pdf",
-      "files/ktp_2025_12_МРЭС.pdf",
-      "files/ktp_2025_12_НРЭС.pdf",
-      "files/ktp_2025_12_ОРЭС.pdf",
-      "files/ktp_2025_12_Тен.уч.pdf"
+      "files/ktp_2025_12_ARES.pdf",
+      "files/ktp_2025_12_ERES.pdf",
+      "files/ktp_2025_12_KRES.pdf",
+      "files/ktp_2025_12_MRES.pdf",
+      "files/ktp_2025_12_NRES.pdf",
+      "files/ktp_2025_12_ORES.pdf",
+      "files/ktp_2025_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1765,13 +1765,13 @@
     "date_text": "Информация актуальна на 30.03.2019",
     "files": [],
     "iframes": [
-      "files/line_2019_03_АРЭС.pdf",
-      "files/line_2019_03_ЕРЭС.pdf",
-      "files/line_2019_03_КРЭС.pdf",
-      "files/line_2019_03_МРЭС.pdf",
-      "files/line_2019_03_НРЭС.pdf",
-      "files/line_2019_03_ОРЭС.pdf",
-      "files/line_2019_03_Тен.уч.pdf"
+      "files/line_2019_03_ARES.pdf",
+      "files/line_2019_03_ERES.pdf",
+      "files/line_2019_03_KRES.pdf",
+      "files/line_2019_03_MRES.pdf",
+      "files/line_2019_03_NRES.pdf",
+      "files/line_2019_03_ORES.pdf",
+      "files/line_2019_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1783,13 +1783,13 @@
     "date_text": "Информация актуальна на 30.06.2019",
     "files": [],
     "iframes": [
-      "files/line_2019_06_АРЭС.pdf",
-      "files/line_2019_06_ЕРЭС.pdf",
-      "files/line_2019_06_КРЭС.pdf",
-      "files/line_2019_06_МРЭС.pdf",
-      "files/line_2019_06_НРЭС.pdf",
-      "files/line_2019_06_ОРЭС.pdf",
-      "files/line_2019_06_Тен.уч.pdf"
+      "files/line_2019_06_ARES.pdf",
+      "files/line_2019_06_ERES.pdf",
+      "files/line_2019_06_KRES.pdf",
+      "files/line_2019_06_MRES.pdf",
+      "files/line_2019_06_NRES.pdf",
+      "files/line_2019_06_ORES.pdf",
+      "files/line_2019_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1801,13 +1801,13 @@
     "date_text": "Информация актуальна на 30.09.2019",
     "files": [],
     "iframes": [
-      "files/line_2019_09_АРЭС.pdf",
-      "files/line_2019_09_ЕРЭС.pdf",
-      "files/line_2019_09_КРЭС.pdf",
-      "files/line_2019_09_МРЭС.pdf",
-      "files/line_2019_09_НРЭС.pdf",
-      "files/line_2019_09_ОРЭС.pdf",
-      "files/line_2019_09_Тен.уч.pdf"
+      "files/line_2019_09_ARES.pdf",
+      "files/line_2019_09_ERES.pdf",
+      "files/line_2019_09_KRES.pdf",
+      "files/line_2019_09_MRES.pdf",
+      "files/line_2019_09_NRES.pdf",
+      "files/line_2019_09_ORES.pdf",
+      "files/line_2019_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1819,13 +1819,13 @@
     "date_text": "Информация актуальна на 30.12.2019",
     "files": [],
     "iframes": [
-      "files/line_2019_12_АРЭС.pdf",
-      "files/line_2019_12_ЕРЭС.pdf",
-      "files/line_2019_12_КРЭС.pdf",
-      "files/line_2019_12_МРЭС.pdf",
-      "files/line_2019_12_НРЭС.pdf",
-      "files/line_2019_12_ОРЭС.pdf",
-      "files/line_2019_12_Тен.уч.pdf"
+      "files/line_2019_12_ARES.pdf",
+      "files/line_2019_12_ERES.pdf",
+      "files/line_2019_12_KRES.pdf",
+      "files/line_2019_12_MRES.pdf",
+      "files/line_2019_12_NRES.pdf",
+      "files/line_2019_12_ORES.pdf",
+      "files/line_2019_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1837,13 +1837,13 @@
     "date_text": "Информация актуальна на 30.03.2020",
     "files": [],
     "iframes": [
-      "files/line_2020_03_АРЭС.pdf",
-      "files/line_2020_03_ЕРЭС.pdf",
-      "files/line_2020_03_КРЭС.pdf",
-      "files/line_2020_03_МРЭС.pdf",
-      "files/line_2020_03_НРЭС.pdf",
-      "files/line_2020_03_ОРЭС.pdf",
-      "files/line_2020_03_Тен.уч.pdf"
+      "files/line_2020_03_ARES.pdf",
+      "files/line_2020_03_ERES.pdf",
+      "files/line_2020_03_KRES.pdf",
+      "files/line_2020_03_MRES.pdf",
+      "files/line_2020_03_NRES.pdf",
+      "files/line_2020_03_ORES.pdf",
+      "files/line_2020_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1855,13 +1855,13 @@
     "date_text": "Информация актуальна на 30.06.2020",
     "files": [],
     "iframes": [
-      "files/line_2019_06_АРЭС.pdf",
-      "files/line_2019_06_ЕРЭС.pdf",
-      "files/line_2019_06_КРЭС.pdf",
-      "files/line_2019_06_МРЭС.pdf",
-      "files/line_2019_06_НРЭС.pdf",
-      "files/line_2019_06_ОРЭС.pdf",
-      "files/line_2019_06_Тен.уч.pdf"
+      "files/line_2019_06_ARES.pdf",
+      "files/line_2019_06_ERES.pdf",
+      "files/line_2019_06_KRES.pdf",
+      "files/line_2019_06_MRES.pdf",
+      "files/line_2019_06_NRES.pdf",
+      "files/line_2019_06_ORES.pdf",
+      "files/line_2019_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1873,13 +1873,13 @@
     "date_text": "Информация актуальна на 30.09.2020",
     "files": [],
     "iframes": [
-      "files/line_2020_09_АРЭС.pdf",
-      "files/line_2020_09_ЕРЭС.pdf",
-      "files/line_2020_09_КРЭС.pdf",
-      "files/line_2020_09_МРЭС.pdf",
-      "files/line_2020_09_НРЭС.pdf",
-      "files/line_2020_09_ОРЭС.pdf",
-      "files/line_2020_09_Тен.уч.pdf"
+      "files/line_2020_09_ARES.pdf",
+      "files/line_2020_09_ERES.pdf",
+      "files/line_2020_09_KRES.pdf",
+      "files/line_2020_09_MRES.pdf",
+      "files/line_2020_09_NRES.pdf",
+      "files/line_2020_09_ORES.pdf",
+      "files/line_2020_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1891,13 +1891,13 @@
     "date_text": "Информация актуальна на 30.12.2020",
     "files": [],
     "iframes": [
-      "files/line_2020_12_АРЭС.pdf",
-      "files/line_2020_12_ЕРЭС.pdf",
-      "files/line_2020_12_КРЭС.pdf",
-      "files/line_2020_12_МРЭС.pdf",
-      "files/line_2020_12_НРЭС.pdf",
-      "files/line_2020_12_ОРЭС.pdf",
-      "files/line_2020_12_Тен.уч.pdf"
+      "files/line_2020_12_ARES.pdf",
+      "files/line_2020_12_ERES.pdf",
+      "files/line_2020_12_KRES.pdf",
+      "files/line_2020_12_MRES.pdf",
+      "files/line_2020_12_NRES.pdf",
+      "files/line_2020_12_ORES.pdf",
+      "files/line_2020_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1909,13 +1909,13 @@
     "date_text": "Информация актуальна на 30.03.2021",
     "files": [],
     "iframes": [
-      "files/line_2021_06_АРЭС.pdf",
-      "files/line_2021_06_ЕРЭС.pdf",
-      "files/line_2021_06_КРЭС.pdf",
-      "files/line_2021_06_МРЭС.pdf",
-      "files/line_2021_06_НРЭС.pdf",
-      "files/line_2021_06_ОРЭС.pdf",
-      "files/line_2021_06_Тен.уч.pdf"
+      "files/line_2021_06_ARES.pdf",
+      "files/line_2021_06_ERES.pdf",
+      "files/line_2021_06_KRES.pdf",
+      "files/line_2021_06_MRES.pdf",
+      "files/line_2021_06_NRES.pdf",
+      "files/line_2021_06_ORES.pdf",
+      "files/line_2021_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1927,13 +1927,13 @@
     "date_text": "Информация актуальна на 30.06.2021",
     "files": [],
     "iframes": [
-      "files/line_2021_06_АРЭС.pdf",
-      "files/line_2021_06_ЕРЭС.pdf",
-      "files/line_2021_06_КРЭС.pdf",
-      "files/line_2021_06_МРЭС.pdf",
-      "files/line_2021_06_НРЭС.pdf",
-      "files/line_2021_06_ОРЭС.pdf",
-      "files/line_2021_06_Тен.уч.pdf"
+      "files/line_2021_06_ARES.pdf",
+      "files/line_2021_06_ERES.pdf",
+      "files/line_2021_06_KRES.pdf",
+      "files/line_2021_06_MRES.pdf",
+      "files/line_2021_06_NRES.pdf",
+      "files/line_2021_06_ORES.pdf",
+      "files/line_2021_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1945,13 +1945,13 @@
     "date_text": "Информация актуальна на 30.09.2021",
     "files": [],
     "iframes": [
-      "files/line_2021_09_АРЭС.pdf",
-      "files/line_2021_09_ЕРЭС.pdf",
-      "files/line_2021_09_КРЭС.pdf",
-      "files/line_2021_09_МРЭС.pdf",
-      "files/line_2021_09_НРЭС.pdf",
-      "files/line_2021_09_ОРЭС.pdf",
-      "files/line_2021_09_Тен.уч.pdf"
+      "files/line_2021_09_ARES.pdf",
+      "files/line_2021_09_ERES.pdf",
+      "files/line_2021_09_KRES.pdf",
+      "files/line_2021_09_MRES.pdf",
+      "files/line_2021_09_NRES.pdf",
+      "files/line_2021_09_ORES.pdf",
+      "files/line_2021_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1963,13 +1963,13 @@
     "date_text": "Информация актуальна на 30.12.2021",
     "files": [],
     "iframes": [
-      "files/line_2021_12_АРЭС.pdf",
-      "files/line_2021_12_ЕРЭС.pdf",
-      "files/line_2021_12_КРЭС.pdf",
-      "files/line_2021_12_МРЭС.pdf",
-      "files/line_2021_12_НРЭС.pdf",
-      "files/line_2021_12_ОРЭС.pdf",
-      "files/line_2021_12_Тен.уч.pdf"
+      "files/line_2021_12_ARES.pdf",
+      "files/line_2021_12_ERES.pdf",
+      "files/line_2021_12_KRES.pdf",
+      "files/line_2021_12_MRES.pdf",
+      "files/line_2021_12_NRES.pdf",
+      "files/line_2021_12_ORES.pdf",
+      "files/line_2021_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1981,13 +1981,13 @@
     "date_text": "Информация актуальна на 30.03.2022",
     "files": [],
     "iframes": [
-      "files/line_2022_03_АРЭС.pdf",
-      "files/line_2022_03_ЕРЭС.pdf",
-      "files/line_2022_03_КРЭС.pdf",
-      "files/line_2022_03_МРЭС.pdf",
-      "files/line_2022_03_НРЭС.pdf",
-      "files/line_2022_03_ОРЭС.pdf",
-      "files/line_2022_03_Тен.уч.pdf"
+      "files/line_2022_03_ARES.pdf",
+      "files/line_2022_03_ERES.pdf",
+      "files/line_2022_03_KRES.pdf",
+      "files/line_2022_03_MRES.pdf",
+      "files/line_2022_03_NRES.pdf",
+      "files/line_2022_03_ORES.pdf",
+      "files/line_2022_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -1999,13 +1999,13 @@
     "date_text": "Информация актуальна на 30.06.2022",
     "files": [],
     "iframes": [
-      "files/line_2022_06_АРЭС.pdf",
-      "files/line_2022_06_ЕРЭС.pdf",
-      "files/line_2022_06_КРЭС.pdf",
-      "files/line_2022_06_МРЭС.pdf",
-      "files/line_2022_06_НРЭС.pdf",
-      "files/line_2022_06_ОРЭС.pdf",
-      "files/line_2022_06_Тен.уч.pdf"
+      "files/line_2022_06_ARES.pdf",
+      "files/line_2022_06_ERES.pdf",
+      "files/line_2022_06_KRES.pdf",
+      "files/line_2022_06_MRES.pdf",
+      "files/line_2022_06_NRES.pdf",
+      "files/line_2022_06_ORES.pdf",
+      "files/line_2022_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2017,13 +2017,13 @@
     "date_text": "Информация актуальна на 30.09.2022",
     "files": [],
     "iframes": [
-      "files/line_2022_09_АРЭС.pdf",
-      "files/line_2022_09_ЕРЭС.pdf",
-      "files/line_2022_09_КРЭС.pdf",
-      "files/line_2022_09_МРЭС.pdf",
-      "files/line_2022_09_НРЭС.pdf",
-      "files/line_2022_09_ОРЭС.pdf",
-      "files/line_2022_09_Тен.уч.pdf"
+      "files/line_2022_09_ARES.pdf",
+      "files/line_2022_09_ERES.pdf",
+      "files/line_2022_09_KRES.pdf",
+      "files/line_2022_09_MRES.pdf",
+      "files/line_2022_09_NRES.pdf",
+      "files/line_2022_09_ORES.pdf",
+      "files/line_2022_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2035,13 +2035,13 @@
     "date_text": "Информация актуальна на 30.12.2022",
     "files": [],
     "iframes": [
-      "files/line_2022_12_АРЭС.pdf",
-      "files/line_2022_12_ЕРЭС.pdf",
-      "files/line_2022_12_КРЭС.pdf",
-      "files/line_2022_12_МРЭС.pdf",
-      "files/line_2022_12_НРЭС.pdf",
-      "files/line_2022_12_ОРЭС.pdf",
-      "files/line_2022_12_Тен.уч.pdf"
+      "files/line_2022_12_ARES.pdf",
+      "files/line_2022_12_ERES.pdf",
+      "files/line_2022_12_KRES.pdf",
+      "files/line_2022_12_MRES.pdf",
+      "files/line_2022_12_NRES.pdf",
+      "files/line_2022_12_ORES.pdf",
+      "files/line_2022_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2053,13 +2053,13 @@
     "date_text": "Информация актуальна на 30.03.2023",
     "files": [],
     "iframes": [
-      "files/line_2023_03_АРЭС.pdf",
-      "files/line_2023_03_ЕРЭС.pdf",
-      "files/line_2023_03_КРЭС.pdf",
-      "files/line_2023_03_МРЭС.pdf",
-      "files/line_2023_03_НРЭС.pdf",
-      "files/line_2023_03_ОРЭС.pdf",
-      "files/line_2023_03_Тен.уч.pdf"
+      "files/line_2023_03_ARES.pdf",
+      "files/line_2023_03_ERES.pdf",
+      "files/line_2023_03_KRES.pdf",
+      "files/line_2023_03_MRES.pdf",
+      "files/line_2023_03_NRES.pdf",
+      "files/line_2023_03_ORES.pdf",
+      "files/line_2023_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2071,13 +2071,13 @@
     "date_text": "Информация актуальна на 30.06.2023",
     "files": [],
     "iframes": [
-      "files/line_2023_06_АРЭС.pdf",
-      "files/line_2023_06_ЕРЭС.pdf",
-      "files/line_2023_06_КРЭС.pdf",
-      "files/line_2023_06_МРЭС.pdf",
-      "files/line_2023_06_НРЭС.pdf",
-      "files/line_2023_06_ОРЭС.pdf",
-      "files/line_2023_06_Тен.уч.pdf"
+      "files/line_2023_06_ARES.pdf",
+      "files/line_2023_06_ERES.pdf",
+      "files/line_2023_06_KRES.pdf",
+      "files/line_2023_06_MRES.pdf",
+      "files/line_2023_06_NRES.pdf",
+      "files/line_2023_06_ORES.pdf",
+      "files/line_2023_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2089,13 +2089,13 @@
     "date_text": "Информация актуальна на 30.09.2023",
     "files": [],
     "iframes": [
-      "files/line_2023_09_АРЭС.pdf",
-      "files/line_2023_09_ЕРЭС.pdf",
-      "files/line_2023_09_КРЭС.pdf",
-      "files/line_2023_09_МРЭС.pdf",
-      "files/line_2023_09_НРЭС.pdf",
-      "files/line_2023_09_ОРЭС.pdf",
-      "files/line_2023_09_Тен.уч.pdf"
+      "files/line_2023_09_ARES.pdf",
+      "files/line_2023_09_ERES.pdf",
+      "files/line_2023_09_KRES.pdf",
+      "files/line_2023_09_MRES.pdf",
+      "files/line_2023_09_NRES.pdf",
+      "files/line_2023_09_ORES.pdf",
+      "files/line_2023_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2107,13 +2107,13 @@
     "date_text": "Информация актуальна на 30.12.2023",
     "files": [],
     "iframes": [
-      "files/line_2023_12_АРЭС.pdf",
-      "files/line_2023_12_ЕРЭС.pdf",
-      "files/line_2023_12_КРЭС.pdf",
-      "files/line_2023_12_МРЭС.pdf",
-      "files/line_2023_12_НРЭС.pdf",
-      "files/line_2023_12_ОРЭС.pdf",
-      "files/line_2023_12_Тен.уч.pdf"
+      "files/line_2023_12_ARES.pdf",
+      "files/line_2023_12_ERES.pdf",
+      "files/line_2023_12_KRES.pdf",
+      "files/line_2023_12_MRES.pdf",
+      "files/line_2023_12_NRES.pdf",
+      "files/line_2023_12_ORES.pdf",
+      "files/line_2023_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2125,13 +2125,13 @@
     "date_text": "Информация актуальна на 30.03.2024",
     "files": [],
     "iframes": [
-      "files/line_2024_03_АРЭС.pdf",
-      "files/line_2024_03_ЕРЭС.pdf",
-      "files/line_2024_03_КРЭС.pdf",
-      "files/line_2024_03_МРЭС.pdf",
-      "files/line_2024_03_НРЭС.pdf",
-      "files/line_2024_03_ОРЭС.pdf",
-      "files/line_2024_03_Тен.уч.pdf"
+      "files/line_2024_03_ARES.pdf",
+      "files/line_2024_03_ERES.pdf",
+      "files/line_2024_03_KRES.pdf",
+      "files/line_2024_03_MRES.pdf",
+      "files/line_2024_03_NRES.pdf",
+      "files/line_2024_03_ORES.pdf",
+      "files/line_2024_03_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2143,13 +2143,13 @@
     "date_text": "Информация актуальна на 30.06.2024",
     "files": [],
     "iframes": [
-      "files/line_2024_06_АРЭС.pdf",
-      "files/line_2024_06_ЕРЭС.pdf",
-      "files/line_2024_06_КРЭС.pdf",
-      "files/line_2024_06_МРЭС.pdf",
-      "files/line_2024_06_НРЭС.pdf",
-      "files/line_2024_06_ОРЭС.pdf",
-      "files/line_2024_06_Тен.уч.pdf"
+      "files/line_2024_06_ARES.pdf",
+      "files/line_2024_06_ERES.pdf",
+      "files/line_2024_06_KRES.pdf",
+      "files/line_2024_06_MRES.pdf",
+      "files/line_2024_06_NRES.pdf",
+      "files/line_2024_06_ORES.pdf",
+      "files/line_2024_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2161,13 +2161,13 @@
     "date_text": "Информация актуальна на 30.09.2024",
     "files": [],
     "iframes": [
-      "files/line_2024_09_АРЭС.pdf",
-      "files/line_2024_09_ЕРЭС.pdf",
-      "files/line_2024_09_КРЭС.pdf",
-      "files/line_2024_09_МРЭС.pdf",
-      "files/line_2024_09_НРЭС.pdf",
-      "files/line_2024_09_ОРЭС.pdf",
-      "files/line_2024_09_Тен.уч.pdf"
+      "files/line_2024_09_ARES.pdf",
+      "files/line_2024_09_ERES.pdf",
+      "files/line_2024_09_KRES.pdf",
+      "files/line_2024_09_MRES.pdf",
+      "files/line_2024_09_NRES.pdf",
+      "files/line_2024_09_ORES.pdf",
+      "files/line_2024_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2179,13 +2179,13 @@
     "date_text": "Информация актуальна на 30.12.2024",
     "files": [],
     "iframes": [
-      "files/line_2024_12_АРЭС.pdf",
-      "files/line_2024_12_ЕРЭС.pdf",
-      "files/line_2024_12_КРЭС.pdf",
-      "files/line_2024_12_МРЭС.pdf",
-      "files/line_2024_12_НРЭС.pdf",
-      "files/line_2024_12_ОРЭС.pdf",
-      "files/line_2024_12_Тен.уч.pdf"
+      "files/line_2024_12_ARES.pdf",
+      "files/line_2024_12_ERES.pdf",
+      "files/line_2024_12_KRES.pdf",
+      "files/line_2024_12_MRES.pdf",
+      "files/line_2024_12_NRES.pdf",
+      "files/line_2024_12_ORES.pdf",
+      "files/line_2024_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2209,13 +2209,13 @@
     "date_text": "Информация актуальна на 30.06.2025",
     "files": [],
     "iframes": [
-      "files/line_2025_06_АРЭС.pdf",
-      "files/line_2025_06_ЕРЭС.pdf",
-      "files/line_2025_06_КРЭС.pdf",
-      "files/line_2025_06_МРЭС.pdf",
-      "files/line_2025_06_НРЭС.pdf",
-      "files/line_2025_06_ОРЭС.pdf",
-      "files/line_2025_06_Тен.уч.pdf"
+      "files/line_2025_06_ARES.pdf",
+      "files/line_2025_06_ERES.pdf",
+      "files/line_2025_06_KRES.pdf",
+      "files/line_2025_06_MRES.pdf",
+      "files/line_2025_06_NRES.pdf",
+      "files/line_2025_06_ORES.pdf",
+      "files/line_2025_06_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2227,13 +2227,13 @@
     "date_text": "Информация актуальна на 30.09.2025",
     "files": [],
     "iframes": [
-      "files/line_2025_09_АРЭС.pdf",
-      "files/line_2025_09_ЕРЭС.pdf",
-      "files/line_2025_09_КРЭС.pdf",
-      "files/line_2025_09_МРЭС.pdf",
-      "files/line_2025_09_НРЭС.pdf",
-      "files/line_2025_09_ОРЭС.pdf",
-      "files/line_2025_09_Тен.уч.pdf"
+      "files/line_2025_09_ARES.pdf",
+      "files/line_2025_09_ERES.pdf",
+      "files/line_2025_09_KRES.pdf",
+      "files/line_2025_09_MRES.pdf",
+      "files/line_2025_09_NRES.pdf",
+      "files/line_2025_09_ORES.pdf",
+      "files/line_2025_09_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },
@@ -2245,13 +2245,13 @@
     "date_text": "Информация актуальна на 30.12.2025",
     "files": [],
     "iframes": [
-      "files/line_2025_12_АРЭС.pdf",
-      "files/line_2025_12_ЕРЭС.pdf",
-      "files/line_2025_12_КРЭС.pdf",
-      "files/line_2025_12_МРЭС.pdf",
-      "files/line_2025_12_НРЭС.pdf",
-      "files/line_2025_12_ОРЭС.pdf",
-      "files/line_2025_12_Тен.уч.pdf"
+      "files/line_2025_12_ARES.pdf",
+      "files/line_2025_12_ERES.pdf",
+      "files/line_2025_12_KRES.pdf",
+      "files/line_2025_12_MRES.pdf",
+      "files/line_2025_12_NRES.pdf",
+      "files/line_2025_12_ORES.pdf",
+      "files/line_2025_12_Ten.uch.pdf"
     ],
     "has_custom_html": false
   },

@@ -27,8 +27,8 @@ ENV/
 *.xls
 *.xlsx
 *.csv
-!лицевые все.xls
-!лицевые все.xlsx
+!accounts_all.xls
+!accounts_all.xlsx
 !static/files/*.xls
 !static/files/*.xlsx
 !static/files/*.csv
