@@ -101,27 +101,19 @@ class TelegramBotService:
 
         if is_adm:
             keyboard = [
-                [{"text": BTN_STATS}, {"text": BTN_SEARCH}],
+                [{"text": BTN_SEARCH}, {"text": BTN_STATS}],
                 [{"text": BTN_REQUESTS}, {"text": BTN_HELP}]
             ]
         elif is_appr:
             keyboard = [
-                [{"text": BTN_STATS}, {"text": BTN_SEARCH}],
+                [{"text": BTN_SEARCH}, {"text": BTN_STATS}],
                 [{"text": BTN_HELP}]
             ]
         else:
-            rec = self.get_user_record(user_id)
-            status = rec.get('status') if rec else None
-            if status == 'PENDING':
-                keyboard = [
-                    [{"text": BTN_STATUS}, {"text": BTN_HELP}],
-                    [{"text": BTN_AUTH}]
-                ]
-            else:
-                keyboard = [
-                    [{"text": BTN_REGISTER}, {"text": BTN_HELP}],
-                    [{"text": BTN_AUTH}]
-                ]
+            keyboard = [
+                [{"text": BTN_SEARCH}, {"text": BTN_HELP}],
+                [{"text": BTN_AUTH}]
+            ]
 
         return {
             "keyboard": keyboard,
@@ -644,56 +636,46 @@ class TelegramBotService:
             )
             return
 
-        # 8. Проверка доступа для всех остальных действий (поиск, квитанции, статистика)
-        if not self.is_approved(user_id):
-            rec = self.get_user_record(user_id)
-            if rec and rec.get('status') == 'PENDING':
-                self.client.send_message(
-                    chat_id,
-                    "⏳ <b>Ваша заявка на регистрацию находится на рассмотрении.</b>\n"
-                    "Пожалуйста, дождитесь подтверждения от администратора.",
-                    reply_markup=self.get_main_keyboard(user_id)
-                )
-            else:
-                self.client.send_message(
-                    chat_id,
-                    "⛔ <b>Доступ ограничен</b>\n\n"
-                    "Для поиска и получения квитанций необходима регистрация в сервисе.\n"
-                    "Нажмите кнопку <b>«📝 Зарегистрироваться»</b> или отправьте команду <code>/register</code>.",
-                    reply_markup=self.get_main_keyboard(user_id)
-                )
-            return
-
-        # 9. Статистика и сверка (для одобренных пользователей и администраторов)
+        # 8. Статистика и сверка (только для одобренных операторов и администраторов)
         if lower_text in ('/stats', '/reconcile', '📊 статистика', 'статистика', 'сверка'):
+            if not self.is_approved(user_id):
+                self.client.send_message(
+                    chat_id,
+                    "🔒 <b>Служебный раздел</b>\n\n"
+                    "Просмотр статистики доступен только сотрудникам ТОО «КРЭК».\n"
+                    "Для входа используйте: <code>/login ваш_пароль</code>",
+                    reply_markup=self.get_main_keyboard(user_id)
+                )
+                return
             self._send_stats(chat_id, user_id)
             return
 
-        # 10. Поиск квитанции (подсказка)
+        # 9. Поиск квитанции (подсказка)
         if lower_text in ('🔍 найти квитанцию', 'найти квитанцию', '/search', '/kvit'):
             self.client.send_message(
                 chat_id,
                 "🔍 <b>Поиск квитанции:</b>\n\n"
-                "• Отправьте <b>номер лицевого счёта</b> (например: <code>800146</code>)\n"
+                "• Отправьте <b>номер лицевого счёта</b> (например: <code>800146</code> или <code>103997</code>)\n"
                 "• Или используйте команду: <code>/kvit 800146</code>\n"
-                "• Или укажите точный адрес: <code>/address ул. Абая 10, кв 5</code>",
+                "• Или укажите точный адрес: <code>/address ул. Абая 10, кв 5</code>\n\n"
+                "<i>Бот сразу найдёт и пришлёт PDF-квитанцию в чат!</i>",
                 reply_markup=self.get_main_keyboard(user_id)
             )
             return
 
-        # 11. Поиск по команде /address
+        # 10. Поиск по команде /address
         if lower_text.startswith('/address'):
             query = text[len('/address'):].strip()
             self._search_by_address(chat_id, user_id, query)
             return
 
-        # 12. Поиск по команде /kvit или /search с аргументом
+        # 11. Поиск по команде /kvit или /search с аргументом
         if lower_text.startswith('/kvit ') or lower_text.startswith('/search '):
             query = text.split(maxsplit=1)[1].strip()
             self._search_account_or_address(chat_id, user_id, query)
             return
 
-        # 13. Прямой ввод текста: проверка номера счёта или адреса
+        # 12. Прямой ввод текста: поиск квитанции по номеру счёта или адресу для любого пользователя
         self._search_account_or_address(chat_id, user_id, text)
 
     def _send_help(self, chat_id: int, user_id: int):
@@ -704,53 +686,43 @@ class TelegramBotService:
         if is_adm:
             role_badge = "👑 <b>Статус:</b> Администратор"
         elif is_appr:
-            role_badge = "👤 <b>Статус:</b> Зарегистрированный пользователь"
+            role_badge = "👤 <b>Статус:</b> Оператор / Сотрудник"
         else:
-            rec = self.get_user_record(user_id)
-            if rec and rec.get('status') == 'PENDING':
-                role_badge = "⏳ <b>Статус:</b> Заявка на рассмотрении"
-            else:
-                role_badge = "🔒 <b>Статус:</b> Требуется регистрация"
+            role_badge = "⚡ <b>Официальный бот ТОО «КРЭК»</b>"
 
         msg = [
-            "📄 <b>Kvit-App Telegram Bot</b>",
+            "📄 <b>Электронные квитанции ТОО «КРЭК»</b>",
             role_badge,
-            "────────────────────────"
+            "────────────────────────",
+            "🔍 <b>Как получить квитанцию:</b>",
+            "• Просто <b>отправьте номер вашего лицевого счёта</b> (например: <code>800146</code> или <code>103997</code>)",
+            "• Или отправьте команду поиска по адресу: <code>/address ул. Абая 10, кв 5</code>",
+            "",
+            "<i>Бот мгновенно найдёт и вышлет официальный PDF-файл квитанции прямо в этот чат.</i>"
         ]
+
+        if is_appr or is_adm:
+            msg.extend([
+                "",
+                "🚀 <b>Для сотрудников (Загрузка квитанций):</b>",
+                "• Отправьте PDF-файл пачки квитанций в этот чат для автоматической нарезки и привязки к счетам.",
+                "• <code>/stats</code> — статистика базы и процент покрытия квитанциями"
+            ])
+
+        if is_adm:
+            msg.extend([
+                "",
+                "👑 <b>Команды администратора:</b>",
+                "• <code>/users</code> — список заявок операторов",
+                "• <code>/approve &lt;ID&gt;</code> — одобрить оператора",
+                "• <code>/reject &lt;ID&gt;</code> — отклонить заявку"
+            ])
 
         if not is_appr and not is_adm:
             msg.extend([
-                "👋 Добро пожаловать! Чтобы получить доступ к поиску и скачиванию квитанций, необходимо зарегистрироваться.",
                 "",
-                "📝 <b>Как получить доступ:</b>",
-                "• Нажмите кнопку <b>«📝 Зарегистрироваться»</b> или команду <code>/register</code>",
-                "• Администратор подтвердит вашу заявку, и вам придёт уведомление",
-                "",
-                "🔐 Если вы администратор, используйте <code>/login &lt;пароль&gt;</code>"
+                "🔐 <b>Сотрудникам:</b> для входа используйте команду <code>/login &lt;пароль&gt;</code>"
             ])
-        else:
-            msg.extend([
-                "🚀 <b>Загрузка квитанций:</b>",
-                "Просто <b>отправьте PDF-файл</b> в этот чат. Бот автоматически распознает лицевые счета, периоды и привяжет квитанции к базе данных.",
-                "",
-                "🔍 <b>Поиск и выдача квитанций:</b>",
-                "• Отправьте номер счёта: <code>800146</code> или <code>/kvit 800146</code>",
-                "• Поиск по точному адресу: <code>/address ул. Пушкина 12, кв 4</code>",
-                "<i>(Бот сразу пришлёт PDF-файл квитанции прямо в чат)</i>",
-                "",
-                "📊 <b>Команды:</b>",
-                "• <code>/stats</code> — статистика базы и процент покрытия квитанциями",
-                "• <code>/help</code> — это меню справки"
-            ])
-
-            if is_adm:
-                msg.extend([
-                    "",
-                    "👑 <b>Возможности администратора:</b>",
-                    "• <code>/users</code> — список заявок на регистрацию",
-                    "• <code>/approve &lt;ID&gt;</code> — одобрить пользователя",
-                    "• <code>/reject &lt;ID&gt;</code> — отклонить заявку"
-                ])
 
         self.client.send_message(chat_id, "\n".join(msg), reply_markup=self.get_main_keyboard(user_id))
 

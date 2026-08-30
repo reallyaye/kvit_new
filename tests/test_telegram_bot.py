@@ -105,7 +105,7 @@ def test_bot_help_and_stats_commands():
         }
     })
     assert len(sent_messages) == 1
-    assert 'Kvit-App Telegram Bot' in sent_messages[0][1]
+    assert 'Электронные квитанции ТОО «КРЭК»' in sent_messages[0][1]
 
     # Команда /stats
     bot.handle_update({
@@ -299,7 +299,7 @@ def test_bot_user_registration_and_admin_approval_lifecycle():
     bot.client.answer_callback_query = lambda cb_id, **kwargs: answered_callbacks.append((cb_id, kwargs)) or True
     bot.client.edit_message_text = lambda chat_id, msg_id, text, **kwargs: edited_messages.append((chat_id, msg_id, text, kwargs))
 
-    # 1. Неавторизованный пользователь пытается искать квитанции -> отказ и предложение регистрации
+    # 1. Неавторизованный пользователь ищет квитанции -> прямой публичный поиск
     bot.handle_update({
         'message': {
             'chat': {'id': 5001},
@@ -307,7 +307,7 @@ def test_bot_user_registration_and_admin_approval_lifecycle():
             'text': '800146'
         }
     })
-    assert any('Доступ ограничен' in m[1] for m in sent_messages)
+    assert any('800146' in m[1] for m in sent_messages)
 
     # 2. Пользователь подает заявку на регистрацию (/register)
     sent_messages.clear()
