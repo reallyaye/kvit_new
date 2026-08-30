@@ -17,11 +17,19 @@ def normalize_text_chars(s: str) -> str:
     return (s or '').translate(KZ_RU_CHAR_MAP).lower().strip()
 
 RE_HOUSE = re.compile(
-    r'(?:дом\s*(?:№\s*)?|д\.?\s*|д\s+|үй(?:і)?\s*|корп(?:ус)?\.?\s*|стр(?:оение)?\.?\s*)(\d+[\w\-\/]*)',
+    r'(?<![а-яa-z0-9])(?:дом\s*(?:№\s*)?|д\.?\s*|д\s+|үй(?:і)?\s*|стр(?:оение)?\.?\s*)(\d+[\w\-\/]*)',
+    re.IGNORECASE
+)
+RE_CORPUS = re.compile(
+    r'(?<![а-яa-z0-9])(?:корпус|корп\.?|к-с|блок)\s*([0-9a-zA-Zа-яА-Я]+)',
     re.IGNORECASE
 )
 RE_FLAT = re.compile(
-    r'(?:кв(?:артира)?\s*(?:№\s*)?|кв\.?\s*|к\.?\s*|комн?\.?\s*|комната\s*|пәт(?:ер)?(?:і)?\s*|бөлме(?:сі)?\s*)(\d+[\w\-]*)',
+    r'(?<![а-яa-z0-9])(?:кв(?:артира)?\s*(?:№\s*)?|кв\.?\s*|к\.\s*|к\s+|комн?\.?\s*|комната\s*|пәт(?:ер)?(?:і)?\s*|бөлме(?:сі)?\s*)(\d+[\w\-]*)',
+    re.IGNORECASE
+)
+RE_STREET = re.compile(
+    r'(?:ул\.?|улица|көшесі|көше|проспект|пр\.?|переулок|пер\.?)\s*([^,]+)',
     re.IGNORECASE
 )
 
@@ -47,26 +55,30 @@ STOP_WORDS = {
 
 def extract_addr_parts(text: str):
     """
-    Извлекает номер дома и номер квартиры/комнаты из строки адреса.
-    Поддерживает:
-    - Явные обозначения ('дом 10/2', 'кв 5', 'үй 12 пәтер 3')
-    - Запись через дефис / слэш ('Абая 10-5' -> дом 10, кв 5; 'Абая 10/2-5' -> дом 10/2, кв 5)
+    Извлекает номер дома, номер квартиры/комнаты, корпус и улицу из строки адреса.
     """
     raw = (text or '').strip()
     house = ''
     flat = ''
+    corpus = ''
+    street = ''
 
     # 1. Поиск явных ключевых слов квартиры
     m_f = RE_FLAT.search(raw)
     if m_f:
         flat = m_f.group(1).strip()
 
-    # 2. Поиск явных ключевых слов дома
+    # 2. Поиск явных ключевых слов корпуса
+    m_c = RE_CORPUS.search(raw)
+    if m_c:
+        corpus = m_c.group(1).strip()
+
+    # 3. Поиск явных ключевых слов дома
     m_h = RE_HOUSE.search(raw)
     if m_h:
         house = m_h.group(1).strip()
 
-    # 3. Если квартира не найдена, проверяем составную запись в конце (например "Абая 10-5")
+    # 4. Если квартира не найдена, проверяем составную запись в конце (например "Абая 10-5")
     if not flat:
         m_comp = RE_COMPOUND_END.search(raw)
         if m_comp:
@@ -75,7 +87,33 @@ def extract_addr_parts(text: str):
                 house = h_cand
                 flat = f_cand
 
-    return house, flat
+    # 5. Если номер дома всё еще не найден, но в строке есть число (например 'пр. Достык 10' или 'Достык 10')
+    if not house:
+        all_numbers = [
+            m.group(0) for m in re.finditer(r'(?<![а-яa-z0-9_]\-)(?<![а-яa-z0-9_])\d+[\w\-\/]*(?!\w)', raw, re.IGNORECASE)
+        ]
+        if all_numbers:
+            house = all_numbers[0]
+            if not flat and len(all_numbers) > 1:
+                flat = all_numbers[1]
+
+    # 6. Поиск названия улицы
+    m_s = RE_STREET.search(raw)
+    if m_s:
+        raw_street = m_s.group(1).strip()
+        street = re.sub(r'\s*(?:дом\s*(?:№\s*)?|д\.?\s*|\b)\d+.*$', '', raw_street, flags=re.IGNORECASE).strip()
+    else:
+        tokens = re.findall(r'[\w\-]+', raw)
+        st_tokens = [
+            t for t in tokens
+            if normalize_text_chars(t) not in STOP_WORDS
+            and not re.match(r'^\d+$', t)
+            and t.lower() != house.lower()
+            and t.lower() != flat.lower()
+        ]
+        street = ' '.join(st_tokens)
+
+    return house, flat, corpus, street
 
 class ReceiptService:
     """Сервис для поиска и выдачи квитанций и информации по лицевым счетам."""
@@ -197,8 +235,8 @@ class ReceiptService:
         if not raw_query:
             return 'EMPTY', None, 'Пожалуйста, введите адрес объекта.'
 
-        # Извлекаем дом и квартиру из запроса
-        q_house, q_flat = extract_addr_parts(raw_query)
+        # Извлекаем дом, квартиру, корпус и улицу из запроса
+        q_house, q_flat, q_corpus, q_street = extract_addr_parts(raw_query)
 
         # Числовые токены: исключаем суффиксы названий вроде "Аксай-4" или "Самал-2"
         all_numbers = [
@@ -276,13 +314,21 @@ class ReceiptService:
             if not rows:
                 return 'NOT_FOUND', None, f'По адресу «{raw_query}» квитанции не найдены. Проверьте правильность написания.'
 
-            # Фильтруем результаты строго по номеру дома и квартиры
+            # Фильтруем результаты строго по улице, дому, корпусу и квартире
             filtered = []
             for r in rows:
                 addr = r['address']
-                r_house, r_flat = extract_addr_parts(addr)
+                r_house, r_flat, r_corpus, r_street = extract_addr_parts(addr)
 
-                # 1. Проверка номера дома
+                # 1. Проверка улицы (если в запросе и в базе явно выделена улица)
+                effective_q_street = corrected_street if (is_corrected and corrected_street) else q_street
+                if effective_q_street and r_street:
+                    q_norm = normalize_text_chars(effective_q_street)
+                    r_norm = normalize_text_chars(r_street)
+                    if q_norm != r_norm and r_norm not in q_norm and q_norm not in r_norm:
+                        continue
+
+                # 2. Проверка номера дома
                 if q_house:
                     if r_house:
                         if r_house.lower() != q_house.lower():
@@ -292,7 +338,11 @@ class ReceiptService:
                         if not re.search(pattern, addr.lower()):
                             continue
 
-                # 2. Проверка номера квартиры/комнаты
+                # 3. Проверка корпуса
+                if normalize_text_chars(q_corpus) != normalize_text_chars(r_corpus):
+                    continue
+
+                # 4. Проверка номера квартиры/комнаты
                 if q_flat:
                     if r_flat:
                         if r_flat.lower() != q_flat.lower():
@@ -307,6 +357,8 @@ class ReceiptService:
                     'address': addr,
                     'house': r_house,
                     'flat': r_flat,
+                    'corpus': r_corpus,
+                    'street': r_street,
                     'is_corrected': is_corrected,
                     'corrected_street': corrected_street,
                     'original_query': raw_query
