@@ -154,7 +154,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: kvit-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://nginx:80
+    command: tunnel --protocol http2 --no-autoupdate --url http://nginx:80
     depends_on:
       - nginx
     networks:
