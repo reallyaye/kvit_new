@@ -1,4 +1,4 @@
-const CACHE_NAME = 'krek-portal-v3';
+const CACHE_NAME = 'krek-portal-v4';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE_ASSETS = [
     '/offline.html',
@@ -70,7 +70,21 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Для статических файлов
+    // Для статических файлов с версиями (?v=) — берем свежее из сети, кэшируем и при ошибке сети отдаем кэш
+    if (req.url.includes('?v=')) {
+        event.respondWith(
+            fetch(req).then(networkRes => {
+                if (networkRes && networkRes.status === 200) {
+                    const resClone = networkRes.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(req, resClone));
+                }
+                return networkRes;
+            }).catch(() => caches.match(req))
+        );
+        return;
+    }
+
+    // Для остальных статических файлов
     event.respondWith(
         caches.match(req, { ignoreSearch: true }).then(cachedRes => {
             if (cachedRes) {
