@@ -210,8 +210,8 @@ class AuthService:
                 raise ValueError(f"Пользователь с логином '{clean_user}' уже существует")
 
             con.execute(
-                "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
-                (clean_user, pwd_hash, full_name.strip(), role, now)
+                "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (clean_user, pwd_hash, full_name.strip(), role, True, now)
             )
         return {'username': clean_user, 'full_name': full_name, 'role': role}
 
@@ -261,7 +261,7 @@ class AuthService:
         if clean_user == 'admin' and not is_active:
             raise ValueError("Запрещено блокировать главного администратора системы")
         with write_transaction() as con:
-            con.execute("UPDATE users SET is_active = ? WHERE LOWER(username) = ?", (1 if is_active else 0, clean_user))
+            con.execute("UPDATE users SET is_active = ? WHERE LOWER(username) = ?", (bool(is_active), clean_user))
             return True
 
     # ────────────────────── Журнал аудита действий (Audit Log) ──────────────────────
