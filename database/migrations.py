@@ -47,7 +47,7 @@ def migrate_db():
                     admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
                     if not admin_row and admin_hash:
                         con.execute(
-                            "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+                            "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, true, ?)",
                             ('admin', admin_hash, 'Главный Администратор', 'admin', time.time())
                         )
                 except Exception as e:
