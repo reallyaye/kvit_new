@@ -528,13 +528,8 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.15s ease;
-}
-
-.address-chip:hover {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  transform: translateY(-1px);
+  cursor: default;
+  user-select: text;
 }
 
 .chip-pin {
