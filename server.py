@@ -585,7 +585,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self._redirect('/', extra_headers={
                     'Set-Cookie': self._get_session_cookie_header('', max_age=0)
                 })
-            elif path in PROTECTED_PATHS:
+            elif path in PROTECTED_PATHS or path.startswith('/admin'):
                 cur_user = self._get_current_user()
                 if not cur_user and self._is_admin():
                     cur_user = {'username': 'admin', 'role': 'admin'}

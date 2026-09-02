@@ -188,7 +188,8 @@ PROTECTED_PATHS = {
     '/admin', '/admin/pages', '/admin/pages/edit', '/admin/pages/new', '/admin/pages/save', '/admin/pages/delete',
     '/admin/media', '/admin/media/upload', '/admin/media/delete',
     '/admin/documents', '/admin/documents/edit', '/admin/documents/new', '/admin/documents/save', '/admin/documents/delete',
-    '/admin/users', '/admin/users/create', '/admin/users/delete'
+    '/admin/users', '/admin/users/create', '/admin/users/delete',
+    '/admin/audit'
 }
 CSRF_PROTECTED_PATHS = {
     '/upload', '/import-folder', '/api/upload-batch', '/api/upload-accounts', '/api/sync-receipts', '/api/purge-missing-receipts',
