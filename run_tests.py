@@ -53,6 +53,8 @@ def run_all():
             DROP TABLE IF EXISTS app_sessions;
             DROP TABLE IF EXISTS security_blocks;
             DROP TABLE IF EXISTS telegram_users;
+            DROP TABLE IF EXISTS users;
+            DROP TABLE IF EXISTS audit_logs;
         ''')
         con.commit()
         con.close()
@@ -266,6 +268,21 @@ def run_all():
             passed += 1
         except Exception as e:
             print(f"  [FAIL] test_tasks.{fn_name}: {e}")
+            traceback.print_exc()
+            failed += 1
+
+    # 11. test_rbac (Разграничение прав и операторы сбыта)
+    from tests.test_rbac import TestRBACAndAuth
+    rbac_suite = TestRBACAndAuth()
+    for fn_name in ['test_admin_seeding_and_credentials', 'test_create_and_manage_operator', 'test_admin_protection', 'test_session_role_tracking', 'test_audit_logging']:
+        try:
+            reset_db()
+            rbac_suite.setUp()
+            getattr(rbac_suite, fn_name)()
+            print(f"  [OK] test_rbac.{fn_name}")
+            passed += 1
+        except Exception as e:
+            print(f"  [FAIL] test_rbac.{fn_name}: {e}")
             traceback.print_exc()
             failed += 1
 

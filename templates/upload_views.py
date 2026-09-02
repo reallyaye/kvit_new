@@ -3,12 +3,12 @@ from templates.admin_cms_views import _admin_nav_bar
 from templates.icons import icon
 
 
-def render_upload_form(message=None, csrf_token='', active_job_id=''):
+def render_upload_form(message=None, csrf_token='', active_job_id='', role='admin', username='admin'):
     msg_html = message if message else ''
     csrf_input = f'<input type="hidden" name="csrf_token" value="{csrf_token}">' if csrf_token else ''
 
     return f'''
-    {_admin_nav_bar('upload')}
+    {_admin_nav_bar('upload', role=role, username=username)}
     <div class="card">
         <h1>Загрузка квитанций и реестров</h1>
         <p class="subtitle">Загрузите пачку PDF-квитанций, обновите базу абонентов (Excel) или запустите импорт из локальной папки.</p>

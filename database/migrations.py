@@ -69,9 +69,34 @@ def migrate_db():
                 CREATE TABLE IF NOT EXISTS app_sessions (
                     token TEXT PRIMARY KEY,
                     expires_at REAL NOT NULL,
-                    created_at REAL NOT NULL
+                    created_at REAL NOT NULL,
+                    username TEXT,
+                    role TEXT DEFAULT 'admin'
                 );
                 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON app_sessions(expires_at);
+
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    full_name TEXT,
+                    role TEXT NOT NULL DEFAULT 'operator',
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at REAL NOT NULL,
+                    last_login_at REAL
+                );
+                CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at REAL NOT NULL,
+                    username TEXT NOT NULL,
+                    ip TEXT,
+                    action TEXT NOT NULL,
+                    details TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+                CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(username);
 
                 CREATE TABLE IF NOT EXISTS security_blocks (
                     ip TEXT PRIMARY KEY,
@@ -96,6 +121,12 @@ def migrate_db():
             ''')
 
             # 2. Проверка и динамическое добавление недостающих колонок
+            sess_cols = [row[1] for row in con.execute('PRAGMA table_info(app_sessions)').fetchall()]
+            if 'username' not in sess_cols:
+                con.execute('ALTER TABLE app_sessions ADD COLUMN username TEXT')
+            if 'role' not in sess_cols:
+                con.execute("ALTER TABLE app_sessions ADD COLUMN role TEXT DEFAULT 'admin'")
+
             cols = [row[1] for row in con.execute('PRAGMA table_info(receipts)').fetchall()]
             if 'content_hash' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN content_hash TEXT')
@@ -113,6 +144,19 @@ def migrate_db():
                                 (secrets.token_hex(16), row[0]))
             if 'address' not in cols:
                 con.execute('ALTER TABLE receipts ADD COLUMN address TEXT')
+
+            # Инициализация дефолтного админа из config.ADMIN_PASSWORD_HASH если таблица пуста
+            try:
+                import time, config
+                admin_row = con.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
+                admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
+                if not admin_row and admin_hash:
+                    con.execute(
+                        "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+                        ('admin', admin_hash, 'Главный Администратор', 'admin', time.time())
+                    )
+            except Exception:
+                pass
 
             # 3. Создание индексов (после гарантированного наличия колонок)
             con.executescript('''

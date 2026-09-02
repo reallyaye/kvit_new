@@ -130,8 +130,11 @@ def render_reconcile_page(data: dict):
     else:
         list_title = f'Все лицевые счета{period_label}'
 
+    role = data.get('role', 'admin')
+    username = data.get('username', 'admin')
+
     return f'''
-    {_admin_nav_bar('reconcile')}
+    {_admin_nav_bar('reconcile', role=role, username=username)}
     <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
         <div class="card stat-card">
             <div class="num" id="statTotalAccounts">{total_accounts}</div>
