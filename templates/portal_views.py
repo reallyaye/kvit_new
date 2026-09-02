@@ -3,6 +3,7 @@ import os
 import urllib.parse
 
 from templates.portal_layout import portal_layout
+from templates.icons import icon
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES_FILENAME = 'extracted_portal_pages.json'
@@ -46,7 +47,7 @@ PORTAL_PAGES = load_portal_pages()
 DOCUMENTS_REGISTRY = load_documents_registry()
 
 def render_page(page_name: str, is_admin: bool = False) -> str:
-    """Рендерит именованную страницу портала (home, contacts, reports, etc.)."""
+    """Рендерит HTML-страницу портала из базы extracted_portal_pages.json."""
     global PORTAL_PAGES
     if not PORTAL_PAGES:
         PORTAL_PAGES = load_portal_pages()
@@ -72,7 +73,7 @@ def render_page(page_name: str, is_admin: bool = False) -> str:
     )
 
 def render_document(doc: dict, is_admin: bool = False, doc_key: str = '') -> str:
-    """Рендерит документ/отчет из реестра документов (PDF-скачивание или iframe просмотр)."""
+    """Рендерит документ/отчет из реестра документов в современном корпоративном стиле."""
     title = doc.get('title', 'ТОО КРЭК — Документ')
     h1 = doc.get('h1', title)
     desc = doc.get('description', 'ТОО КРЭК')
@@ -81,37 +82,81 @@ def render_document(doc: dict, is_admin: bool = False, doc_key: str = '') -> str
     iframes = doc.get('iframes', [])
 
     body_parts = []
-    body_parts.append(f'<h1>{h1}</h1>')
-    if date_text:
-        body_parts.append(f'<p class="doc-date" style="font-weight:600; color:#475569; margin:10px 0 20px;">{date_text}</p>')
-    body_parts.append('<div class="line"></div>')
+    
+    # Breadcrumbs & Header
+    date_meta_html = f'<div class="doc-meta-date">{icon("calendar", 14, "#64748b")} <span>Опубликовано: {date_text}</span></div>' if date_text else ''
+    body_parts.append(f'''
+    <nav class="breadcrumb-nav" aria-label="Хлебные крошки">
+        <a href="/">{icon("home", 13, "#64748b")} Главная</a>
+        <span class="breadcrumb-sep">{icon("chevron_right", 12, "#94a3b8")}</span>
+        <a href="/reports">Отчеты</a>
+        <span class="breadcrumb-sep">{icon("chevron_right", 12, "#94a3b8")}</span>
+        <span class="breadcrumb-current">{h1}</span>
+    </nav>
+    <div class="page-title-wrap">
+        <div class="page-category-badge">{icon("file_text", 12, "#2563eb")} Официальный документ</div>
+        <h1 class="page-main-title">{h1}</h1>
+        {date_meta_html}
+    </div>
+    ''')
 
     if iframes:
-        body_parts.append('<div class="iframes-container" style="display:flex; flex-direction:column; gap:30px; margin:20px 0;">')
+        body_parts.append('<div class="iframes-container">')
         for ifr in iframes:
             fname = os.path.basename(ifr)
             clean_src = '/files/' + urllib.parse.quote(fname)
             body_parts.append(f'''
-            <div class="iframe-box" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
-                <div style="margin-bottom:8px; font-weight:500; color:#1e293b; display:flex; justify-content:space-between; align-items:center;">
-                    <span>{fname}</span>
-                    <a href="{clean_src}" target="_blank" rel="noopener noreferrer" style="font-size:13px; color:#2563eb; text-decoration:underline;">Открыть в новой вкладке ↗</a>
+            <div class="doc-viewer-card">
+                <div class="doc-viewer-header">
+                    <div class="doc-viewer-filename">
+                        {icon('file_text', 16, '#2563eb')}
+                        <span>{fname}</span>
+                    </div>
+                    <div class="doc-viewer-actions">
+                        <a href="{clean_src}" target="_blank" rel="noopener noreferrer" class="btn-doc-action">
+                            {icon('external_link', 14, '#2563eb')}
+                            <span>Открыть в новой вкладке</span>
+                        </a>
+                        <a href="{clean_src}" download class="btn-doc-download">
+                            {icon('download', 14, '#ffffff')}
+                            <span>Скачать PDF</span>
+                        </a>
+                    </div>
                 </div>
-                <iframe src="{clean_src}" width="100%" height="800" style="border:none; border-radius:4px; background:#fff;"></iframe>
+                <div class="doc-iframe-wrapper">
+                    <iframe src="{clean_src}" width="100%" height="820" style="border:none; border-radius:0 0 12px 12px; background:#fff;"></iframe>
+                </div>
             </div>''')
         body_parts.append('</div>')
     elif files:
-        body_parts.append('<div class="doc-actions" style="margin:20px 0; display:flex; flex-wrap:wrap; gap:12px;">')
+        body_parts.append('<div class="doc-files-grid">')
         for f in files:
             fname = os.path.basename(f)
             file_url = '/files/' + urllib.parse.quote(fname)
             body_parts.append(f'''
-            <div class="buttom">
-                <a href="{file_url}" target="_blank" rel="noopener noreferrer">Посмотреть документ ({fname})</a>
+            <div class="doc-file-card">
+                <div class="doc-file-icon">
+                    {icon('file_text', 28, '#2563eb')}
+                </div>
+                <div class="doc-file-info">
+                    <div class="doc-file-name">{fname}</div>
+                    <div class="doc-file-meta">Формат: PDF / Документ • Официальная публикация ТОО «КРЭК»</div>
+                </div>
+                <div class="doc-file-action">
+                    <a href="{file_url}" target="_blank" rel="noopener noreferrer" class="btn-doc-download">
+                        {icon('download', 14, '#ffffff')}
+                        <span>Скачать документ</span>
+                    </a>
+                </div>
             </div>''')
         body_parts.append('</div>')
     else:
-        body_parts.append('<p>Документ временно недоступен для скачивания.</p>')
+        body_parts.append(f'''
+        <div class="doc-empty-state">
+            <div class="doc-empty-icon">{icon('info', 32, '#64748b')}</div>
+            <div class="doc-empty-text">Документ временно недоступен для скачивания.</div>
+            <a href="/reports" class="btn-return">{icon('arrow_left', 14, '#2563eb')} Вернуться к архиву отчетов</a>
+        </div>''')
 
     full_html = '\n'.join(body_parts)
     return portal_layout(content=full_html, title=title, description=desc, active_nav='reports', is_admin=is_admin, current_slug=doc_key)
