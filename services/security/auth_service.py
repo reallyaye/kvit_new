@@ -277,14 +277,40 @@ class AuthService:
         except Exception as e:
             logger.error(f"[Audit] Ошибка записи в журнал аудита: {e}")
 
-    def list_audit_logs(self, limit: int = 50) -> list:
-        """Возвращает последние записи журнала аудита."""
+    def list_audit_logs(
+        self,
+        limit: int = 50,
+        username: Optional[str] = None,
+        action: Optional[str] = None,
+        search: Optional[str] = None
+    ) -> list:
+        """Возвращает записи журнала аудита с поддержкой гибкой фильтрации."""
         con = get_db()
         try:
-            rows = con.execute(
-                "SELECT id, created_at, username, ip, action, details FROM audit_logs ORDER BY created_at DESC LIMIT ?",
-                (limit,)
-            ).fetchall()
+            query = "SELECT id, created_at, username, ip, action, details FROM audit_logs"
+            conditions = []
+            params: list = []
+
+            if username:
+                conditions.append("username = ?")
+                params.append(username)
+
+            if action:
+                conditions.append("action = ?")
+                params.append(action)
+
+            if search:
+                conditions.append("(details LIKE ? OR ip LIKE ? OR username LIKE ?)")
+                search_param = f"%{search}%"
+                params.extend([search_param, search_param, search_param])
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            rows = con.execute(query, tuple(params)).fetchall()
             logs = []
             for r in rows:
                 logs.append({
@@ -299,5 +325,30 @@ class AuthService:
         finally:
             con.close()
 
+    def get_audit_stats(self) -> dict:
+        """Возвращает сводную статистику по журналу аудита для администратора."""
+        con = get_db()
+        try:
+            total = con.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0] or 0
+            logins = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGIN'").fetchone()[0] or 0
+            failed_logins = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGIN_FAILED'").fetchone()[0] or 0
+            uploads = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'UPLOAD_RECEIPTS'").fetchone()[0] or 0
+            
+            # Уникальные пользователи и действия для выпадающих списков фильтра
+            user_rows = con.execute("SELECT DISTINCT username FROM audit_logs WHERE username IS NOT NULL AND username != '' ORDER BY username").fetchall()
+            action_rows = con.execute("SELECT DISTINCT action FROM audit_logs WHERE action IS NOT NULL AND action != '' ORDER BY action").fetchall()
+            
+            return {
+                'total': total,
+                'logins': logins,
+                'failed_logins': failed_logins,
+                'uploads': uploads,
+                'users': [r[0] for r in user_rows],
+                'actions': [r[0] for r in action_rows]
+            }
+        finally:
+            con.close()
+
 
 auth_service = AuthService()
+
