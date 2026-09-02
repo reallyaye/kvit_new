@@ -901,9 +901,14 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         try:
             auth_service.create_user(username, password, full_name, role)
             auth_service.log_audit(admin_name, client_ip, 'CREATE_USER', f"Создан пользователь {username} ({role})")
-            self._redirect(f'/admin/users?msg=Пользователь+{username}+успешно+создан')
-        except ValueError as e:
-            self._redirect(f'/admin/users?err={e}')
+            import urllib.parse
+            msg = urllib.parse.quote(f"Пользователь {username} успешно создан")
+            self._redirect(f'/admin/users?msg={msg}')
+        except Exception as e:
+            logger.error(f"[Auth] Ошибка при создании пользователя '{username}': {e}")
+            import urllib.parse
+            err = urllib.parse.quote(str(e))
+            self._redirect(f'/admin/users?err={err}')
 
     def _handle_admin_users_delete(self):
         if not self._is_admin():
@@ -923,9 +928,14 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         try:
             auth_service.delete_user(username)
             auth_service.log_audit(admin_name, client_ip, 'DELETE_USER', f"Удален пользователь {username}")
-            self._redirect(f'/admin/users?msg=Пользователь+{username}+удален')
-        except ValueError as e:
-            self._redirect(f'/admin/users?err={e}')
+            import urllib.parse
+            msg = urllib.parse.quote(f"Пользователь {username} удален")
+            self._redirect(f'/admin/users?msg={msg}')
+        except Exception as e:
+            logger.error(f"[Auth] Ошибка при удалении пользователя '{username}': {e}")
+            import urllib.parse
+            err = urllib.parse.quote(str(e))
+            self._redirect(f'/admin/users?err={err}')
 
     def _parse_multipart_to_disk(self):
         """
