@@ -289,7 +289,7 @@ def render_admin_page_editor(
                 <div style="font-weight:700;font-size:17px;color:#1e293b;display:flex;align-items:center;gap:8px;" id="modalTitle">
                     {icon('image', 18, '#2563eb')} Выберите файл для вставки
                 </div>
-                <button type="button" onclick="closeMediaModal()" style="border:none;background:none;cursor:pointer;font-size:20px;color:#64748b;">✕</button>
+                <button type="button" onclick="closeMediaModal()" style="border:none;background:none;cursor:pointer;display:inline-flex;align-items:center;color:#64748b;padding:4px;">{icon('x', 18, '#64748b')}</button>
             </div>
 
             <div style="padding:16px 20px;overflow-y:auto;flex:1;">
