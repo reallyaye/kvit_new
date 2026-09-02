@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS app_sessions (
     role VARCHAR(32) DEFAULT 'admin'
 );
 
+ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS username VARCHAR(64);
+ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS role VARCHAR(32) DEFAULT 'admin';
+
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON app_sessions(expires_at);
 
 CREATE TABLE IF NOT EXISTS users (

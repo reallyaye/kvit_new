@@ -27,6 +27,17 @@ def migrate_db():
                     with open(schema_path, 'r', encoding='utf-8') as f:
                         pg_sql = f.read()
                     con.executescript(pg_sql)
+                    try:
+                        import time, config
+                        admin_row = con.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
+                        admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
+                        if not admin_row and admin_hash:
+                            con.execute(
+                                "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+                                ('admin', admin_hash, 'Главный Администратор', 'admin', time.time())
+                            )
+                    except Exception as e:
+                        logger.warning(f"[DB] Предупреждение сидирования администратора PG: {e}")
                     logger.info("[DB] Схема PostgreSQL успешно проверена и применена.")
                     return
 
