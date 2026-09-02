@@ -29,9 +29,17 @@ data.sqlite3
 *.sqlite3-shm
 receipts/
 logs/
-data/spool/
+data/receipts/
+data/uploads/
+data/certbot/
+data/nginx-logs/
+data/api-logs/
+data/worker-logs/
 data/processing/
+data/spool/
 data/failed/
+data/*.sqlite3*
+data/maintenance.flag
 !data/*.json
 
 # Raw data & Spreadsheets
