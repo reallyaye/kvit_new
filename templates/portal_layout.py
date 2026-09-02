@@ -180,44 +180,72 @@ if ('serviceWorker' in navigator) {{
                     {icon('chevron_down', 14, '#94a3b8')}
                 </button>
             </div>
-            <div class="underblock">
-                <div class="block">
-                    <ul>
-                        <h1>2026 год</h1>
-                        <h2>Инвестиционная программа</h2>
-                        <li><a href="/invest-1-2026.php">Отчет ИП 1 квартал 2026</a></li>
-                        <li><a href="/invest-2-2026.php">Отчет ИП 2 квартал 2026</a></li>
-                        <h2>Тарифная смета</h2>
-                        <li><a href="/isp_ts_2026_1.php">Отчет ТС 1 полугодие 2026</a></li>
+            <div class="underblock mega-menu-reports">
+                <div class="mega-column">
+                    <div class="mega-year-pill">
+                        {icon('calendar', 13, '#38bdf8')} 2026 год
+                    </div>
+                    <div class="mega-section-label">
+                        {icon('trending_up', 12, '#94a3b8')} Инвестиционная программа
+                    </div>
+                    <ul class="mega-list">
+                        <li><a href="/invest-1-2026.php">{icon('file_text', 13, '#38bdf8')} <span>Отчет ИП 1 квартал 2026</span></a></li>
+                        <li><a href="/invest-2-2026.php">{icon('file_text', 13, '#38bdf8')} <span>Отчет ИП 2 квартал 2026</span></a></li>
+                    </ul>
+                    <div class="mega-section-label" style="margin-top:10px;">
+                        {icon('circle_dollar', 12, '#94a3b8')} Тарифная смета
+                    </div>
+                    <ul class="mega-list">
+                        <li><a href="/isp_ts_2026_1.php">{icon('file_text', 13, '#38bdf8')} <span>Отчет ТС 1 полугодие 2026</span></a></li>
                     </ul>
                 </div>
-                <div class="block">
-                    <ul>
-                        <h1>2025 год</h1>
-                        <h2>Инвестиционная программа</h2>
-                        <li><a href="/invest-1-2025.php">Отчет ИП 1 квартал 2025</a></li>
-                        <li><a href="/invest-2-2025.php">Отчет ИП 2 квартал 2025</a></li>
-                        <li><a href="/invest-3-2025.php">Отчет ИП 3 квартал 2025</a></li>
-                        <li><a href="/invest-4-2025.php">Отчет ИП 4 квартал 2025</a></li>
-                        <h2>Тарифная смета</h2>
-                        <li><a href="/isp_ts_2025_1.php">Отчет ТС 1 полугодие 2025</a></li>
+
+                <div class="mega-column">
+                    <div class="mega-year-pill">
+                        {icon('calendar', 13, '#38bdf8')} 2025 год
+                    </div>
+                    <div class="mega-section-label">
+                        {icon('trending_up', 12, '#94a3b8')} Инвестиционная программа
+                    </div>
+                    <ul class="mega-list">
+                        <li><a href="/invest-1-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 1 квартал 2025</span></a></li>
+                        <li><a href="/invest-2-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 2 квартал 2025</span></a></li>
+                        <li><a href="/invest-3-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 3 квартал 2025</span></a></li>
+                        <li><a href="/invest-4-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 4 квартал 2025</span></a></li>
+                    </ul>
+                    <div class="mega-section-label" style="margin-top:10px;">
+                        {icon('circle_dollar', 12, '#94a3b8')} Тарифная смета
+                    </div>
+                    <ul class="mega-list">
+                        <li><a href="/isp_ts_2025_1.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ТС 1 полугодие 2025</span></a></li>
                     </ul>
                 </div>
-                <div class="block">
-                    <ul>
-                        <h1>2024 год</h1>
-                        <h2>Инвестиционная программа</h2>
-                        <li><a href="/invest-1-2024.php">Отчет ИП 1 квартал 2024</a></li>
-                        <li><a href="/invest-2-2024.php">Отчет ИП 2 квартал 2024</a></li>
-                        <li><a href="/invest-3-2024.php">Отчет ИП 3 квартал 2024</a></li>
-                        <li><a href="/invest-4-2024.php">Отчет ИП 4 квартал 2024</a></li>
+
+                <div class="mega-column">
+                    <div class="mega-year-pill">
+                        {icon('calendar', 13, '#38bdf8')} 2024 год
+                    </div>
+                    <div class="mega-section-label">
+                        {icon('trending_up', 12, '#94a3b8')} Инвестиционная программа
+                    </div>
+                    <ul class="mega-list">
+                        <li><a href="/invest-1-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 1 квартал 2024</span></a></li>
+                        <li><a href="/invest-2-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 2 квартал 2024</span></a></li>
+                        <li><a href="/invest-3-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 3 квартал 2024</span></a></li>
+                        <li><a href="/invest-4-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 4 квартал 2024</span></a></li>
                     </ul>
                 </div>
-                <div class="block">
-                    <ul>
-                        <h1>Архив</h1>
-                        <li><a href="/reports">Все отчеты за 2014–2026 гг.</a></li>
-                    </ul>
+
+                <div class="mega-column mega-column-archive">
+                    <div class="mega-archive-card">
+                        <div class="mega-archive-badge">{icon('folder', 13, '#38bdf8')} Архив</div>
+                        <div class="mega-archive-title">Отчетность прошлых лет</div>
+                        <p class="mega-archive-desc">Полный архив отчетов по инвестпрограммам и тарифным сметам за период 2014–2026 гг.</p>
+                        <a href="/reports" class="mega-archive-btn">
+                            <span>Все отчеты</span>
+                            {icon('chevron_right', 13, '#fff')}
+                        </a>
+                    </div>
                 </div>
             </div>
         </li>
@@ -232,13 +260,48 @@ if ('serviceWorker' in navigator) {{
                     {icon('chevron_down', 14, '#94a3b8')}
                 </button>
             </div>
-            <div class="underblock">
-                <div class="block">
-                    <ul>
-                        <li><a href="/load">Подстанции 35-110 кВ</a></li>
-                        <li><a href="/line">Линии 35-110 кВ</a></li>
-                        <li><a href="/lines10kv">Линии 6-10 кВ</a></li>
-                        <li><a href="/ktp">КТП 6(10) кВ</a></li>
+            <div class="underblock mega-menu-simple">
+                <div class="mega-simple-column">
+                    <div class="mega-simple-title">
+                        {icon('zap', 14, '#38bdf8')} Пропускная способность сетей
+                    </div>
+                    <ul class="mega-list mega-simple-list">
+                        <li>
+                            <a href="/load">
+                                <span class="menu-icon-box">{icon('hard_drive', 14, '#38bdf8')}</span>
+                                <span class="menu-text-wrap">
+                                    <span class="menu-link-title">Подстанции 35-110 кВ</span>
+                                    <span class="menu-link-desc">Загрузка и резерв мощности трансформаторов</span>
+                                </span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/line">
+                                <span class="menu-icon-box">{icon('activity', 14, '#38bdf8')}</span>
+                                <span class="menu-text-wrap">
+                                    <span class="menu-link-title">Линии 35-110 кВ</span>
+                                    <span class="menu-link-desc">Высоковольтные воздушные линии электропередач</span>
+                                </span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/lines10kv">
+                                <span class="menu-icon-box">{icon('zap', 14, '#38bdf8')}</span>
+                                <span class="menu-text-wrap">
+                                    <span class="menu-link-title">Линии 6-10 кВ</span>
+                                    <span class="menu-link-desc">Распределительные кабельные и воздушные сети</span>
+                                </span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/ktp">
+                                <span class="menu-icon-box">{icon('grid', 14, '#38bdf8')}</span>
+                                <span class="menu-text-wrap">
+                                    <span class="menu-link-title">КТП 6(10) кВ</span>
+                                    <span class="menu-link-desc">Комплектные трансформаторные подстанции</span>
+                                </span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </div>
