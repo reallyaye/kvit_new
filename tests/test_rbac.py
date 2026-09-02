@@ -102,6 +102,51 @@ class TestRBACAndAuth(unittest.TestCase):
         self.assertIn('UPLOAD_RECEIPTS', actions)
         self.assertIn('CREATE_USER', actions)
 
+    def test_audit_filtering_and_stats(self):
+        """Проверка фильтрации записей аудита и вычисления агрегированной статистики."""
+        auth_service.log_audit('admin', '127.0.0.1', 'LOGIN', 'Успешный вход')
+        auth_service.log_audit('operator1', '10.0.0.5', 'LOGIN_FAILED', 'Неверный пароль')
+        auth_service.log_audit('operator1', '10.0.0.5', 'UPLOAD_RECEIPTS', 'Загружено 100 квитанций')
+        auth_service.log_audit('admin', '127.0.0.1', 'PAGE_SAVE', 'Обновлена страница contacts')
+
+        # 1. Фильтр по пользователю
+        admin_logs = auth_service.list_audit_logs(username='admin')
+        self.assertTrue(all(l['username'] == 'admin' for l in admin_logs))
+        self.assertEqual(len(admin_logs), 2)
+
+        # 2. Фильтр по действию
+        upload_logs = auth_service.list_audit_logs(action='UPLOAD_RECEIPTS')
+        self.assertEqual(len(upload_logs), 1)
+        self.assertEqual(upload_logs[0]['username'], 'operator1')
+
+        # 3. Поиск по деталям или IP
+        search_logs = auth_service.list_audit_logs(search='contacts')
+        self.assertEqual(len(search_logs), 1)
+        self.assertEqual(search_logs[0]['action'], 'PAGE_SAVE')
+
+        # 4. Проверка статистики
+        stats = auth_service.get_audit_stats()
+        self.assertGreaterEqual(stats['total'], 4)
+        self.assertGreaterEqual(stats['logins'], 1)
+        self.assertGreaterEqual(stats['failed_logins'], 1)
+        self.assertGreaterEqual(stats['uploads'], 1)
+        self.assertIn('admin', stats['users'])
+        self.assertIn('operator1', stats['users'])
+        self.assertIn('UPLOAD_RECEIPTS', stats['actions'])
+
+    def test_render_admin_audit_page(self):
+        """Проверка генерации HTML страницы журнала аудита."""
+        from templates.admin_cms_views import render_admin_audit_log
+        auth_service.log_audit('admin', '127.0.0.1', 'LOGIN', 'Вход в систему')
+        logs = auth_service.list_audit_logs(10)
+        stats = auth_service.get_audit_stats()
+        filters_map = {'username': '', 'action': '', 'search': '', 'limit': 50}
+        html_out = render_admin_audit_log(logs, stats, filters_map, csrf_token='test_csrf_token')
+        self.assertIn('Журнал аудита действий пользователей', html_out)
+        self.assertIn('LOGIN', html_out)
+        self.assertIn('127.0.0.1', html_out)
+        self.assertIn('admin', html_out)
+
 
 if __name__ == '__main__':
     unittest.main()

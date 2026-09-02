@@ -274,7 +274,7 @@ def run_all():
     # 11. test_rbac (Разграничение прав и операторы сбыта)
     from tests.test_rbac import TestRBACAndAuth
     rbac_suite = TestRBACAndAuth()
-    for fn_name in ['test_admin_seeding_and_credentials', 'test_create_and_manage_operator', 'test_admin_protection', 'test_session_role_tracking', 'test_audit_logging']:
+    for fn_name in ['test_admin_seeding_and_credentials', 'test_create_and_manage_operator', 'test_admin_protection', 'test_session_role_tracking', 'test_audit_logging', 'test_audit_filtering_and_stats', 'test_render_admin_audit_page']:
         try:
             reset_db()
             rbac_suite.setUp()

@@ -40,6 +40,7 @@ from templates import (
 )
 from templates.admin_cms_views import (
     render_access_denied_page,
+    render_admin_audit_log,
     render_admin_document_editor,
     render_admin_documents_list,
     render_admin_media_gallery,
@@ -633,6 +634,39 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     logs = auth_service.list_audit_logs(50)
                     body = render_admin_users(users, logs, csrf_tok, message=msg, error=err, current_username=u_name, current_role='admin')
                     self.send_html(layout(body, 'users', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/audit':
+                    user_filter = q.get('user', [''])[0].strip()
+                    action_filter = q.get('action', [''])[0].strip()
+                    search_filter = q.get('search', [''])[0].strip()
+                    try:
+                        limit_val = min(500, max(1, int(q.get('limit', ['50'])[0])))
+                    except (ValueError, TypeError):
+                        limit_val = 50
+
+                    logs = auth_service.list_audit_logs(
+                        limit=limit_val,
+                        username=user_filter or None,
+                        action=action_filter or None,
+                        search=search_filter or None
+                    )
+                    stats = auth_service.get_audit_stats()
+                    filters_map = {
+                        'username': user_filter,
+                        'action': action_filter,
+                        'search': search_filter,
+                        'limit': limit_val
+                    }
+                    body = render_admin_audit_log(
+                        logs,
+                        stats,
+                        filters_map,
+                        csrf_tok,
+                        message=msg,
+                        error=err,
+                        current_username=u_name,
+                        current_role='admin'
+                    )
+                    self.send_html(layout(body, 'audit', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/admin/pages/edit':
                     slug = q.get('slug', [''])[0]
                     page_data = portal_cms.get_page(slug) or {'title': slug, 'html': ''}
@@ -1790,6 +1824,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if not self._is_admin():
             self._redirect('/login')
             return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
         params = self._read_form_params()
         csrf_token = params.get('csrf_token', [''])[0]
         if not self._verify_csrf(csrf_token):
@@ -1800,6 +1838,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         html_content = params.get('html', [''])[0]
         ok, saved_slug = portal_cms.save_page(slug, title, html_content)
         if ok:
+            auth_service.log_audit(admin_name, client_ip, 'PAGE_SAVE', f"Сохранена страница '{saved_slug}' ({title})")
             import urllib.parse
             msg = urllib.parse.quote('Страница успешно сохранена.')
             self._redirect(f'/admin/pages/edit?slug={saved_slug}&msg={msg}')
@@ -1812,6 +1851,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if not self._is_admin():
             self._redirect('/login')
             return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
         params = self._read_form_params()
         csrf_token = params.get('csrf_token', [''])[0]
         if not self._verify_csrf(csrf_token):
@@ -1819,6 +1862,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return
         slug = params.get('slug', [''])[0]
         ok, msg = portal_cms.delete_page(slug)
+        if ok:
+            auth_service.log_audit(admin_name, client_ip, 'PAGE_DELETE', f"Удалена страница '{slug}'")
         import urllib.parse
         param_name = 'msg' if ok else 'err'
         self._redirect(f'/admin/pages?{param_name}={urllib.parse.quote(msg)}')
@@ -1827,6 +1872,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if not self._is_admin():
             self._redirect('/login')
             return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
         fields, files = self._parse_multipart_fields_and_files()
         csrf_token = fields.get('csrf_token', [''])[0] if fields else ''
         if not self._verify_csrf(csrf_token):
@@ -1847,6 +1896,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
         _, orig_filename, file_bytes = files[0]
         ok, file_info, msg = portal_cms.save_media_file(orig_filename, file_bytes)
+        if ok:
+            auth_service.log_audit(admin_name, client_ip, 'MEDIA_UPLOAD', f"Загружен медиа-файл '{orig_filename}'")
         if is_ajax:
             self.send_json({'ok': ok, 'file': file_info, 'error': '' if ok else msg})
         else:
@@ -1858,6 +1909,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if not self._is_admin():
             self._redirect('/login')
             return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
         params = self._read_form_params()
         csrf_token = params.get('csrf_token', [''])[0]
         if not self._verify_csrf(csrf_token):
@@ -1865,6 +1920,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return
         filename = params.get('filename', [''])[0]
         ok, msg = portal_cms.delete_media_file(filename)
+        if ok:
+            auth_service.log_audit(admin_name, client_ip, 'MEDIA_DELETE', f"Удален медиа-файл '{filename}'")
         import urllib.parse
         param_name = 'msg' if ok else 'err'
         self._redirect(f'/admin/media?{param_name}={urllib.parse.quote(msg)}')
@@ -1873,6 +1930,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if not self._is_admin():
             self._redirect('/login')
             return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
         params = self._read_form_params()
         csrf_token = params.get('csrf_token', [''])[0]
         if not self._verify_csrf(csrf_token):
@@ -1894,6 +1955,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         ok, saved_key = portal_cms.save_document(key, doc_data)
         import urllib.parse
         if ok:
+            auth_service.log_audit(admin_name, client_ip, 'DOCUMENT_SAVE', f"Сохранен документ '{saved_key}' ({title})")
             msg = urllib.parse.quote('Документ успешно сохранен.')
             self._redirect(f'/admin/documents?msg={msg}')
         else:
@@ -1904,6 +1966,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if not self._is_admin():
             self._redirect('/login')
             return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
         params = self._read_form_params()
         csrf_token = params.get('csrf_token', [''])[0]
         if not self._verify_csrf(csrf_token):
@@ -1911,6 +1977,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return
         key = params.get('key', [''])[0]
         ok, msg = portal_cms.delete_document(key)
+        if ok:
+            auth_service.log_audit(admin_name, client_ip, 'DOCUMENT_DELETE', f"Удален документ '{key}'")
         import urllib.parse
         param_name = 'msg' if ok else 'err'
         self._redirect(f'/admin/documents?{param_name}={urllib.parse.quote(msg)}')
