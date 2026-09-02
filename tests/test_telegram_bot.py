@@ -133,11 +133,16 @@ def test_bot_search_account_and_receipt(tmp_path=None):
         f.write(b'%PDF-1.4 test receipt')
 
     valid_hex_token = '0123456789abcdef0123456789abcdef'
+    valid_hex_token2 = '0123456789abcdef0123456789abcde0'
     con = get_db()
     con.execute('''
         INSERT OR REPLACE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address)
         VALUES ('800146', '08.2026', ?, 'hash800146', ?, 'г. Алматы, ул. Абая 10, кв. 5')
     ''', (pdf_rel, valid_hex_token))
+    con.execute('''
+        INSERT OR REPLACE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address)
+        VALUES ('800146', '09.2026', ?, 'hash800146_2', ?, 'г. Алматы, ул. Абая 10, кв. 5')
+    ''', (pdf_rel, valid_hex_token2))
     con.commit()
     con.close()
 
@@ -146,7 +151,7 @@ def test_bot_search_account_and_receipt(tmp_path=None):
     bot.client.send_message = lambda chat_id, text, **kwargs: sent_messages.append((chat_id, text))
     bot.client.send_document = lambda chat_id, file_path, **kwargs: sent_documents.append((chat_id, file_path, kwargs))
 
-    # 1. Поиск по прямому номеру счета
+    # 1. Поиск по прямому номеру счета (должны быть отправлены обе квитанции за 2 периода)
     bot.handle_update({
         'message': {
             'chat': {'id': 1001},
@@ -156,8 +161,9 @@ def test_bot_search_account_and_receipt(tmp_path=None):
     })
 
     assert any('800146' in m[1] for m in sent_messages)
-    assert len(sent_documents) == 1
-    assert os.path.samefile(sent_documents[0][1], pdf_full)
+    assert len(sent_documents) == 2
+    assert any('08.2026' in d[2].get('caption', '') for d in sent_documents)
+    assert any('09.2026' in d[2].get('caption', '') for d in sent_documents)
 
     # 2. Поиск по адресу
     sent_documents.clear()
@@ -168,7 +174,7 @@ def test_bot_search_account_and_receipt(tmp_path=None):
             'text': '/address ул. Абая 10, кв 5'
         }
     })
-    assert len(sent_documents) == 1
+    assert len(sent_documents) == 2
 
 def test_bot_upload_pdf_receipt_flow(tmp_path=None):
     """Тестирование загрузки PDF квитанции через Telegram."""

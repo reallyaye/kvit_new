@@ -838,20 +838,21 @@ class TelegramBotService:
         header_lines.append(f"\n📄 <b>Найдено квитанций:</b> {len(receipts)}")
         self.client.send_message(chat_id, "\n".join(header_lines))
 
-        latest_rec = receipts[0]
-        token = latest_rec['access_token']
-        pdf_full_path = receipt_service.get_pdf_by_token(token) if token else None
+        for rec in receipts:
+            token = rec['access_token'] if 'access_token' in rec.keys() else ''
+            period = rec['period'] if 'period' in rec.keys() else ''
+            pdf_full_path = receipt_service.get_pdf_by_token(token) if token else None
 
-        if pdf_full_path and os.path.isfile(pdf_full_path):
-            caption = f"📄 Квитанция за период: <b>{html.escape(latest_rec['period'])}</b> (Л/С: <code>{html.escape(account_number)}</code>)"
-            visible_name = f"Квитанция_{account_number}_{latest_rec['period']}.pdf".replace('/', '_').replace(' ', '_')
-            try:
-                self.client.send_document(chat_id, pdf_full_path, caption=caption, visible_filename=visible_name)
-            except Exception as e:
-                logger.error(f"[Telegram] Ошибка при отправке PDF {pdf_full_path}: {e}")
-                self.client.send_message(chat_id, f"⚠️ Не удалось прикрепить PDF-файл: {html.escape(str(e))}")
-        else:
-            self.client.send_message(chat_id, f"⚠️ Файл квитанции за период {latest_rec['period']} не найден на диске.")
+            if pdf_full_path and os.path.isfile(pdf_full_path):
+                caption = f"📄 Квитанция за период: <b>{html.escape(period)}</b> (Л/С: <code>{html.escape(account_number)}</code>)"
+                visible_name = f"Квитанция_{account_number}_{period}.pdf".replace('/', '_').replace(' ', '_')
+                try:
+                    self.client.send_document(chat_id, pdf_full_path, caption=caption, visible_filename=visible_name)
+                except Exception as e:
+                    logger.error(f"[Telegram] Ошибка при отправке PDF {pdf_full_path}: {e}")
+                    self.client.send_message(chat_id, f"⚠️ Не удалось прикрепить PDF-файл за {html.escape(period)}: {html.escape(str(e))}")
+            else:
+                self.client.send_message(chat_id, f"⚠️ Файл квитанции за период {html.escape(period)} не найден на диске.")
 
     def _search_by_address(self, chat_id: int, user_id: int, address_query: str):
         """Строгий поиск лицевого счета по адресу с защитой приватности."""
