@@ -302,13 +302,13 @@ def render_upload_form(message=None, csrf_token='', active_job_id='', role='admi
                             Дубликатов пропущено: <b>${{t.duplicates}}</b><br>
                             Скорость обработки: <b>${{t.speed_files_per_sec || 0}} файлов/сек</b><br><br>
                             <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-                                <button type="button" class="btn btn-sm" onclick="exportJobReportToCsv()" style="display:inline-flex;align-items:center;gap:6px">{icon('download', 14)} 📥 Скачать отчёт в Excel (CSV)</button>
+                                <button type="button" class="btn btn-sm" onclick="exportJobReportToCsv()" style="display:inline-flex;align-items:center;gap:6px">{icon('download', 14)} Скачать отчёт в Excel (CSV)</button>
                             </div>
                             <details><summary>Подробности по файлам (${{t.details ? t.details.length : 0}})</summary><br>${{detailHtml}}</details>
                         </div>`;
                         break;
                     }} else if (t.status === 'FAILED') {{
-                        statusLabel.innerHTML = '<span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">❌ Сбой фоновой обработки</span>';
+                        statusLabel.innerHTML = '<span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{icon("alert_triangle", 15, "#dc2626")} Сбой фоновой обработки</span>';
                         btnStartUpload.disabled = false;
                         btnChooseFiles.disabled = false;
                         btnChooseFolder.disabled = false;
@@ -353,7 +353,7 @@ def render_upload_form(message=None, csrf_token='', active_job_id='', role='admi
             if (!res.ok) {{
                 const errData = await res.json().catch(() => ({{}}));
                 log('[Ошибка] ' + (errData.error || res.statusText));
-                statusLabel.innerHTML = '<span style="color:#dc2626">❌ Ошибка загрузки файлов</span>';
+                statusLabel.innerHTML = '<span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{icon("alert_circle", 15, "#dc2626")} Ошибка загрузки файлов</span>';
                 btnStartUpload.disabled = false;
                 btnChooseFiles.disabled = false;
                 btnChooseFolder.disabled = false;
@@ -450,7 +450,7 @@ def render_upload_form(message=None, csrf_token='', active_job_id='', role='admi
 
             if (res.ok && data.success) {{
                 accountsResultArea.innerHTML = `<div class="ok">
-                    <b>✅ Реестр абонентов успешно импортирован!</b><br><br>
+                    <b>Реестр абонентов успешно импортирован</b><br><br>
                     Файл: <b>${{htmlEscape(data.file_name || 'реестр')}}</b><br>
                     Обработано / обновлено счетов: <b>${{data.imported ? data.imported.toLocaleString('ru-RU') : 0}}</b><br>
                     Всего лицевых счетов в базе: <b>${{data.total_in_db ? data.total_in_db.toLocaleString('ru-RU') : '—'}}</b><br>
@@ -458,14 +458,14 @@ def render_upload_form(message=None, csrf_token='', active_job_id='', role='admi
                 </div>`;
             }} else {{
                 accountsResultArea.innerHTML = `<div class="err">
-                    <b>❌ Ошибка импорта реестра:</b><br>${{htmlEscape(data.error || 'Неизвестная ошибка')}}
+                    <b>Ошибка импорта реестра:</b><br>${{htmlEscape(data.error || 'Неизвестная ошибка')}}
                 </div>`;
             }}
         }} catch (err) {{
             accountsProgressArea.style.display = 'none';
             btnStartAccountsUpload.disabled = false;
             btnChooseAccountsFile.disabled = false;
-            accountsResultArea.innerHTML = `<div class="err"><b>❌ Ошибка сети:</b> ${{htmlEscape(err.message)}}</div>`;
+            accountsResultArea.innerHTML = `<div class="err"><b>Ошибка сети:</b> ${{htmlEscape(err.message)}}</div>`;
         }}
     }});
 

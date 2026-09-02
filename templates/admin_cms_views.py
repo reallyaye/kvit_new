@@ -20,7 +20,7 @@ def _admin_nav_bar(active_tab: str = 'pages', role: str = 'admin', username: str
             ('pages', '/admin/pages', 'file_text', 'Страницы сайта'),
             ('media', '/admin/media', 'image', 'Медиа и файлы'),
             ('documents', '/admin/documents', 'files', 'Реестр документов'),
-            ('users', '/admin/users', 'user_check', 'Сотрудники'),
+            ('users', '/admin/users', 'users', 'Сотрудники'),
             ('upload', '/upload', 'upload', 'Загрузка квитанций'),
             ('reconcile', '/reconcile', 'reconcile', 'Сверка базы'),
         ]
@@ -51,7 +51,7 @@ def _admin_nav_bar(active_tab: str = 'pages', role: str = 'admin', username: str
         </nav>
         <div class="admin-nav-actions">
             <a href="/" target="_blank" class="admin-btn-portal" title="Открыть сайт в новой вкладке">
-                {icon('external_link', 14, '#2563eb')} <span>На сайт ↗</span>
+                {icon('external_link', 14, '#2563eb')} <span>На сайт</span>
             </a>
             <a href="/logout" class="admin-btn-logout" title="Завершить сеанс">
                 {icon('logout', 14, '#e11d48')} <span>Выйти</span>
@@ -826,7 +826,7 @@ def render_admin_users(
         u_active = u.get('is_active', True)
         u_last = time_format(u.get('last_login_at')) if u.get('last_login_at') else 'Никогда'
 
-        role_badge = '<span class="status-badge" style="background:#e0e7ff;color:#3730a3">👑 Администратор</span>' if u_role == 'admin' else '<span class="status-badge" style="background:#dcfce7;color:#166534">💼 Оператор сбыта</span>'
+        role_badge = f'<span class="status-badge" style="background:#e0e7ff;color:#3730a3;display:inline-flex;align-items:center;gap:4px">{icon("shield", 13, "#4f46e5")} Администратор</span>' if u_role == 'admin' else f'<span class="status-badge" style="background:#dcfce7;color:#166534;display:inline-flex;align-items:center;gap:4px">{icon("user", 13, "#16a34a")} Оператор сбыта</span>'
         status_badge = '<span style="color:#16a34a;font-weight:600">● Активен</span>' if u_active else '<span style="color:#dc2626;font-weight:600">● Заблокирован</span>'
 
         delete_btn = ''
@@ -936,7 +936,7 @@ def render_admin_users(
         <!-- Правая колонка: Создание нового пользователя -->
         <div class="card" style="position:sticky;top:20px;">
             <h2 style="margin:0 0 16px;font-size:18px;display:flex;align-items:center;gap:8px">
-                {icon('user_check', 18, '#16a34a')} Добавить сотрудника
+                {icon('user_plus', 18, '#16a34a')} Добавить сотрудника
             </h2>
             <form action="/admin/users/create" method="post">
                 <input type="hidden" name="csrf_token" value="{csrf_token}">
@@ -952,8 +952,8 @@ def render_admin_users(
 
                 <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:#334155;">Роль в системе</label>
                 <select name="role" style="width:100%;margin-bottom:18px;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;">
-                    <option value="operator" selected>💼 Оператор сбыта (только загрузка и сверка)</option>
-                    <option value="admin">👑 Администратор (полный доступ к сайту)</option>
+                    <option value="operator" selected>Оператор сбыта (только загрузка и сверка)</option>
+                    <option value="admin">Администратор (полный доступ к сайту)</option>
                 </select>
 
                 <button type="submit" class="btn btn-green" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;font-weight:600;">
