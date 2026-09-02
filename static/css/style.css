@@ -302,7 +302,7 @@ body {
     left: 0;
     width: 100%;
     height: 48px;
-    z-index: 999;
+    z-index: 1000;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -395,27 +395,40 @@ body {
 /* --- Выпадающие подменю (Dropdown Menus) --- */
 .nav .underblock {
     position: absolute;
-    top: 48px;
+    top: 47px;
     left: 0;
     background: #0f172a;
     border: 1px solid #334155;
     border-radius: var(--radius-md);
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55);
     display: none;
     padding: 16px 20px;
     min-width: 280px;
-    z-index: 1010;
-    backdrop-filter: blur(12px);
-    animation: menuFadeIn 0.18s ease-out;
+    z-index: 1050;
+    backdrop-filter: blur(16px);
+    animation: menuFadeIn 0.15s ease-out;
+    pointer-events: auto;
+}
+
+/* Невидимый мост для непрерывного наведения курсора */
+.nav .underblock::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 0;
+    right: 0;
+    height: 10px;
+    display: block;
 }
 
 @keyframes menuFadeIn {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
 @media (min-width: 1081px) {
-    .nav > ul > li:hover .underblock {
+    .nav > ul > li:hover .underblock,
+    .nav .underblock:hover {
         display: flex;
         gap: 24px;
     }

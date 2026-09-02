@@ -37,30 +37,33 @@ def portal_layout(
             </a>'''
 
         admin_bar_html = f'''
-        <div class="portal-admin-bar" style="background:rgba(15,23,42,0.92);backdrop-filter:blur(16px) saturate(180%);color:#e2e8f0;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;font-size:13.5px;font-family:'Inter',-apple-system,sans-serif;border-bottom:1px solid rgba(255,255,255,0.1);position:sticky;top:0;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,0.25);flex-wrap:wrap;gap:12px;">
-            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-                <span style="font-weight:700;color:#38bdf8;display:inline-flex;align-items:center;gap:7px;background:rgba(56,189,248,0.12);padding:4px 10px;border-radius:9999px;border:1px solid rgba(56,189,248,0.25);">
-                    {icon('shield', 15, '#38bdf8')} Панель управления
+        <div class="portal-admin-bar" style="background:rgba(15,23,42,0.95);backdrop-filter:blur(16px) saturate(180%);color:#e2e8f0;padding:8px 24px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:'Inter',-apple-system,sans-serif;border-bottom:1px solid rgba(255,255,255,0.1);position:relative;z-index:990;box-shadow:0 4px 16px rgba(0,0,0,0.2);flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                <span style="font-weight:700;color:#38bdf8;display:inline-flex;align-items:center;gap:6px;background:rgba(56,189,248,0.12);padding:3px 10px;border-radius:9999px;border:1px solid rgba(56,189,248,0.25);">
+                    {icon('shield', 14, '#38bdf8')} Панель управления
                 </span>
-                <a href="/admin/pages" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;transition:background .15s;">
+                <a href="/admin/pages" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
                     {icon('file_text', 14, '#94a3b8')} Страницы
                 </a>
-                <a href="/admin/media" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;transition:background .15s;">
+                <a href="/admin/media" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
                     {icon('image', 14, '#94a3b8')} Медиа
                 </a>
-                <a href="/admin/documents" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;transition:background .15s;">
+                <a href="/admin/documents" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
                     {icon('files', 14, '#94a3b8')} Документы
                 </a>
-                <a href="/upload" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;transition:background .15s;">
+                <a href="/admin/users" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
+                    {icon('users', 14, '#94a3b8')} Сотрудники
+                </a>
+                <a href="/upload" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
                     {icon('upload', 14, '#94a3b8')} Квитанции
                 </a>
-                <a href="/reconcile" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;transition:background .15s;">
+                <a href="/reconcile" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
                     {icon('reconcile', 14, '#94a3b8')} Сверка
                 </a>
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
                 {edit_btn}
-                <a href="/logout" style="color:#fda4af;background:rgba(244,63,94,0.15);border:1px solid rgba(244,63,94,0.3);padding:5px 12px;border-radius:8px;text-decoration:none;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:all .15s;">
+                <a href="/logout" style="color:#fda4af;background:rgba(244,63,94,0.15);border:1px solid rgba(244,63,94,0.3);padding:4px 12px;border-radius:6px;text-decoration:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:all .15s;">
                     {icon('logout', 13, '#fda4af')} Выйти
                 </a>
             </div>
