@@ -523,20 +523,20 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
-/* --- Главный промо-баннер: Получить квитанцию (AI Redesign) --- */
+/* --- Главный промо-баннер: Получить квитанцию (AI Grid Background) --- */
 .kvit-hero-banner {
     background: linear-gradient(135deg, rgba(15, 23, 42, 0.94) 0%, rgba(30, 41, 59, 0.88) 55%, rgba(15, 23, 42, 0.94) 100%),
                 url('/images/hero_grid.jpg') center/cover no-repeat;
     border: 1px solid rgba(56, 189, 248, 0.35);
     border-radius: var(--radius-xl);
-    padding: 34px 40px;
-    margin-bottom: 32px;
-    box-shadow: 0 16px 36px -5px rgba(15, 23, 42, 0.4), 0 0 30px rgba(37, 99, 235, 0.18);
+    padding: 28px 36px;
+    margin-bottom: 30px;
+    box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.35), 0 0 25px rgba(37, 99, 235, 0.15);
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 32px;
+    gap: 30px;
     position: relative;
     overflow: hidden;
 }
@@ -546,15 +546,15 @@ body {
     position: absolute;
     top: -40%;
     right: -10%;
-    width: 380px;
-    height: 380px;
-    background: radial-gradient(circle, rgba(56, 189, 248, 0.22) 0%, rgba(37, 99, 235, 0) 70%);
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.2) 0%, rgba(37, 99, 235, 0) 70%);
     border-radius: 50%;
     pointer-events: none;
 }
 
 .kvit-hero-info {
-    max-width: 580px;
+    max-width: 620px;
     z-index: 1;
 }
 
@@ -569,32 +569,32 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    padding: 5px 14px;
+    padding: 4px 12px;
     border-radius: 20px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     backdrop-filter: blur(6px);
 }
 
 .kvit-hero-info h2 {
     color: #ffffff;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
     line-height: 1.3;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .kvit-hero-info p {
     color: #cbd5e1;
-    font-size: 14.5px;
-    line-height: 1.55;
-    margin: 0 0 16px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 14px 0;
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 .kvit-hero-features {
     display: flex;
-    gap: 16px;
+    gap: 14px;
     font-size: 13px;
     color: #e2e8f0;
     flex-wrap: wrap;
@@ -604,46 +604,17 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: rgba(15, 23, 42, 0.4);
+    background: rgba(15, 23, 42, 0.45);
     padding: 4px 10px;
     border-radius: 8px;
-    border: 1px solid rgba(148, 163, 184, 0.15);
-}
-
-.kvit-hero-visual-card {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    background: rgba(15, 23, 42, 0.72);
-    border: 1px solid rgba(56, 189, 248, 0.28);
-    border-radius: 18px;
-    padding: 16px 18px;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
-    z-index: 1;
-}
-
-.kvit-hero-3d-img {
-    width: 140px;
-    height: 105px;
-    object-fit: cover;
-    border-radius: 12px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), 0 0 15px rgba(56, 189, 248, 0.25);
-    border: 1px solid rgba(56, 189, 248, 0.4);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.kvit-hero-3d-img:hover {
-    transform: scale(1.04);
-    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45), 0 0 22px rgba(56, 189, 248, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .kvit-hero-actions {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    min-width: 230px;
+    gap: 12px;
+    min-width: 250px;
     z-index: 1;
 }
 
