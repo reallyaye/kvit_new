@@ -1,6 +1,16 @@
 import html
+import os
 
 from templates.icons import icon
+
+
+def _asset_v(rel_path: str) -> str:
+    """Автоматический cache-buster: возвращает timestamp изменения файла."""
+    try:
+        full_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', rel_path.lstrip('/'))
+        return str(int(os.path.getmtime(full_path)))
+    except Exception:
+        return '20260901'
 
 
 def portal_layout(
@@ -14,6 +24,9 @@ def portal_layout(
     """Генерирует базовый HTML-макет информационного портала ТОО «КРЭК»."""
     escaped_title = html.escape(title)
     escaped_desc = html.escape(description)
+    style_v = _asset_v('css/style.css')
+    heroui_v = _asset_v('css/heroui.css')
+    sw_v = _asset_v('sw.js')
 
     admin_bar_html = ''
     if is_admin:
@@ -66,13 +79,21 @@ def portal_layout(
 <meta name="robots" content="index,follow">
 <title>{escaped_title}</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/css/style.css?v=8" type="text/css" media="screen" />
-<link rel="stylesheet" href="/static/css/heroui.css?v=1" type="text/css" media="screen" />
-<link rel="shortcut icon" href="/favicon.ico?v=8" type="image/vnd.microsoft.icon">
+<link rel="stylesheet" href="/css/style.css?v={style_v}" type="text/css" />
+<link rel="stylesheet" href="/css/heroui.css?v={heroui_v}" type="text/css" />
+<link rel="shortcut icon" href="/favicon.ico?v={style_v}" type="image/vnd.microsoft.icon">
 <script>
 if ('serviceWorker' in navigator) {{
     window.addEventListener('load', function() {{
-        navigator.serviceWorker.register('/sw.js').catch(function() {{}});
+        navigator.serviceWorker.register('/sw.js?v={sw_v}').then(function(reg) {{
+            reg.update();
+        }}).catch(function() {{}});
+    }});
+    navigator.serviceWorker.addEventListener('controllerchange', function() {{
+        if (!window._swReloaded) {{
+            window._swReloaded = true;
+            window.location.reload();
+        }}
     }});
 }}
 </script>
@@ -200,7 +221,7 @@ if ('serviceWorker' in navigator) {{
 
         <li class="has-submenu">
             <div class="nav-item-row" onclick="toggleMobileSubmenu(event, this)">
-                <a href="/load" class="{'active' if active_nav == 'load' else ''}" onclick="handleSubmenuParentClick(event, this)">
+                <a href="/load" class="{'active' if active_nav in ('load', 'ktp', 'lines10kv', 'line') else ''}" onclick="handleSubmenuParentClick(event, this)">
                     <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                     <span>Загрузка ПС</span>
                 </a>
@@ -211,9 +232,10 @@ if ('serviceWorker' in navigator) {{
             <div class="underblock">
                 <div class="block">
                     <ul>
-                        <li><a href="/ktp">КТП 6(10) кВ</a></li>
-                        <li><a href="/lines10kv">Линии 6-10 кВ</a></li>
+                        <li><a href="/load">Подстанции 35-110 кВ</a></li>
                         <li><a href="/line">Линии 35-110 кВ</a></li>
+                        <li><a href="/lines10kv">Линии 6-10 кВ</a></li>
+                        <li><a href="/ktp">КТП 6(10) кВ</a></li>
                     </ul>
                 </div>
             </div>
@@ -244,6 +266,13 @@ if ('serviceWorker' in navigator) {{
             <a href="/consumers" class="{'active' if active_nav in ('consumers', 'potreb') else ''}" onclick="handleNavLinkClick(event, this)">
                 <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 <span>Потребителям</span>
+            </a>
+        </li>
+
+        <li>
+            <a href="/notices" class="{'active' if active_nav in ('notices', 'notices_old', 'notices.php') else ''}" onclick="handleNavLinkClick(event, this)">
+                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span>Объявления</span>
             </a>
         </li>
 
@@ -377,7 +406,34 @@ document.addEventListener('DOMContentLoaded', function() {{
             }}
         }});
     }});
+    try {{
+        var saved = localStorage.getItem('krec_announce_lang');
+        if (saved === 'ru') {{
+            switchAnnouncementLang('ru');
+        }}
+    }} catch(e) {{}}
 }});
+
+function switchAnnouncementLang(lang) {{
+    var kzElements = document.querySelectorAll('.announce-kz, #announcementKz');
+    var ruElements = document.querySelectorAll('.announce-ru, #announcementRu');
+    var kzBtns = document.querySelectorAll('.btn-announce-kz, #btnAnnounceKz');
+    var ruBtns = document.querySelectorAll('.btn-announce-ru, #btnAnnounceRu');
+    
+    if (lang === 'ru') {{
+        kzElements.forEach(function(el) {{ el.style.display = 'none'; }});
+        ruElements.forEach(function(el) {{ el.style.display = 'block'; }});
+        kzBtns.forEach(function(btn) {{ btn.classList.remove('active'); }});
+        ruBtns.forEach(function(btn) {{ btn.classList.add('active'); }});
+        try {{ localStorage.setItem('krec_announce_lang', 'ru'); }} catch(e) {{}}
+    }} else {{
+        ruElements.forEach(function(el) {{ el.style.display = 'none'; }});
+        kzElements.forEach(function(el) {{ el.style.display = 'block'; }});
+        ruBtns.forEach(function(btn) {{ btn.classList.remove('active'); }});
+        kzBtns.forEach(function(btn) {{ btn.classList.add('active'); }});
+        try {{ localStorage.setItem('krec_announce_lang', 'kz'); }} catch(e) {{}}
+    }}
+}}
 </script>
 </body>
 </html>"""

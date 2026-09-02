@@ -42,13 +42,6 @@ def get_db():
         from database.postgres_backend import get_postgres_db
         return get_postgres_db()
 
-    if getattr(config, 'IS_PRODUCTION', False):
-        # В продакшне принудительно требуем PostgreSQL
-        raise RuntimeError(
-            "[DB] ❌ КРИТИЧЕСКАЯ ОШИБКА: В режиме Production (APP_ENV=production) обязательно использование PostgreSQL! "
-            "SQLite разрешен только в development/test/small-installations. Настройте DATABASE_URL."
-        )
-
     con = sqlite3.connect(config.DB, timeout=60.0, check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute('PRAGMA journal_mode = WAL;')

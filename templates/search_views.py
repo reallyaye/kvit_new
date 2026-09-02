@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import html
 
+import config
 from templates.icons import icon
 
 
@@ -11,7 +12,8 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         selected = ' selected' if p_val == default_period else ''
         period_options += f'<option value="{html.escape(p_val)}"{selected}>{html.escape(p_val)}</option>'
 
-    is_addr = active_tab == 'address'
+    enable_address = getattr(config, 'ENABLE_ADDRESS_SEARCH', False)
+    is_addr = (active_tab == 'address') and enable_address
     tab_acc_cls = ' active' if not is_addr else ''
     tab_addr_cls = ' active' if is_addr else ''
     form_acc_style = '' if not is_addr else 'display:none'
@@ -29,26 +31,15 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
     ico_err = icon('x_circle', 22, '#dc2626')
     ico_shield = icon('shield', 14)
 
-    return f'''<div class="card">
-        <h1>Получение квитанции</h1>
-        <p class="subtitle">Найдите квитанцию по номеру лицевого счёта или по адресу объекта.</p>
+    subtitle_text = "Найдите квитанцию по номеру лицевого счёта или по адресу объекта." if enable_address else "Введите номер лицевого счёта для получения квитанции."
 
+    tabs_html = f'''
         <div class="mode-tabs search-tabs">
             <button type="button" class="mode-tab{tab_acc_cls}" id="tabBtnAccount" onclick="switchSearchTab('account')">{icon('hash', 15)} По лицевому счёту</button>
             <button type="button" class="mode-tab{tab_addr_cls}" id="tabBtnAddress" onclick="switchSearchTab('address')">{icon('map_pin', 15)} По адресу</button>
-        </div>
+        </div>''' if enable_address else ''
 
-        <!-- Поиск по лицевому счёту -->
-        <form id="searchAccountForm" action="/search" method="get" style="{form_acc_style}" onsubmit="handleAjaxSearch(event, this, 'account')">
-            <label>Лицевой счёт</label>
-            <input name="account" type="search" inputmode="numeric" placeholder="Например: 800146" value="{html.escape(default_account)}" required>
-            <label>Период</label>
-            <select name="period">
-                {period_options}
-            </select>
-            <button type="submit" class="btn">{icon('search', 15)} Найти квитанцию</button>
-        </form>
-
+    address_form_html = f'''
         <!-- Поиск по адресу -->
         <form id="searchAddressForm" action="/search" method="get" style="{form_addr_style}" onsubmit="handleAjaxSearch(event, this, 'address')">
             <label>Точный адрес объекта</label>
@@ -59,7 +50,23 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
                 {period_options}
             </select>
             <button type="submit" class="btn">{icon('search', 15)} Найти по адресу</button>
+        </form>''' if enable_address else ''
+
+    return f'''<div class="card">
+        <h1>Получение квитанции</h1>
+        <p class="subtitle">{subtitle_text}</p>
+        {tabs_html}
+        <!-- Поиск по лицевому счёту -->
+        <form id="searchAccountForm" action="/search" method="get" style="{form_acc_style}" onsubmit="handleAjaxSearch(event, this, 'account')">
+            <label>Лицевой счёт</label>
+            <input name="account" type="search" inputmode="numeric" placeholder="Например: 800146" value="{html.escape(default_account)}" required>
+            <label>Период</label>
+            <select name="period">
+                {period_options}
+            </select>
+            <button type="submit" class="btn">{icon('search', 15)} Найти квитанцию</button>
         </form>
+        {address_form_html}
     </div>
 
     <!-- Контейнер для мгновенных AJAX-результатов -->
@@ -219,6 +226,11 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
                 '</div>';
                 resBox.innerHTML = multiHtml;
             }}
+        }} else if (data.status === 'DISABLED') {{
+            resBox.innerHTML = '<div class="card receipt-card-anim">' +
+                '<h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{ico_warn} Поиск по адресу отключен</span></h1>' +
+                '<div class="warn"><b>' + escapeHtml(data.message || 'Поиск по адресу временно отключен.') + '</b></div>' +
+            '</div>';
         }} else if (data.status === 'NOT_FOUND') {{
             resBox.innerHTML = '<div class="card receipt-card-anim">' +
                 '<h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{ico_err} Квитанция не найдена</span></h1>' +

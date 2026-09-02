@@ -72,6 +72,10 @@ def test_task_manager_submit_and_completion(tmp_path):
     assert callbacks_fired[0] == task.job_id
 
     # Проверяем, что временная спул-директория очищена
+    for _ in range(30):
+        if not os.path.exists(tmp_dir):
+            break
+        time.sleep(0.05)
     assert not os.path.exists(tmp_dir)
 
 

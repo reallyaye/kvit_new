@@ -50,7 +50,17 @@ def test_render_zakup_page():
 
     html_slash = render_page('/zakup.php')
     assert 'Закупки' in html_slash
-    assert '404' not in html_slash
+    assert 'Страница не найдена' not in html_slash
+
+def test_render_notices_page():
+    html = render_page('notices')
+    assert 'Объявления' in html
+    assert '/notices' in html
+    assert 'Страница не найдена' not in html
+
+    html_slash = render_page('/notices.php')
+    assert 'Объявления' in html_slash
+    assert 'Страница не найдена' not in html_slash
 
 def test_health_and_readiness_probes():
     """Тестирует liveness (/health) и readiness (/ready) проверки сервера."""
@@ -105,7 +115,7 @@ def test_pwa_and_offline_support():
         offline_content = f.read()
     assert 'автономном режиме' in offline_content
     assert 'КРЭК' in offline_content
-    assert '+7 (7212) 41-11-11' in offline_content
+    assert '+7 (7212) 90-03-58' in offline_content
 
     # 3. Тестируем отдачу /sw.js сервером
     handler = AppRequestHandler.__new__(AppRequestHandler)

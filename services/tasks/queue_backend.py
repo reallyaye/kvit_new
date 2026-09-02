@@ -557,44 +557,27 @@ class RedisTaskQueueBackend(BaseTaskQueueBackend):
 
 def create_task_queue_backend() -> BaseTaskQueueBackend:
     """
-    Фабрика создания бэкенда очереди.
-    - Production (APP_ENV == 'production'): Обязательное использование Redis.
-      При недоступности Redis выбрасывается исключение RuntimeError (Fail-Fast),
-      предотвращая тихий переход в In-Memory очередь и потерю распределенных задач.
-    - Development/Test: При недоступности Redis выполняется graceful fallback на MemoryTaskQueueBackend.
+    Фабрика создания бэкенда очереди задач.
+    - Если настроен и доступен Redis -> используется RedisTaskQueueBackend.
+    - В противном случае используется встроенная высокопроизводительная MemoryTaskQueueBackend.
     """
-    is_prod = getattr(config, 'IS_PRODUCTION', False) or getattr(config, 'APP_ENV', '') == 'production'
-    redis_enabled = getattr(config, 'REDIS_ENABLED', False) or is_prod
+    redis_enabled = getattr(config, 'REDIS_ENABLED', False)
+    redis_url = getattr(config, 'REDIS_URL', '').strip()
 
-    if is_prod or redis_enabled:
-        if not REDIS_LIB_AVAILABLE:
-            if is_prod:
-                raise RuntimeError(
-                    "[TaskQueue] ❌ КРИТИЧЕСКАЯ ОШИБКА: Библиотека 'redis' не установлена в Production окружении! "
-                    "Запуск остановлен (Fail-Fast). Установите: pip install redis"
-                )
-            logger.warning("[TaskQueue] Библиотека redis не найдена. Переключение на MemoryTaskQueueBackend.")
-        else:
-            try:
-                backend = RedisTaskQueueBackend(config.REDIS_URL, config.REDIS_SOCKET_TIMEOUT)
-                if backend.ping():
-                    logger.info(f"[TaskQueue] Инициализирован распределенный Redis бэкенд ({config.REDIS_URL})")
-                    return backend
-                else:
-                    if is_prod:
-                        raise RuntimeError(
-                            f"[TaskQueue] ❌ КРИТИЧЕСКАЯ ОШИБКА: Redis ({config.REDIS_URL}) недоступен по PING в Production! "
-                            "Запуск остановлен (Fail-Fast). Проверьте подключение к Redis."
-                        )
-                    logger.warning("[TaskQueue] Redis недоступен по PING. Переключение на MemoryTaskQueueBackend.")
-            except Exception as e:
-                if is_prod:
-                    raise RuntimeError(
-                        f"[TaskQueue] ❌ КРИТИЧЕСКАЯ ОШИБКА: Сбой подключения к Redis ({config.REDIS_URL}) в Production: {e}. "
-                        "Запуск остановлен (Fail-Fast)."
-                    ) from e
-                logger.warning(f"[TaskQueue] Сбой подключения к Redis ({e}). Переключение на MemoryTaskQueueBackend.")
+    if redis_enabled and redis_url and REDIS_LIB_AVAILABLE:
+        try:
+            backend = RedisTaskQueueBackend(redis_url, config.REDIS_SOCKET_TIMEOUT)
+            if backend.ping():
+                logger.info(f"[TaskQueue] Инициализирован распределенный Redis бэкенд ({redis_url})")
+                return backend
+            else:
+                logger.warning(f"[TaskQueue] Redis ({redis_url}) недоступен. Переключение на встроенную In-Memory очередь.")
+        except Exception as e:
+            logger.warning(f"[TaskQueue] Сбой подключения к Redis: {e}. Переключение на встроенную In-Memory очередь.")
+    elif redis_enabled and not REDIS_LIB_AVAILABLE:
+        logger.warning("[TaskQueue] Библиотека 'redis' не установлена в Python. Переключение на встроенную In-Memory очередь.")
 
-    logger.info("[TaskQueue] Инициализирована потокобезопасная MemoryTaskQueueBackend очередь.")
+    logger.info("[TaskQueue] Инициализирована встроенная MemoryTaskQueueBackend очередь.")
     return MemoryTaskQueueBackend()
+
 

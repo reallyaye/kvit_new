@@ -220,7 +220,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
     def _serve_static(self, path: str):
         """Безопасная отдача статических файлов (CSS, JS, изображения, PDF)."""
-        rel_path = path.lstrip('/')
+        clean_path = path.split('?')[0].split('#')[0]
+        if clean_path.startswith('/static/'):
+            rel_path = clean_path[len('/static/'):]
+        else:
+            rel_path = clean_path.lstrip('/')
         target_file = os.path.join(config.STATIC_DIR, rel_path)
         try:
             abs_target = os.path.abspath(target_file)
@@ -254,6 +258,26 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(data)
         except Exception:
             self.send_html(render_portal_page('404'), 404)
+
+    def _serve_maintenance_page(self):
+        """Отдает страницу 503 Service Unavailable при плановых технических работах."""
+        m_path = os.path.join(config.STATIC_DIR, 'maintenance.html')
+        if os.path.isfile(m_path):
+            try:
+                with open(m_path, 'rb') as f:
+                    content = f.read()
+                self.send_response(503)
+                self._send_security_headers()
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(content)))
+                self.send_header('Retry-After', '300')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            except Exception:
+                pass
+        self.send_html("<!DOCTYPE html><html><head><title>503 Service Unavailable</title></head><body><h1>Ведутся технические работы</h1><p>Сайт временно недоступен в связи с плановым обновлением.</p></body></html>", 503)
 
     def _redirect(self, location: str, extra_headers: dict = None):
         self.send_response(302)
@@ -387,8 +411,17 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return
 
         # Статические файлы (CSS, JS, изображения, PDF, favicon, robots, sitemap, PWA)
-        if path.startswith(('/css/', '/images/', '/files/')) or path in ('/favicon.ico', '/robots.txt', '/sitemap.xml', '/sw.js', '/manifest.json', '/offline.html'):
+        if path.startswith(('/css/', '/images/', '/files/', '/static/')) or path in ('/favicon.ico', '/robots.txt', '/sitemap.xml', '/sw.js', '/manifest.json', '/offline.html', '/maintenance.html'):
             self._serve_static(path)
+            return
+
+        # 0. Режим технических работ (Maintenance Mode): перехват всех запросов обычных пользователей
+        maintenance_active = getattr(config, 'MAINTENANCE_MODE', False) or os.path.exists(getattr(config, 'MAINTENANCE_FLAG_FILE', ''))
+        if maintenance_active and not is_admin and path not in ('/login', '/static/maintenance.html'):
+            if path.startswith('/api/'):
+                self.send_json({'error': 'Maintenance', 'message': 'На сайте ведутся плановые технические работы. Доступ будет восстановлен в ближайшее время.'}, 503)
+            else:
+                self._serve_maintenance_page()
             return
 
         # 1. IP Throttling (ограничение одновременных запросов и всплесков)
@@ -601,6 +634,17 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     'tarify': 'tarif',
                     'zayavka': 'online',
                     'zayavki': 'online',
+                    'notice': 'notices',
+                    'obyavleniya': 'notices',
+                    'obyavlenie': 'notices',
+                    'obyavleniye': 'notices',
+                    'announcements': 'notices',
+                    'announcement': 'notices',
+                    'podstancii': 'load',
+                    'podstantsii': 'load',
+                    'zagruzka': 'load',
+                    'zagruzka-ps': 'load',
+                    'substations': 'load',
                 }
                 clean_name = path.strip('/').removesuffix('.php').strip('/')
                 clean_name = PAGE_ALIASES.get(clean_name, clean_name)
@@ -627,6 +671,12 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         is_admin = self._is_admin()
         client_ip = self._get_client_ip()
+
+        # 0. Режим технических работ (Maintenance Mode)
+        maintenance_active = getattr(config, 'MAINTENANCE_MODE', False) or os.path.exists(getattr(config, 'MAINTENANCE_FLAG_FILE', ''))
+        if maintenance_active and not is_admin and u.path != '/login':
+            self.send_json({'error': 'Maintenance', 'message': 'На сайте ведутся плановые технические работы. Прием запросов временно приостановлен.'}, 503)
+            return
 
         # 1. IP Throttling (ограничение одновременных запросов и всплесков)
         throttle_allowed, throttle_reason, throttle_retry = ip_throttler.acquire(client_ip)
@@ -658,7 +708,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 return
 
             # 3. Rate Limit для загрузки файлов (защита от перегрузки очереди)
-            if u.path in ('/upload', '/import-folder', '/api/upload-batch'):
+            if u.path in ('/upload', '/import-folder', '/api/upload-batch', '/api/upload-accounts'):
                 allowed, retry_after, remaining = rate_limiter.is_allowed('upload', client_ip, RATE_LIMIT_UPLOAD, 60)
                 if not allowed:
                     if u.path.startswith('/api/'):
@@ -713,6 +763,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self._handle_admin_documents_delete()
             elif u.path == '/api/upload-batch':
                 self._handle_api_upload_batch()
+            elif u.path == '/api/upload-accounts':
+                self._handle_api_upload_accounts()
             elif u.path == '/api/sync-receipts':
                 self._handle_api_sync_receipts()
             elif u.path == '/api/purge-missing-receipts':
@@ -952,6 +1004,210 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             'status_url': f'/api/tasks/{task.job_id}',
             'message': 'Файлы успешно приняты в очередь фоновой обработки.'
         }, 202)
+
+    def _parse_accounts_multipart(self):
+        """
+        Потоковый разбор multipart/form-data для загрузки файла реестра счетов.
+        Возвращает (tmp_dir, target_file_path, mode, target_file_name).
+        """
+        content_type = self.headers.get('Content-Type', '')
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+        except (ValueError, TypeError):
+            content_length = 0
+
+        if content_length > config.MAX_UPLOAD_BYTES:
+            return None, "PAYLOAD_TOO_LARGE", None, None
+
+        boundary = None
+        for part in content_type.split(';'):
+            part = part.strip()
+            if part.startswith(BOUNDARY_PREFIX):
+                boundary = part[len(BOUNDARY_PREFIX):].strip('"\'')
+                break
+        if not boundary or content_length <= 0:
+            return None, None, None, None
+
+        boundary_bytes = boundary.encode('latin1')
+        delimiter = b'--' + boundary_bytes
+        delimiter_crlf = b'\r\n--' + boundary_bytes
+
+        tmp_dir = tempfile.mkdtemp(prefix='accounts_upload_', dir=config.SPOOL_DIR)
+        target_file_path = None
+        target_file_name = None
+        mode = 'upsert'
+
+        remaining = content_length
+        total_read = 0
+        read_chunk_size = 64 * 1024
+
+        def read_stream():
+            nonlocal remaining, total_read
+            while remaining > 0:
+                to_read = min(read_chunk_size, remaining)
+                chunk = self.rfile.read(to_read)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > config.MAX_UPLOAD_BYTES:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+
+        stream = read_stream()
+        buf = b''
+
+        while delimiter not in buf:
+            try:
+                chunk = next(stream)
+            except StopIteration:
+                break
+            buf += chunk
+
+        first_delim_idx = buf.find(delimiter)
+        if first_delim_idx < 0:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return None, None, None, None
+
+        buf = buf[first_delim_idx + len(delimiter):]
+        MAX_HEADER_SIZE = 64 * 1024
+
+        while True:
+            if buf.startswith(b'--'):
+                break
+
+            if buf.startswith(b'\r\n'):
+                buf = buf[2:]
+            elif buf.startswith(b'\n'):
+                buf = buf[1:]
+
+            while b'\r\n\r\n' not in buf and b'\n\n' not in buf:
+                if len(buf) > MAX_HEADER_SIZE:
+                    break
+                try:
+                    chunk = next(stream)
+                except StopIteration:
+                    break
+                buf += chunk
+
+            if b'\r\n\r\n' in buf:
+                header_end = buf.find(b'\r\n\r\n')
+                header_len = 4
+            elif b'\n\n' in buf:
+                header_end = buf.find(b'\n\n')
+                header_len = 2
+            else:
+                break
+
+            header_bytes = buf[:header_end]
+            buf = buf[header_end + header_len:]
+
+            header_text = header_bytes.decode('utf-8', errors='replace')
+            m_name = re.search(r'name="([^"]*)"', header_text)
+            m_fn = re.search(r'filename="([^"]*)"', header_text)
+            field_name = m_name.group(1) if m_name else ''
+            file_name = m_fn.group(1) if m_fn else ''
+
+            is_file = bool(file_name)
+            out_file = None
+            field_val_buf = []
+
+            if is_file:
+                cleaned_name = os.path.basename(file_name.replace('\\', '/')).replace('\x00', '').strip()
+                cleaned_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', cleaned_name).strip(' .')
+                target_file_name = cleaned_name or 'accounts.xlsx'
+                target_file_path = os.path.join(tmp_dir, target_file_name)
+                try:
+                    out_file = open(target_file_path, 'wb')
+                except OSError:
+                    target_file_name = 'accounts_upload.xlsx'
+                    target_file_path = os.path.join(tmp_dir, target_file_name)
+                    out_file = open(target_file_path, 'wb')
+
+            needle = delimiter_crlf
+            needle_len = len(needle)
+
+            while True:
+                idx = buf.find(needle)
+                if idx >= 0:
+                    if out_file and idx > 0:
+                        out_file.write(buf[:idx])
+                    elif not is_file and idx > 0:
+                        field_val_buf.append(buf[:idx])
+                    buf = buf[idx + needle_len:]
+                    break
+                else:
+                    if len(buf) > needle_len:
+                        flush_len = len(buf) - needle_len
+                        if out_file:
+                            out_file.write(buf[:flush_len])
+                        elif not is_file:
+                            field_val_buf.append(buf[:flush_len])
+                        buf = buf[flush_len:]
+
+                    try:
+                        chunk = next(stream)
+                        buf += chunk
+                    except StopIteration:
+                        if out_file and buf:
+                            out_file.write(buf)
+                        elif not is_file and buf:
+                            field_val_buf.append(buf)
+                        buf = b''
+                        break
+
+            if out_file:
+                out_file.close()
+            elif field_name == 'mode':
+                val = b''.join(field_val_buf).decode('utf-8', errors='replace').strip()
+                if val in ('upsert', 'replace', 'insert_only'):
+                    mode = val
+
+        for _ in stream:
+            pass
+
+        return tmp_dir, target_file_path, mode, target_file_name
+
+    def _handle_api_upload_accounts(self):
+        if not self._is_admin():
+            self.send_json({'error': 'Unauthorized'}, 401)
+            return
+
+        if not self._verify_csrf():
+            self.send_json({'error': 'Forbidden', 'message': CSRF_INVALID_MSG}, 403)
+            return
+
+        tmp_dir, file_path, mode, file_name = self._parse_accounts_multipart()
+        if file_path == "PAYLOAD_TOO_LARGE":
+            max_mb = config.MAX_UPLOAD_BYTES // (1024 * 1024)
+            self.send_json({'error': f'Превышен максимальный размер загрузки ({max_mb} MB)'}, 413)
+            return
+
+        if not tmp_dir or not file_path or not os.path.isfile(file_path):
+            self.send_json({'error': 'Файл реестра не получен или повреждён'}, 400)
+            return
+
+        try:
+            from import_accounts import import_accounts_file
+            res = import_accounts_file(file_path, mode=mode, verbose=False)
+            self.send_json({
+                'success': True,
+                'file_name': file_name,
+                'mode': mode,
+                'imported': res.get('imported', 0),
+                'skipped': res.get('skipped', 0),
+                'total_in_db': res.get('total_in_db', 0),
+                'elapsed_seconds': res.get('elapsed_seconds', 0),
+                'message': f"Успешно обработано: {res.get('imported', 0):,} счетов. Всего в базе: {res.get('total_in_db', 0):,}."
+            }, 200)
+        except Exception as e:
+            logger.error(f"[UploadAccounts] Ошибка импорта реестра {file_name}: {e}", exc_info=True)
+            self.send_json({
+                'error': f'Ошибка импорта файла: {str(e)}'
+            }, 500)
+        finally:
+            if tmp_dir:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def _handle_api_tasks_list(self):
         if not self._is_admin():

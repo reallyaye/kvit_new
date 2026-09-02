@@ -32,7 +32,7 @@ if ('serviceWorker' in navigator) {{
     }});
 }}
 </script>
-<link rel="stylesheet" href="/static/css/heroui.css?v=1">
+<link rel="stylesheet" href="/css/heroui.css?v=20260901">
 {csrf_meta}<title>КРЭК | Квитанции</title>
 <style>
 *{{box-sizing:border-box}}

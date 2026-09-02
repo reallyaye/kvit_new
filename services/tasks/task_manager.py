@@ -124,6 +124,17 @@ class BackgroundTask:
             'meta': self.meta
         }
 
+    def update_from_dict(self, data: dict) -> None:
+        """Обновляет поля задачи из сериализованного словаря, игнорируя properties."""
+        for field in (
+            'status', 'created_at', 'started_at', 'finished_at', 'updated_at',
+            'total_files', 'processed_files', 'current_file', 'added', 'orphan',
+            'skipped', 'duplicates', 'details', 'error_message', 'retry_count',
+            'max_retries', 'spool_dir', 'meta'
+        ):
+            if field in data:
+                setattr(self, field, data[field])
+
     @classmethod
     def from_dict(cls, data: dict) -> 'BackgroundTask':
         task = cls(
@@ -135,20 +146,7 @@ class BackgroundTask:
             max_retries=data.get('max_retries', 3),
             retry_count=data.get('retry_count', 0)
         )
-        task.status = data.get('status', TaskStatus.PENDING)
-        task.created_at = data.get('created_at', time.time())
-        task.started_at = data.get('started_at')
-        task.finished_at = data.get('finished_at')
-        task.updated_at = data.get('updated_at', time.time())
-        task.total_files = data.get('total_files', len(task.files))
-        task.processed_files = data.get('processed_files', 0)
-        task.current_file = data.get('current_file')
-        task.added = data.get('added', 0)
-        task.orphan = data.get('orphan', 0)
-        task.skipped = data.get('skipped', 0)
-        task.duplicates = data.get('duplicates', 0)
-        task.details = data.get('details', [])
-        task.error_message = data.get('error_message')
+        task.update_from_dict(data)
         return task
 
 
@@ -240,18 +238,19 @@ class TaskQueueManager:
         return task
 
     def get_task(self, job_id: str) -> Optional[BackgroundTask]:
-        """Получает актуальное состояние задачи из локальной памяти или бэкенда."""
-        with self._lock:
-            if job_id in self._local_tasks:
-                return self._local_tasks[job_id]
-
+        """Получает актуальное состояние задачи из бэкенда очереди (Redis/DB/Memory)."""
         state = self.backend.get_job_state(job_id)
-        if state:
-            task = BackgroundTask.from_dict(state)
-            with self._lock:
-                self._local_tasks[job_id] = task
-            return task
-        return None
+        with self._lock:
+            local_task = self._local_tasks.get(job_id)
+            if state:
+                if local_task is not None:
+                    local_task.update_from_dict(state)
+                    return local_task
+                else:
+                    task = BackgroundTask.from_dict(state)
+                    self._local_tasks[job_id] = task
+                    return task
+            return local_task
 
     def list_tasks(self, limit: int = 30) -> List[dict]:
         """Возвращает список последних задач из бэкенда очереди."""
@@ -476,9 +475,11 @@ class TaskQueueManager:
             self.backend.ack_job(task.job_id)
 
     def _sync_task_state(self, task: BackgroundTask):
-        """Синхронизирует состояние задачи с бэкендом очереди."""
+        """Синхронизирует состояние задачи с бэкендом очереди и локальной памятью."""
         try:
             self.backend.save_job_state(task.job_id, task.to_dict())
+            with self._lock:
+                self._local_tasks[task.job_id] = task
         except Exception as e:
             logger.debug(f"[TaskManager] Ошибка сохранения состояния {task.job_id}: {e}")
 
