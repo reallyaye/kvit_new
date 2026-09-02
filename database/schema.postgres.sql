@@ -51,10 +51,37 @@ CREATE INDEX IF NOT EXISTS idx_receipts_hash_acc ON receipts(content_hash, accou
 CREATE TABLE IF NOT EXISTS app_sessions (
     token VARCHAR(64) PRIMARY KEY,
     expires_at DOUBLE PRECISION NOT NULL,
-    created_at DOUBLE PRECISION NOT NULL
+    created_at DOUBLE PRECISION NOT NULL,
+    username VARCHAR(64),
+    role VARCHAR(32) DEFAULT 'admin'
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON app_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255),
+    role VARCHAR(32) NOT NULL DEFAULT 'operator',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DOUBLE PRECISION NOT NULL,
+    last_login_at DOUBLE PRECISION
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    created_at DOUBLE PRECISION NOT NULL,
+    username VARCHAR(64) NOT NULL,
+    ip VARCHAR(64),
+    action VARCHAR(64) NOT NULL,
+    details TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(username);
 
 CREATE TABLE IF NOT EXISTS security_blocks (
     ip VARCHAR(64) PRIMARY KEY,

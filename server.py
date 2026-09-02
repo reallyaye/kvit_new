@@ -39,11 +39,13 @@ from templates import (
     render_upload_form,
 )
 from templates.admin_cms_views import (
+    render_access_denied_page,
     render_admin_document_editor,
     render_admin_documents_list,
     render_admin_media_gallery,
     render_admin_page_editor,
     render_admin_pages_list,
+    render_admin_users,
 )
 from templates.portal_views import DOCUMENTS_REGISTRY, PORTAL_PAGES
 from templates.portal_views import render_document as render_portal_document
@@ -154,9 +156,22 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             pass
         return None
 
-    def _is_admin(self) -> bool:
+    def _get_current_user(self):
         token = self._get_session_token()
-        return auth_service.is_valid_session(token)
+        if not token:
+            return None
+        return auth_service.get_session_user(token)
+
+    def _is_authenticated(self) -> bool:
+        return self._get_current_user() is not None
+
+    def _is_admin(self) -> bool:
+        user = self._get_current_user()
+        return user is not None and user.get('role') == 'admin'
+
+    def _is_operator_or_admin(self) -> bool:
+        user = self._get_current_user()
+        return user is not None and user.get('role') in ('admin', 'operator')
 
     def _verify_csrf(self, body_csrf: str = None) -> bool:
         """
@@ -553,31 +568,71 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 else:
                     self._redirect('/kvit/')
             elif path == '/login':
-                if is_admin:
-                    self._redirect('/kvit/')
+                cur_user = self._get_current_user()
+                if cur_user:
+                    self._redirect('/upload' if cur_user.get('role') == 'operator' else '/admin/pages')
                 else:
                     body = render_login_form()
                     self.send_html(layout(body, 'login', is_admin=False))
             elif path == '/logout':
                 token = self._get_session_token()
                 if token:
+                    cur_u = auth_service.get_session_user(token)
+                    if cur_u:
+                        auth_service.log_audit(cur_u.get('username'), client_ip, 'LOGOUT', 'Выход из системы')
                     auth_service.destroy_session(token)
                 self._redirect('/', extra_headers={
                     'Set-Cookie': self._get_session_cookie_header('', max_age=0)
                 })
             elif path in PROTECTED_PATHS:
-                if not is_admin:
+                cur_user = self._get_current_user()
+                if not cur_user and self._is_admin():
+                    cur_user = {'username': 'admin', 'role': 'admin'}
+                if not cur_user:
                     self._redirect('/login')
                     return
+
+                u_role = cur_user.get('role', 'operator')
+                u_name = cur_user.get('username', 'user')
                 session_token = self._get_session_token()
-                csrf_tok = auth_service.get_csrf_token(session_token) if is_admin else ''
+                csrf_tok = auth_service.get_csrf_token(session_token)
                 msg = q.get('msg', [None])[0]
                 err = q.get('err', [None])[0]
 
+                # Для оператора: разрешены только /upload и /reconcile
+                if u_role == 'operator':
+                    if path == '/upload':
+                        body = render_upload_form(csrf_token=csrf_tok, role='operator', username=u_name)
+                        self.send_html(layout(body, 'upload', is_admin=False, csrf_token=csrf_tok))
+                        return
+                    elif path == '/reconcile':
+                        filt = q.get('filter', ['without'])[0]
+                        if filt not in ('all', 'with', 'without', 'orphans'):
+                            filt = 'without'
+                        period_filter = q.get('period', [''])[0].strip()
+                        page_num = max(1, int(q.get('page', ['1'])[0]))
+                        data = reconcile_service.get_reconciliation_data(filt, period_filter, page_num)
+                        data['role'] = 'operator'
+                        data['username'] = u_name
+                        body = render_reconcile_page(data)
+                        self.send_html(layout(body, 'reconcile', is_admin=False, csrf_token=csrf_tok))
+                        return
+                    else:
+                        # Попытка доступа к разделам CMS оператором -> 403 Forbidden
+                        body = render_access_denied_page(role='operator', username=u_name)
+                        self.send_html(layout(body, 'forbidden', is_admin=False, csrf_token=csrf_tok), 403)
+                        return
+
+                # Для супер-администратора (admin):
                 if path in ('/admin', '/admin/pages'):
                     pages = portal_cms.get_all_pages()
                     body = render_admin_pages_list(pages, csrf_tok, message=msg, error=err)
                     self.send_html(layout(body, 'pages', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/users':
+                    users = auth_service.list_users()
+                    logs = auth_service.list_audit_logs(50)
+                    body = render_admin_users(users, logs, csrf_tok, message=msg, error=err, current_username=u_name, current_role='admin')
+                    self.send_html(layout(body, 'users', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/admin/pages/edit':
                     slug = q.get('slug', [''])[0]
                     page_data = portal_cms.get_page(slug) or {'title': slug, 'html': ''}
@@ -605,7 +660,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     body = render_admin_document_editor('', {}, csrf_tok, is_new=True, message=msg, error=err)
                     self.send_html(layout(body, 'documents', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/upload':
-                    body = render_upload_form(csrf_token=csrf_tok)
+                    body = render_upload_form(csrf_token=csrf_tok, role='admin', username=u_name)
                     self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/reconcile':
                     filt = q.get('filter', ['without'])[0]
@@ -614,6 +669,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     period_filter = q.get('period', [''])[0].strip()
                     page_num = max(1, int(q.get('page', ['1'])[0]))
                     data = reconcile_service.get_reconciliation_data(filt, period_filter, page_num)
+                    data['role'] = 'admin'
+                    data['username'] = u_name
                     body = render_reconcile_page(data)
                     self.send_html(layout(body, 'reconcile', is_admin=True, csrf_token=csrf_tok))
             elif path in ('/receipt', '/download'):
@@ -740,26 +797,48 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
             # Роутинг POST запросов
             if u.path == '/upload':
-                if not is_admin:
+                if not self._is_operator_or_admin():
                     self._redirect('/login')
                     return
                 self._handle_upload()
             elif u.path == '/import-folder':
-                if not is_admin:
+                if not self._is_operator_or_admin():
                     self._redirect('/login')
                     return
                 self._handle_import_folder()
+            elif u.path == '/admin/users/create':
+                self._handle_admin_users_create()
+            elif u.path == '/admin/users/delete':
+                self._handle_admin_users_delete()
             elif u.path == '/admin/pages/save':
+                if not self._is_admin():
+                    self.send_html(render_forbidden_page('У вас нет прав администратора для редактирования страниц'), 403)
+                    return
                 self._handle_admin_pages_save()
             elif u.path == '/admin/pages/delete':
+                if not self._is_admin():
+                    self.send_html(render_forbidden_page('У вас нет прав администратора для удаления страниц'), 403)
+                    return
                 self._handle_admin_pages_delete()
             elif u.path == '/admin/media/upload':
+                if not self._is_admin():
+                    self.send_html(render_forbidden_page('У вас нет прав администратора для загрузки медиа'), 403)
+                    return
                 self._handle_admin_media_upload()
             elif u.path == '/admin/media/delete':
+                if not self._is_admin():
+                    self.send_html(render_forbidden_page('У вас нет прав администратора для удаления медиа'), 403)
+                    return
                 self._handle_admin_media_delete()
             elif u.path == '/admin/documents/save':
+                if not self._is_admin():
+                    self.send_html(render_forbidden_page('У вас нет прав администратора для изменения реестра документов'), 403)
+                    return
                 self._handle_admin_documents_save()
             elif u.path == '/admin/documents/delete':
+                if not self._is_admin():
+                    self.send_html(render_forbidden_page('У вас нет прав администратора для удаления документов'), 403)
+                    return
                 self._handle_admin_documents_delete()
             elif u.path == '/api/upload-batch':
                 self._handle_api_upload_batch()
@@ -777,19 +856,76 @@ class AppRequestHandler(BaseHTTPRequestHandler):
     # ────────────────────── Обработчики действий ──────────────────────
 
     def _handle_login(self):
+        client_ip = self._get_client_ip()
         length = int(self.headers.get('Content-Length', 0))
         data = self.rfile.read(length)
         params = parse_qs(data.decode('utf-8', errors='replace'))
+        username = params.get('username', [''])[0].strip() or 'admin'
         password = params.get('password', [''])[0]
 
-        if auth_service.verify_password(password):
-            token = auth_service.create_session()
-            self._redirect('/admin/pages', extra_headers={
+        user = auth_service.verify_credentials(username, password)
+        if user:
+            u_role = user.get('role', 'operator')
+            u_name = user.get('username', username)
+            token = auth_service.create_session(username=u_name, role=u_role)
+            auth_service.log_audit(u_name, client_ip, 'LOGIN', f"Успешный вход (роль: {u_role})")
+            
+            target_url = '/upload' if u_role == 'operator' else '/admin/pages'
+            self._redirect(target_url, extra_headers={
                 'Set-Cookie': self._get_session_cookie_header(token, max_age=config.SESSION_LIFETIME)
             })
         else:
-            body = render_login_form('Неверный пароль. Попробуйте ещё раз.')
+            auth_service.log_audit(username, client_ip, 'LOGIN_FAILED', 'Неверный логин или пароль')
+            body = render_login_form('Неверный логин или пароль. Попробуйте ещё раз.')
             self.send_html(layout(body, 'login', is_admin=False))
+
+    def _handle_admin_users_create(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
+        params = self._read_form_params()
+        csrf_tok = params.get('csrf_token', [''])[0].strip()
+        if not self._verify_csrf(body_csrf=csrf_tok):
+            self._redirect('/admin/users?err=' + html.escape(CSRF_INVALID_MSG))
+            return
+
+        username = params.get('username', [''])[0].strip()
+        password = params.get('password', [''])[0]
+        full_name = params.get('full_name', [''])[0].strip()
+        role = params.get('role', ['operator'])[0].strip()
+
+        try:
+            auth_service.create_user(username, password, full_name, role)
+            auth_service.log_audit(admin_name, client_ip, 'CREATE_USER', f"Создан пользователь {username} ({role})")
+            self._redirect(f'/admin/users?msg=Пользователь+{username}+успешно+создан')
+        except ValueError as e:
+            self._redirect(f'/admin/users?err={e}')
+
+    def _handle_admin_users_delete(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        admin_name = cur_user.get('username', 'admin')
+
+        params = self._read_form_params()
+        csrf_tok = params.get('csrf_token', [''])[0].strip()
+        if not self._verify_csrf(body_csrf=csrf_tok):
+            self._redirect('/admin/users?err=' + html.escape(CSRF_INVALID_MSG))
+            return
+
+        username = params.get('username', [''])[0].strip()
+        try:
+            auth_service.delete_user(username)
+            auth_service.log_audit(admin_name, client_ip, 'DELETE_USER', f"Удален пользователь {username}")
+            self._redirect(f'/admin/users?msg=Пользователь+{username}+удален')
+        except ValueError as e:
+            self._redirect(f'/admin/users?err={e}')
 
     def _parse_multipart_to_disk(self):
         """
@@ -972,13 +1108,17 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         return tmp_dir, pdf_files
 
     def _handle_api_upload_batch(self):
-        if not self._is_admin():
+        if not self._is_operator_or_admin():
             self.send_json({'error': 'Unauthorized'}, 401)
             return
 
         if not self._verify_csrf():
             self.send_json({'error': 'Forbidden', 'message': 'Недействительный или отсутствующий CSRF-токен (X-CSRF-Token)'}, 403)
             return
+
+        client_ip = self._get_client_ip()
+        cur_user = self._get_current_user() or {}
+        username = cur_user.get('username', 'operator')
 
         tmp_dir, pdf_files = self._parse_multipart_to_disk()
         if pdf_files == "PAYLOAD_TOO_LARGE":
@@ -995,6 +1135,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             source='api_batch',
             spool_dir=tmp_dir
         )
+
+        auth_service.log_audit(username, client_ip, 'UPLOAD_RECEIPTS', f"Загружено {len(pdf_files)} файлов квитанций (задача: {task.job_id})")
 
         self.send_json({
             'success': True,
