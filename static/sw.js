@@ -1,4 +1,4 @@
-const CACHE_NAME = 'krek-portal-v6';
+const CACHE_NAME = 'krek-portal-v7';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE_ASSETS = [
     '/offline.html',
