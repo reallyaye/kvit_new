@@ -269,6 +269,7 @@ def test_application_level_resource_limits():
 
     from server import AppRequestHandler
     from services.pdf.pdf_processor import pdf_processor
+    import config
 
     # 1. Защита от превышения размера загрузки (MAX_UPLOAD_BYTES)
     class MockHandler(AppRequestHandler):
@@ -279,8 +280,8 @@ def test_application_level_resource_limits():
             }
             self.rfile = io.BytesIO(raw_bytes)
 
-    # Content-Length превышает 100 MB -> немедленный отказ 413
-    oversized_handler = MockHandler(c_len=150 * 1024 * 1024)
+    # Content-Length превышает MAX_UPLOAD_BYTES -> немедленный отказ 413
+    oversized_handler = MockHandler(c_len=config.MAX_UPLOAD_BYTES + 1024)
     tmp_d, res = oversized_handler._parse_multipart_to_disk()
     assert tmp_d is None
     assert res == "PAYLOAD_TOO_LARGE"

@@ -8,6 +8,59 @@
 <link rel="stylesheet" href="/css/style.css?v=8" type="text/css" />
 <link rel="shortcut icon" href="/favicon.ico?v=8" type="image/vnd.microsoft.icon" />
 <style>
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    padding: 0;
+    background: #f8fafc;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    -webkit-font-smoothing: antialiased;
+}
+#wrap {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+#header {
+    background: #0f172a;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #1e293b;
+}
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+.header-logo-img {
+    height: 38px;
+    width: auto;
+}
+.header-titles {
+    display: flex;
+    flex-direction: column;
+}
+.header-title-main {
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 16px;
+}
+.header-title-sub {
+    color: #94a3b8;
+    font-size: 12px;
+}
+.svg-icon-stroke {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+}
 .offline-container {
     max-width: 760px;
     margin: 40px auto 60px;
@@ -16,6 +69,7 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
+    width: 100%;
 }
 
 .offline-card {
@@ -220,20 +274,34 @@
                 </div>
                 <div class="emergency-grid">
                     <div class="emergency-item">
-                        <span class="emergency-label">Центральная диспетчерская (ЦДС)</span>
-                        <a href="tel:+77212411111" class="emergency-phone">
-                            <svg class="svg-icon-stroke" width="14" height="14" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                            +7 (7212) 41-11-11
-                        </a>
+                        <span class="emergency-label">Оперативно-диспетчерская служба (ОДС)</span>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <a href="tel:+77212900358" class="emergency-phone">
+                                <svg class="svg-icon-stroke" width="14" height="14" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                +7 (7212) 90-03-58
+                            </a>
+                            <a href="tel:+77212900359" class="emergency-phone">
+                                <svg class="svg-icon-stroke" width="14" height="14" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                +7 (7212) 90-03-59
+                            </a>
+                        </div>
                         <span class="emergency-note">Круглосуточно при авариях и отключениях</span>
                     </div>
                     <div class="emergency-item">
-                        <span class="emergency-label">Приёмная руководства</span>
-                        <a href="tel:+77212422222" class="emergency-phone">
+                        <span class="emergency-label">Приёмная</span>
+                        <a href="tel:+77212900350" class="emergency-phone">
                             <svg class="svg-icon-stroke" width="14" height="14" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                            +7 (7212) 42-22-22
+                            +7 (7212) 90-03-50
                         </a>
                         <span class="emergency-note">Понедельник&ndash;пятница с 08:30 до 17:30</span>
+                    </div>
+                    <div class="emergency-item">
+                        <span class="emergency-label">По вопросам оплаты и квитанций</span>
+                        <a href="tel:+77212900353" class="emergency-phone">
+                            <svg class="svg-icon-stroke" width="14" height="14" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            +7 (7212) 90-03-53
+                        </a>
+                        <span class="emergency-note">Консультации по начислениям и счетам</span>
                     </div>
                 </div>
             </div>

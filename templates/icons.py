@@ -61,6 +61,7 @@ def icon(name: str, size: int = 16, color: str = 'currentColor', extra_class: st
         'chevron_down': f'''<svg{cls_attr} {style_attr} width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>''',
         'chevron_up': f'''<svg{cls_attr} {style_attr} width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>''',
         'chevron_right': f'''<svg{cls_attr} {style_attr} width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>''',
+        'bell': f'''<svg{cls_attr} {style_attr} width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>''',
     }
 
     return icons.get(name, '')

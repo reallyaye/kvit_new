@@ -2,11 +2,18 @@ import os
 import secrets
 from concurrent import futures
 
-import grpc
+try:
+    import grpc
+    from proto import receipts_pb2, receipts_pb2_grpc
+    GRPC_AVAILABLE = True
+except ImportError:
+    grpc = None
+    receipts_pb2 = None
+    receipts_pb2_grpc = None
+    GRPC_AVAILABLE = False
 
 from config import GRPC_API_KEY, GRPC_CERT_PATH, GRPC_KEY_PATH, GRPC_USE_TLS, RATE_LIMIT_GRPC, RATE_LIMIT_GRPC_RECONCILE
 from logger import logger
-from proto import receipts_pb2, receipts_pb2_grpc
 from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
 from services.security import rate_limiter
@@ -25,7 +32,9 @@ def extract_peer_ip(peer_str: str) -> str:
         return val.rsplit(':', 1)[0]
     return peer_str.rsplit(':', 1)[0]
 
-class AuthInterceptor(grpc.ServerInterceptor):
+_BaseInterceptor = grpc.ServerInterceptor if GRPC_AVAILABLE else object
+
+class AuthInterceptor(_BaseInterceptor):
     """Интерцептор для проверки API-токена в метаданных gRPC запросов (Unary и Streaming)."""
 
     def __init__(self, api_key: str):
@@ -54,7 +63,7 @@ class AuthInterceptor(grpc.ServerInterceptor):
         return continuation(handler_call_details)
 
 
-class RateLimitInterceptor(grpc.ServerInterceptor):
+class RateLimitInterceptor(_BaseInterceptor):
     """Интерцептор для защиты gRPC микросервиса от DoS и перегрузки (Rate Limiting)."""
 
     def __init__(self, default_limit: int = RATE_LIMIT_GRPC, reconcile_limit: int = RATE_LIMIT_GRPC_RECONCILE):
@@ -105,7 +114,11 @@ class RateLimitInterceptor(grpc.ServerInterceptor):
 
 
 
-class ReceiptGrpcServicer(receipts_pb2_grpc.ReceiptServiceServicer):
+_ReceiptServicerBase = receipts_pb2_grpc.ReceiptServiceServicer if GRPC_AVAILABLE and receipts_pb2_grpc else object
+_ReconcileServicerBase = receipts_pb2_grpc.ReconcileServiceServicer if GRPC_AVAILABLE and receipts_pb2_grpc else object
+
+
+class ReceiptGrpcServicer(_ReceiptServicerBase):
     """gRPC реализация сервиса квитанций."""
 
     def GetAccount(self, request, context):
@@ -187,7 +200,7 @@ class ReceiptGrpcServicer(receipts_pb2_grpc.ReceiptServiceServicer):
                 chunk_idx += 1
 
 
-class ReconcileGrpcServicer(receipts_pb2_grpc.ReconcileServiceServicer):
+class ReconcileGrpcServicer(_ReconcileServicerBase):
     """gRPC реализация сервиса аналитики и сверки."""
 
     def GetReconcileSummary(self, request, context):
@@ -227,8 +240,23 @@ class ReconcileGrpcServicer(receipts_pb2_grpc.ReconcileServiceServicer):
         )
 
 
+class DummyGrpcServer:
+    """Заглушка gRPC сервера, когда библиотека grpc не установлена в окружении."""
+    def start(self):
+        logger.info("[gRPC] Сервер gRPC пропущен (библиотека 'grpc' не установлена)")
+
+    def stop(self, grace=0):
+        pass
+
+    def wait_for_termination(self, timeout=None):
+        pass
+
+
 def create_grpc_server(host: str = "127.0.0.1", port: int = 50051, max_workers: int = 10):  # nosec B104
     """Создаёт и конфигурирует gRPC сервер с поддержкой аутентификации, Rate Limiting и TLS."""
+    if not GRPC_AVAILABLE:
+        return DummyGrpcServer()
+
     interceptors = []
     if GRPC_API_KEY:
         interceptors.append(AuthInterceptor(GRPC_API_KEY))

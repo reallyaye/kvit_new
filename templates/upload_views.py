@@ -10,27 +10,28 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
     return f'''
     {_admin_nav_bar('upload')}
     <div class="card">
-        <h1>Загрузка квитанций</h1>
-        <p class="subtitle">Загрузите отдельные PDF-файлы, целую папку с квитанциями или укажите путь к папке на компьютере.</p>
+        <h1>Загрузка квитанций и реестров</h1>
+        <p class="subtitle">Загрузите пачку PDF-квитанций, обновите базу абонентов (Excel) или запустите импорт из локальной папки.</p>
         {msg_html}
 
         <div class="mode-tabs">
-            <button type="button" class="mode-tab active" id="tabBrowserBtn" onclick="switchTab('browser')">{icon('upload', 15)} Загрузка через браузер</button>
-            <button type="button" class="mode-tab" id="tabLocalBtn" onclick="switchTab('local')">{icon('hard_drive', 15)} Импорт из папки на диске</button>
+            <button type="button" class="mode-tab active" id="tabBrowserBtn" onclick="switchTab('browser')">{icon('upload', 15)} Квитанции (PDF)</button>
+            <button type="button" class="mode-tab" id="tabAccountsBtn" onclick="switchTab('accounts')">{icon('file_text', 15)} Реестр абонентов (Excel / CSV)</button>
+            <button type="button" class="mode-tab" id="tabLocalBtn" onclick="switchTab('local')">{icon('hard_drive', 15)} Импорт из папки</button>
         </div>
 
-        <!-- Вкладка 1: Загрузка файлов/папки через браузер -->
+        <!-- Вкладка 1: Загрузка PDF-квитанций через браузер -->
         <div id="tabBrowser">
             <div class="upload-zone" id="dropzone">
                 <div class="icon" style="color:#3b82f6;display:flex;justify-content:center;margin-bottom:12px">{icon('upload_cloud_large', 54, '#3b82f6')}</div>
-                <div id="dropLabel"><b>Выберите PDF-файлы или папку</b> или перетащите сюда</div>
+                <div id="dropLabel"><b>Выберите PDF-файлы или папку с квитанциями</b> или перетащите сюда</div>
                 <div style="margin-top:8px;font-size:13px;color:#94a3b8">Файлы принимаются мгновенно и обрабатываются в изолированном фоновом воркере</div>
                 <input type="file" id="fileInput" accept=".pdf" multiple style="display:none">
                 <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none">
             </div>
 
             <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-                <button type="button" class="btn btn-outline" id="btnChooseFiles" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('files', 15)} Выбрать файлы</button>
+                <button type="button" class="btn btn-outline" id="btnChooseFiles" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('files', 15)} Выбрать PDF-файлы</button>
                 <button type="button" class="btn btn-outline" id="btnChooseFolder" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('folder', 15)} Выбрать папку</button>
             </div>
 
@@ -50,12 +51,49 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
             </button>
         </div>
 
-        <!-- Вкладка 2: Импорт напрямую из локальной папки -->
+        <!-- Вкладка 2: Загрузка реестра абонентов (Excel / CSV) -->
+        <div id="tabAccounts" style="display:none">
+            <div class="upload-zone" id="accountsDropzone">
+                <div class="icon" style="color:#16a34a;display:flex;justify-content:center;margin-bottom:12px">{icon('file_text', 54, '#16a34a')}</div>
+                <div id="accountsDropLabel"><b>Выберите файл реестра абонентов (.xlsx, .xls, .csv)</b> или перетащите сюда</div>
+                <div style="margin-top:8px;font-size:13px;color:#94a3b8">Автоматический импорт лицевых счетов, ФИО, адресов, улиц, домов и организаций</div>
+                <input type="file" id="accountsFileInput" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none">
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+                <button type="button" class="btn btn-outline" id="btnChooseAccountsFile" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('file_text', 15)} Выбрать файл реестра</button>
+            </div>
+
+            <div style="margin-top:18px">
+                <label style="font-weight:600;font-size:14px;color:#334155;margin-bottom:6px;display:block">Режим обновления базы счетов:</label>
+                <select id="accountsModeSelect" style="width:100%;padding:10px 14px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px">
+                    <option value="upsert" selected>Обновить существующие и добавить новые счета (Рекомендуется)</option>
+                    <option value="insert_only">Только добавить отсутствующие (не менять существующие адреса)</option>
+                    <option value="replace">Полная замена базы (очистить и загрузить заново)</option>
+                </select>
+            </div>
+
+            <div id="accountsProgressArea" style="display:none;margin-top:20px">
+                <div class="progress-wrap">
+                    <div class="progress-fill" id="accountsProgressFill" style="width:100%"></div>
+                    <div class="progress-text" id="accountsProgressText">Обработка реестра на сервере...</div>
+                </div>
+                <div id="accountsStatusLabel" style="font-size:14px;color:#475569;font-weight:600;margin-top:6px">Импорт записей в базу данных...</div>
+            </div>
+
+            <div id="accountsResultArea" style="margin-top:20px"></div>
+
+            <button type="button" class="btn btn-green" id="btnStartAccountsUpload" style="margin-top:16px;width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px" disabled>
+                {icon('upload', 16)} Запустить импорт реестра
+            </button>
+        </div>
+
+        <!-- Вкладка 3: Импорт напрямую из локальной папки на сервере -->
         <div id="tabLocal" style="display:none">
             <form action="/import-folder" method="post">
                 {csrf_input}
-                <label>Полный путь к папке с PDF на компьютере</label>
-                <input type="text" name="folder_path" placeholder="Например, C:\\\\Users\\\\zhunis\\\\Desktop\\\\квитанции" required>
+                <label>Полный путь к папке с PDF на сервере</label>
+                <input type="text" name="folder_path" placeholder="Например, /mnt/storage/receipts или C:\\\\квитанции" required>
                 <p style="font-size:13px;color:#64748b;margin:6px 0 16px">Сервер мгновенно просканирует файлы и передаст задачу в фоновый воркер без блокировки API.</p>
                 <button class="btn btn-green" style="width:100%;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px">{icon('hard_drive', 16)} Запустить фоновый импорт</button>
             </form>
@@ -65,22 +103,22 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
     <script>
     function switchTab(mode) {{
         const tabB = document.getElementById('tabBrowser');
+        const tabA = document.getElementById('tabAccounts');
         const tabL = document.getElementById('tabLocal');
         const btnB = document.getElementById('tabBrowserBtn');
+        const btnA = document.getElementById('tabAccountsBtn');
         const btnL = document.getElementById('tabLocalBtn');
-        if (mode === 'browser') {{
-            tabB.style.display = 'block';
-            tabL.style.display = 'none';
-            btnB.classList.add('active');
-            btnL.classList.remove('active');
-        }} else {{
-            tabB.style.display = 'none';
-            tabL.style.display = 'block';
-            btnL.classList.add('active');
-            btnB.classList.remove('active');
-        }}
+
+        tabB.style.display = (mode === 'browser') ? 'block' : 'none';
+        tabA.style.display = (mode === 'accounts') ? 'block' : 'none';
+        tabL.style.display = (mode === 'local') ? 'block' : 'none';
+
+        btnB.classList.toggle('active', mode === 'browser');
+        btnA.classList.toggle('active', mode === 'accounts');
+        btnL.classList.toggle('active', mode === 'local');
     }}
 
+    // ────────────────────── 1. Загрузка PDF квитанций ──────────────────────
     const dz = document.getElementById('dropzone');
     const fileInput = document.getElementById('fileInput');
     const folderInput = document.getElementById('folderInput');
@@ -96,6 +134,7 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
     const resultArea = document.getElementById('resultArea');
 
     let selectedPdfFiles = [];
+    let currentTaskData = null;
 
     function updateSelectedFiles(files) {{
         const filtered = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
@@ -173,6 +212,41 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
         logBox.scrollTop = logBox.scrollHeight;
     }}
 
+    // Функция экспорта отчета в Excel (CSV с UTF-8 BOM)
+    window.exportJobReportToCsv = function() {{
+        if (!currentTaskData) return;
+        const t = currentTaskData;
+        const rows = [
+            ['Отчет по фоновой обработке квитанций', ''],
+            ['ID задачи', t.job_id || '—'],
+            ['Всего файлов', t.total_files || 0],
+            ['Привязано к счетам', t.added || 0],
+            ['Счетов нет в базе (сироты)', t.orphan || 0],
+            ['Дубликатов пропущено', t.duplicates || 0],
+            ['Не распознано / ошибок', t.skipped || 0],
+            ['Скорость обработки (файл/сек)', t.speed_files_per_sec || 0],
+            ['', ''],
+            ['№', 'Детализация обработки страницы / файла']
+        ];
+
+        if (t.details && t.details.length > 0) {{
+            t.details.forEach((d, idx) => {{
+                rows.push([idx + 1, d]);
+            }});
+        }}
+
+        const csvContent = '\\uFEFF' + rows.map(r => r.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(';')).join('\\r\\n');
+        const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Отчет_обработки_квитанций_' + (t.job_id ? t.job_id.substring(0, 8) : 'export') + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }};
+
     async function trackJob(jobId) {{
         progressArea.style.display = 'block';
         btnStartUpload.disabled = true;
@@ -191,6 +265,7 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
                 const res = await fetch('/api/tasks/' + jobId);
                 if (res.ok) {{
                     const t = await res.json();
+                    currentTaskData = t;
                     const pct = t.progress_pct || 0;
                     progressFill.style.width = pct + '%';
 
@@ -222,11 +297,14 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
                         resultArea.innerHTML = `<div class="${{cls}}">
                             <b>Фоновая обработка завершена: ${{t.total_files}} файлов</b><br><br>
                             Привязано к счетам: <b>${{t.added}}</b><br>
-                            Счёта нет в базе: <b>${{t.orphan}}</b><br>
+                            Счёта нет в базе (сироты): <b>${{t.orphan}}</b><br>
                             Не удалось распознать: <b>${{t.skipped}}</b><br>
                             Дубликатов пропущено: <b>${{t.duplicates}}</b><br>
                             Скорость обработки: <b>${{t.speed_files_per_sec || 0}} файлов/сек</b><br><br>
-                            <details><summary>Подробности по файлам</summary><br>${{detailHtml}}</details>
+                            <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+                                <button type="button" class="btn btn-sm" onclick="exportJobReportToCsv()" style="display:inline-flex;align-items:center;gap:6px">{icon('download', 14)} 📥 Скачать отчёт в Excel (CSV)</button>
+                            </div>
+                            <details><summary>Подробности по файлам (${{t.details ? t.details.length : 0}})</summary><br>${{detailHtml}}</details>
                         </div>`;
                         break;
                     }} else if (t.status === 'FAILED') {{
@@ -293,6 +371,101 @@ def render_upload_form(message=None, csrf_token='', active_job_id=''):
             btnStartUpload.disabled = false;
             btnChooseFiles.disabled = false;
             btnChooseFolder.disabled = false;
+        }}
+    }});
+
+    // ────────────────────── 2. Загрузка реестра абонентов (Excel/CSV) ──────────────────────
+    const accountsDz = document.getElementById('accountsDropzone');
+    const accountsFileInput = document.getElementById('accountsFileInput');
+    const btnChooseAccountsFile = document.getElementById('btnChooseAccountsFile');
+    const btnStartAccountsUpload = document.getElementById('btnStartAccountsUpload');
+    const accountsDropLabel = document.getElementById('accountsDropLabel');
+    const accountsModeSelect = document.getElementById('accountsModeSelect');
+    const accountsProgressArea = document.getElementById('accountsProgressArea');
+    const accountsResultArea = document.getElementById('accountsResultArea');
+    const accountsStatusLabel = document.getElementById('accountsStatusLabel');
+
+    let selectedAccountsFile = null;
+
+    function updateSelectedAccountsFile(file) {{
+        selectedAccountsFile = file;
+        accountsResultArea.innerHTML = '';
+        accountsProgressArea.style.display = 'none';
+
+        if (!file) {{
+            accountsDropLabel.innerHTML = '<b>Выберите файл реестра абонентов (.xlsx, .xls, .csv)</b> или перетащите сюда';
+            btnStartAccountsUpload.disabled = true;
+        }} else {{
+            accountsDropLabel.innerHTML = '<b>Выбран файл: ' + htmlEscape(file.name) + ' (' + (Math.round(file.size / 1024)) + ' KB)</b>';
+            btnStartAccountsUpload.disabled = false;
+            btnStartAccountsUpload.innerHTML = `{icon('upload', 16)} Запустить импорт реестра (` + htmlEscape(file.name) + ')';
+        }}
+    }}
+
+    btnChooseAccountsFile.addEventListener('click', () => accountsFileInput.click());
+    accountsFileInput.addEventListener('change', () => {{
+        if (accountsFileInput.files.length > 0) {{
+            updateSelectedAccountsFile(accountsFileInput.files[0]);
+        }}
+    }});
+
+    accountsDz.addEventListener('dragover', e => {{ e.preventDefault(); accountsDz.classList.add('drag'); }});
+    accountsDz.addEventListener('dragleave', () => accountsDz.classList.remove('drag'));
+    accountsDz.addEventListener('drop', e => {{
+        e.preventDefault();
+        accountsDz.classList.remove('drag');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {{
+            updateSelectedAccountsFile(e.dataTransfer.files[0]);
+        }}
+    }});
+
+    btnStartAccountsUpload.addEventListener('click', async () => {{
+        if (!selectedAccountsFile) return;
+
+        btnStartAccountsUpload.disabled = true;
+        btnChooseAccountsFile.disabled = true;
+        accountsProgressArea.style.display = 'block';
+        accountsResultArea.innerHTML = '';
+        accountsStatusLabel.textContent = 'Загрузка и обработка реестра на сервере...';
+
+        const formData = new FormData();
+        formData.append('file', selectedAccountsFile, selectedAccountsFile.name);
+        formData.append('mode', accountsModeSelect.value);
+
+        try {{
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfVal = csrfMeta ? csrfMeta.content : '';
+            const headers = csrfVal ? {{ 'X-CSRF-Token': csrfVal }} : {{}};
+
+            const res = await fetch('/api/upload-accounts', {{
+                method: 'POST',
+                headers: headers,
+                body: formData
+            }});
+
+            const data = await res.json();
+            accountsProgressArea.style.display = 'none';
+            btnStartAccountsUpload.disabled = false;
+            btnChooseAccountsFile.disabled = false;
+
+            if (res.ok && data.success) {{
+                accountsResultArea.innerHTML = `<div class="ok">
+                    <b>✅ Реестр абонентов успешно импортирован!</b><br><br>
+                    Файл: <b>${{htmlEscape(data.file_name || 'реестр')}}</b><br>
+                    Обработано / обновлено счетов: <b>${{data.imported ? data.imported.toLocaleString('ru-RU') : 0}}</b><br>
+                    Всего лицевых счетов в базе: <b>${{data.total_in_db ? data.total_in_db.toLocaleString('ru-RU') : '—'}}</b><br>
+                    Время выполнения: <b>${{data.elapsed_seconds || 0}} сек</b>
+                </div>`;
+            }} else {{
+                accountsResultArea.innerHTML = `<div class="err">
+                    <b>❌ Ошибка импорта реестра:</b><br>${{htmlEscape(data.error || 'Неизвестная ошибка')}}
+                </div>`;
+            }}
+        }} catch (err) {{
+            accountsProgressArea.style.display = 'none';
+            btnStartAccountsUpload.disabled = false;
+            btnChooseAccountsFile.disabled = false;
+            accountsResultArea.innerHTML = `<div class="err"><b>❌ Ошибка сети:</b> ${{htmlEscape(err.message)}}</div>`;
         }}
     }});
 

@@ -427,6 +427,21 @@ class TelegramBotService:
             )
             return
 
+        # Проверка размера файла (Telegram Bot API не позволяет ботам скачивать файлы > 20 МБ через стандартный API)
+        file_size = doc.get('file_size', 0)
+        if file_size > 20 * 1024 * 1024:
+            size_mb = round(file_size / (1024 * 1024), 1)
+            self.client.send_message(
+                chat_id,
+                f"⚠️ <b>Размер файла ({size_mb} МБ) превышает лимит Telegram для ботов (20 МБ).</b>\n\n"
+                f"Серверы Telegram Bot API запрещают ботам загрузку файлов тяжелее 20 МБ.\n\n"
+                f"🌐 Пожалуйста, загрузите этот реестр напрямую через веб-интерфейс:\n"
+                f"👉 <b><a href=\"https://krec.kz/upload\">https://krec.kz/upload</a></b>\n\n"
+                f"<i>(На веб-портале поддерживаются любые файлы до 500 МБ и до 50 000 страниц).</i>",
+                reply_markup=self.get_main_keyboard(user_id)
+            )
+            return
+
         # Информируем пользователя о начале обработки
         self.client.send_message(
             chat_id,
@@ -498,9 +513,18 @@ class TelegramBotService:
         except Exception as e:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             logger.error(f"[Telegram] Ошибка при приёме файла {file_name}: {e}", exc_info=True)
+            err_str = str(e)
+            if 'file is too big' in err_str.lower():
+                msg_text = (
+                    f"⚠️ <b>Файл превышает лимит скачивания Telegram (20 МБ).</b>\n\n"
+                    f"Telegram не отдаёт ботам файлы больше 20 МБ.\n\n"
+                    f"🌐 Загрузите этот реестр через веб-портал: <b>https://krec.kz/upload</b>"
+                )
+            else:
+                msg_text = f"❌ <b>Произошла ошибка при обработке файла:</b>\n<code>{html.escape(err_str)}</code>"
             self.client.send_message(
                 chat_id,
-                f"❌ <b>Произошла ошибка при обработке файла:</b>\n<code>{html.escape(str(e))}</code>"
+                msg_text
             )
 
     # ────────────────────── Текстовые команды ──────────────────────

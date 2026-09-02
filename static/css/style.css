@@ -1412,3 +1412,227 @@ html, body {
         padding: 10px 12px;
     }
 }
+
+/* ==========================================================================
+   Announcement Banner Component (Bilingual KZ / RU)
+   ========================================================================== */
+.announcement-banner-card {
+  background: #ffffff !important;
+  border: 1.5px solid #bfdbfe !important;
+  border-radius: 16px !important;
+  padding: 24px 28px !important;
+  margin-bottom: 24px !important;
+  box-shadow: 0 4px 20px -2px rgba(37, 99, 235, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04) !important;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.announcement-banner-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2563eb, #38bdf8, #059669);
+}
+
+.announcement-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.announcement-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid #bfdbfe;
+  letter-spacing: -0.01em;
+}
+
+.announcement-lang-toggle {
+  display: inline-flex;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 10px;
+  gap: 3px;
+}
+
+.announcement-lang-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.announcement-lang-btn:hover {
+  color: #1e293b;
+}
+
+.announcement-lang-btn.active {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
+.announcement-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 12px 0;
+  line-height: 1.35;
+}
+
+.announcement-text {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #334155;
+  margin: 0 0 18px 0;
+}
+
+.announcement-highlight-box {
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  border: 1.5px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.highlight-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.highlight-date-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.highlight-text {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #1e293b;
+}
+
+.highlight-text a {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.announcement-section {
+  margin-top: 18px;
+}
+
+.announcement-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.announcement-docs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.doc-num {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #15803d;
+  font-weight: 800;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.announcement-addresses-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+}
+
+.address-chip {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.address-chip:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.chip-pin {
+  font-size: 14px;
+  flex-shrink: 0;
+}

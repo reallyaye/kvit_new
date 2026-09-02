@@ -88,6 +88,10 @@ STATIC_DIR = STATIC_PATH if os.path.isabs(STATIC_PATH) else os.path.join(BASE, S
 for _d in (RECEIPTS_DIR, SPOOL_DIR, PROCESSING_DIR, FAILED_DIR):
     os.makedirs(_d, exist_ok=True)
 
+# ────────────────────── Режим технических работ (Maintenance Mode) ─────────
+MAINTENANCE_MODE = os.environ.get('MAINTENANCE_MODE', 'false').lower() in ('true', '1', 'yes')
+MAINTENANCE_FLAG_FILE = os.environ.get('MAINTENANCE_FLAG_FILE', os.path.join(BASE, 'data', 'maintenance.flag'))
+
 
 # ────────────────────── OCR Настройки ──────────────────────
 # ────────────────────── OCR Настройки и Защита от DoS ──────────────────────
@@ -217,7 +221,7 @@ REDIS_TASKS_HASH = os.environ.get('REDIS_TASKS_HASH', 'kvit:tasks:metadata')
 
 WORKER_COUNT = int(os.environ.get('WORKER_COUNT', '4'))
 OCR_WORKERS = int(os.environ.get('OCR_WORKERS', '2'))
-JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '300'))          # 5 минут макс на одну задачу
+JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '1800'))          # 30 минут макс на одну задачу (для больших реестров на тысячи страниц)
 JOB_RETRY_COUNT = int(os.environ.get('JOB_RETRY_COUNT', '3'))    # 3 попытки при сбоях
 BATCH_CHUNK_SIZE = int(os.environ.get('BATCH_CHUNK_SIZE', '100')) # Размер пачки 2PC коммита
 RUN_EMBEDDED_WORKER = os.environ.get('RUN_EMBEDDED_WORKER', 'true').lower() in ('true', '1', 'yes')
@@ -227,11 +231,11 @@ ENABLE_X_ACCEL_REDIRECT = os.environ.get('ENABLE_X_ACCEL_REDIRECT', 'false').low
 X_ACCEL_PREFIX = os.environ.get('X_ACCEL_PREFIX', '/internal_receipts/').rstrip('/') + '/'
 
 # ────────────────────── Лимиты загрузки и PDF (DoS Protection) ──────────────────────
-MAX_UPLOAD_BYTES = int(os.environ.get('MAX_UPLOAD_BYTES', 100 * 1024 * 1024))  # 100 MB максимум на весь multipart запрос
-MAX_FILES_PER_REQUEST = int(os.environ.get('MAX_FILES_PER_REQUEST', '500'))   # Максимум 500 файлов в одной пачке
-MAX_PDF_PAGES = int(os.environ.get('MAX_PDF_PAGES', '2000'))                  # Максимум 2000 страниц в одном PDF (PDF Bomb protection)
-MAX_PDF_OUTPUT_SIZE = int(os.environ.get('MAX_PDF_OUTPUT_SIZE', 25 * 1024 * 1024)) # 25 MB максимум на одну сохраненную квитанцию
-MAX_OCR_TIME = float(os.environ.get('MAX_OCR_TIME', '30.0'))                 # 30 сек таймаут OCR на одну страницу/документ
+MAX_UPLOAD_BYTES = int(os.environ.get('MAX_UPLOAD_BYTES', 500 * 1024 * 1024))  # 500 MB максимум на весь multipart запрос
+MAX_FILES_PER_REQUEST = int(os.environ.get('MAX_FILES_PER_REQUEST', '2000'))   # Максимум 2000 файлов в одной пачке
+MAX_PDF_PAGES = int(os.environ.get('MAX_PDF_PAGES', '50000'))                  # Максимум 50000 страниц в одном PDF (поддержка крупных районных реестров)
+MAX_PDF_OUTPUT_SIZE = int(os.environ.get('MAX_PDF_OUTPUT_SIZE', 50 * 1024 * 1024)) # 50 MB максимум на одну сохраненную квитанцию
+MAX_OCR_TIME = float(os.environ.get('MAX_OCR_TIME', '60.0'))                 # 60 сек таймаут OCR на одну страницу/документ
 
 
 
@@ -311,7 +315,7 @@ REDIS_TASKS_HASH = os.environ.get('REDIS_TASKS_HASH', 'kvit:tasks:metadata')
 
 WORKER_COUNT = int(os.environ.get('WORKER_COUNT', '4'))
 RUN_EMBEDDED_WORKER = os.environ.get('RUN_EMBEDDED_WORKER', '1').lower() in ('1', 'true', 'yes')
-JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '300'))                     # 5 минут на задачу
+JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '1800'))                     # 30 минут на задачу (для многостраничных реестров)
 JOB_RETRY_COUNT = int(os.environ.get('JOB_RETRY_COUNT', '3'))               # Количество повторов при ошибке
-QUEUE_VISIBILITY_TIMEOUT = int(os.environ.get('QUEUE_VISIBILITY_TIMEOUT', '300'))  # Visibility timeout (сек)
+QUEUE_VISIBILITY_TIMEOUT = int(os.environ.get('QUEUE_VISIBILITY_TIMEOUT', '1800'))  # Visibility timeout (сек)
 

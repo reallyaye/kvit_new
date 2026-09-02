@@ -1,171 +1,288 @@
 services:
-  # ────────────────────── 1. PostgreSQL (Internal Production DB) ──────────────────────
+  # ────────────────────── PostgreSQL ──────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: kvit-postgres
     restart: unless-stopped
+
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-kvit_db}
-      POSTGRES_USER: ${POSTGRES_USER:?Обязательно укажите POSTGRES_USER в файле .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Обязательно укажите надежный POSTGRES_PASSWORD в файле .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Укажите POSTGRES_USER в .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Укажите POSTGRES_PASSWORD в .env}
+
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
     networks:
       - kvit-network
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-kvit_db}"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-kvit_db}
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
 
-  # ────────────────────── 2. Redis (Internal Queue & Distributed Locks) ─────────────
+  # ────────────────────── Redis ──────────────────────
   redis:
     image: redis:7-alpine
     container_name: kvit-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
+
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - noeviction
+
     volumes:
       - redis-data:/data
+
     networks:
       - kvit-network
+
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        - CMD
+        - redis-cli
+        - ping
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 3s
 
-  # ────────────────────── 3. Kvit-API (Scalable Web & gRPC Microservice) ────────────
+  # ────────────────────── Kvit API ──────────────────────
   kvit-api:
     build:
       context: .
       dockerfile: Dockerfile
-    # container_name намеренно опущен для поддержки horizontal auto-scaling: docker compose up --scale kvit-api=3
+
     restart: unless-stopped
-    command: ["python", "app.py"]
+
+    command:
+      - python
+      - app.py
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
     environment:
-      - HOST=0.0.0.0
-      - PORT=8000
-      - GRPC_HOST=0.0.0.0
-      - GRPC_PORT=50051
-      - APP_ENV=production
-      - DB_TYPE=postgres
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kvit_db}
-      - REDIS_URL=redis://redis:6379/0
-      - REDIS_ENABLED=true
-      - RUN_EMBEDDED_WORKER=false
-      - ENABLE_X_ACCEL_REDIRECT=true
-      - X_ACCEL_PREFIX=/internal_receipts/
-      - RECEIPTS_DIR=/app/receipts
-      - LOG_FILE=/app/logs/api.log
-      - LOG_LEVEL=INFO
-      - SECRET_KEY=${SECRET_KEY:?Обязательно укажите SECRET_KEY в .env}
-      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
-      - GRPC_API_KEY=${GRPC_API_KEY:?Обязательно укажите GRPC_API_KEY в .env}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?Обязательно укажите TELEGRAM_BOT_TOKEN в .env}
-      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-6910951442}
-      - TRUST_PROXY=true
+      HOST: 0.0.0.0
+      PORT: "8000"
+
+      GRPC_HOST: 0.0.0.0
+      GRPC_PORT: "50051"
+      GRPC_API_KEY: ${GRPC_API_KEY:?Укажите GRPC_API_KEY в .env}
+
+      APP_ENV: production
+
+      DB_TYPE: postgres
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kvit_db}
+
+      REDIS_URL: redis://redis:6379/0
+      REDIS_ENABLED: "true"
+
+      RUN_EMBEDDED_WORKER: "false"
+
+      ENABLE_X_ACCEL_REDIRECT: "true"
+      X_ACCEL_PREFIX: /internal_receipts/
+
+      RECEIPTS_DIR: /app/receipts
+
+      LOG_FILE: /app/logs/api.log
+      LOG_LEVEL: INFO
+
+      SECRET_KEY: ${SECRET_KEY:?Укажите SECRET_KEY в .env}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Укажите TELEGRAM_BOT_TOKEN в .env}
+      TELEGRAM_ADMIN_IDS: ${TELEGRAM_ADMIN_IDS:-6910951442}
+
+      TRUST_PROXY: "true"
+
     volumes:
       - ./data:/app/data
+
       - ./services:/app/services:ro
       - ./templates:/app/templates:ro
       - ./static:/app/static:ro
+
+      # Writable-подкаталог внутри read-only /app/static.
+      - ./data/uploads:/app/static/images/uploads
+
       - ./server.py:/app/server.py:ro
       - ./config.py:/app/config.py:ro
       - ./import_accounts.py:/app/import_accounts.py:ro
       - ./set_password.py:/app/set_password.py:ro
       - ./accounts_all.xlsx:/app/accounts_all.xlsx:ro
-      - kvit-receipts:/app/receipts
-      - kvit-logs:/app/logs
-    networks:
-      - kvit-network
+
+      # Writable-каталоги приложения.
+      - ./data/receipts:/app/receipts
+      - ./data/api-logs:/app/logs
+
     expose:
       - "8000"
       - "50051"
+
+    networks:
+      - kvit-network
+
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\" || exit 1"]
+      test:
+        - CMD-SHELL
+        - >-
+          python -c
+          "import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/health').read()"
+          || exit 1
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 15s
 
-  # ────────────────────── 4. Kvit-Worker (Dedicated Async PDF & OCR Worker) ───────────
+  # ────────────────────── Kvit Worker ──────────────────────
   kvit-worker:
     build:
       context: .
       dockerfile: Dockerfile
+
     restart: unless-stopped
-    command: ["python", "worker.py", "--workers", "${WORKER_COUNT:-4}"]
+
+    command:
+      - python
+      - worker.py
+      - --workers
+      - ${WORKER_COUNT:-4}
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
     environment:
-      - APP_ENV=production
-      - DB_TYPE=postgres
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kvit_db}
-      - REDIS_URL=redis://redis:6379/0
-      - REDIS_ENABLED=true
-      - RECEIPTS_DIR=/app/receipts
-      - LOG_FILE=/app/logs/worker.log
-      - LOG_LEVEL=INFO
-      - WORKER_COUNT=${WORKER_COUNT:-4}
-      - MAX_OCR_CONCURRENT_WORKERS=${MAX_OCR_CONCURRENT_WORKERS:-2}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?Обязательно укажите TELEGRAM_BOT_TOKEN в .env}
-      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-6910951442}
-      - SECRET_KEY=${SECRET_KEY:?Обязательно укажите SECRET_KEY в .env}
+      APP_ENV: production
+
+      DB_TYPE: postgres
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kvit_db}
+
+      REDIS_URL: redis://redis:6379/0
+      REDIS_ENABLED: "true"
+
+      RECEIPTS_DIR: /app/receipts
+
+      LOG_FILE: /app/logs/worker.log
+      LOG_LEVEL: INFO
+
+      WORKER_COUNT: ${WORKER_COUNT:-4}
+      MAX_OCR_CONCURRENT_WORKERS: ${MAX_OCR_CONCURRENT_WORKERS:-2}
+
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Укажите TELEGRAM_BOT_TOKEN в .env}
+      TELEGRAM_ADMIN_IDS: ${TELEGRAM_ADMIN_IDS:-6910951442}
+
+      SECRET_KEY: ${SECRET_KEY:?Укажите SECRET_KEY в .env}
+
     volumes:
       - ./data:/app/data
+
       - ./services:/app/services:ro
       - ./templates:/app/templates:ro
+
       - ./worker.py:/app/worker.py:ro
       - ./config.py:/app/config.py:ro
-      - kvit-receipts:/app/receipts
-      - kvit-logs:/app/logs
+
+      - ./data/receipts:/app/receipts
+      - ./data/worker-logs:/app/logs
+
     networks:
       - kvit-network
 
-  # ────────────────────── 5. Nginx (Public Reverse Proxy & Scale Balancer) ───────────
+  # ────────────────────── Nginx HTTPS ──────────────────────
   nginx:
     image: nginx:1.25-alpine
     container_name: kvit-nginx
     restart: unless-stopped
+
     ports:
       - "80:80"
+      - "443:443"
+
     depends_on:
-      - kvit-api
+      kvit-api:
+        condition: service_healthy
+
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
       - ./static:/app/static:ro
-      - kvit-receipts:/app/receipts:ro
-      - kvit-logs:/var/log/nginx
+      - ./data/uploads:/app/static/images/uploads:ro
+      - ./data/receipts:/app/receipts:ro
+
+      - ./data/nginx-logs:/var/log/nginx
+
+      # Каталог HTTP-проверки Let's Encrypt.
+      - ./data/certbot/www:/var/www/certbot:ro
+
+      # Сертификаты, созданные Certbot.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+    # Периодически перечитывает обновлённый сертификат.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        (while sleep 6h; do
+          nginx -t && nginx -s reload;
+        done) &
+        exec nginx -g 'daemon off;'
+
     networks:
       - kvit-network
 
-  # ────────────────────── 6. Cloudflare Tunnel (Public Internet Access) ─────────────
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: kvit-tunnel
+  # ────────────────────── Certbot renewal ──────────────────────
+  certbot:
+    image: certbot/certbot:latest
+    container_name: kvit-certbot
     restart: unless-stopped
-    command: tunnel --protocol http2 --no-autoupdate --url http://nginx:80
-    depends_on:
-      - nginx
+
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/lib/letsencrypt:/var/lib/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+
+    entrypoint:
+      - /bin/sh
+      - -c
+
+    # Проверяет необходимость продления каждые 12 часов.
+    command:
+      - |
+        trap exit TERM;
+        while :; do
+          certbot renew \
+            --webroot \
+            --webroot-path /var/www/certbot \
+            --quiet;
+          sleep 12h & wait $${!};
+        done
+
     networks:
       - kvit-network
 
+# ────────────────────── Networks ──────────────────────
 networks:
   kvit-network:
     driver: bridge
 
+# ────────────────────── Persistent volumes ──────────────────────
 volumes:
   postgres-data:
   redis-data:
-  kvit-receipts:
-  kvit-logs:
