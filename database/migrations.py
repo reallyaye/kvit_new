@@ -22,24 +22,38 @@ def migrate_db():
     try:
         with write_transaction() as con:
             if is_postgres_configured():
+                # 1. Явные ALTER TABLE и CREATE TABLE для PostgreSQL
+                try:
+                    con.execute("ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS username VARCHAR(64)")
+                    con.execute("ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS role VARCHAR(32) DEFAULT 'admin'")
+                except Exception as e:
+                    logger.warning(f"[DB] Ошибка ALTER TABLE app_sessions: {e}")
+
                 schema_path = os.path.join(os.path.dirname(__file__), 'schema.postgres.sql')
                 if os.path.exists(schema_path):
                     with open(schema_path, 'r', encoding='utf-8') as f:
                         pg_sql = f.read()
-                    con.executescript(pg_sql)
-                    try:
-                        import time, config
-                        admin_row = con.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
-                        admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
-                        if not admin_row and admin_hash:
-                            con.execute(
-                                "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
-                                ('admin', admin_hash, 'Главный Администратор', 'admin', time.time())
-                            )
-                    except Exception as e:
-                        logger.warning(f"[DB] Предупреждение сидирования администратора PG: {e}")
-                    logger.info("[DB] Схема PostgreSQL успешно проверена и применена.")
-                    return
+                    for statement in pg_sql.split(';'):
+                        stmt = statement.strip()
+                        if stmt:
+                            try:
+                                con.execute(stmt)
+                            except Exception as e:
+                                logger.debug(f"[DB] PG migration statement: {e}")
+
+                try:
+                    import time, config
+                    admin_row = con.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
+                    admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
+                    if not admin_row and admin_hash:
+                        con.execute(
+                            "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+                            ('admin', admin_hash, 'Главный Администратор', 'admin', time.time())
+                        )
+                except Exception as e:
+                    logger.warning(f"[DB] Предупреждение сидирования администратора PG: {e}")
+                logger.info("[DB] Схема PostgreSQL успешно проверена и применена.")
+                return
 
             # 1. Создание базовых таблиц (SQLite)
             con.executescript('''
