@@ -624,13 +624,28 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(layout(body, 'search', is_admin=is_admin))
                     return
                 elif street or house:
+                    if not getattr(config, 'ENABLE_ADDRESS_SEARCH', True) and not is_admin:
+                        msg = 'Поиск по адресу отключен в целях защиты персональных данных абонентов. Пожалуйста, используйте поиск по номеру лицевого счёта.'
+                        periods = receipt_service.get_distinct_periods()
+                        body = render_address_not_found(f"{street} {house} {flat}".strip(), period_filter, msg, periods)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                        return
                     status, acc_data, prompt_msg = receipt_service.search_by_structured_address(street, house, flat)
                     combined_query = f"{street} {house} {flat}".strip()
                     if status == 'EXACT_MATCH' and acc_data:
                         acc_num = str(acc_data['account_number'])
                         account_row = receipt_service.get_account(acc_num)
-                        receipts = receipt_service.get_receipts(acc_num, period_filter) if account_row else []
-                        body = render_search_result(acc_num, period_filter, account_row, receipts)
+                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                        is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
+                        receipts = receipt_service.get_receipts(acc_num, period_filter) if is_verified and account_row else []
+                        body = render_search_result(
+                            acc_num,
+                            period_filter,
+                            account_row,
+                            receipts,
+                            is_verified=is_verified,
+                            verification_failed=bool(verify_code and not is_verified)
+                        )
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                     elif status == 'NOT_FOUND':
                         periods = receipt_service.get_distinct_periods()
@@ -641,12 +656,27 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         body = render_address_clarification_prompt(combined_query, period_filter, prompt_msg, periods)
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                 elif address_query:
+                    if not getattr(config, 'ENABLE_ADDRESS_SEARCH', True) and not is_admin:
+                        msg = 'Поиск по адресу отключен в целях защиты персональных данных абонентов. Пожалуйста, используйте поиск по номеру лицевого счёта.'
+                        periods = receipt_service.get_distinct_periods()
+                        body = render_address_not_found(address_query, period_filter, msg, periods)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                        return
                     status, acc_data, prompt_msg = receipt_service.search_account_by_specific_address(address_query)
                     if status == 'EXACT_MATCH' and acc_data:
                         acc_num = str(acc_data['account_number'])
                         account_row = receipt_service.get_account(acc_num)
-                        receipts = receipt_service.get_receipts(acc_num, period_filter) if account_row else []
-                        body = render_search_result(acc_num, period_filter, account_row, receipts)
+                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                        is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
+                        receipts = receipt_service.get_receipts(acc_num, period_filter) if is_verified and account_row else []
+                        body = render_search_result(
+                            acc_num,
+                            period_filter,
+                            account_row,
+                            receipts,
+                            is_verified=is_verified,
+                            verification_failed=bool(verify_code and not is_verified)
+                        )
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                     elif status == 'NOT_FOUND':
                         periods = receipt_service.get_distinct_periods()
@@ -1645,6 +1675,15 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             return
 
         # Поиск по раздельным структурированным полям
+        if street or house or address_query:
+            if not getattr(config, 'ENABLE_ADDRESS_SEARCH', True) and not is_admin:
+                self.send_json({
+                    'status': 'FORBIDDEN',
+                    'message': 'Поиск по адресу отключен в целях защиты персональных данных абонентов. Пожалуйста, используйте поиск по номеру лицевого счёта.',
+                    'receipts': []
+                }, 403, extra_headers={'Cache-Control': 'no-store'})
+                return
+
         if street or house:
             status, acc_data, prompt_msg = receipt_service.search_by_structured_address(street, house, flat)
         elif address_query:
@@ -1660,6 +1699,20 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if status == 'EXACT_MATCH' and acc_data:
             acc_num = str(acc_data['account_number'])
             account_row = receipt_service.get_account(acc_num)
+            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+            is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
+            if not is_verified and account_row:
+                msg = 'Неверный проверочный код для данного лицевого счета.' if verify_code else 'Для доступа к квитанции введите номер дома или квартиры.'
+                self.send_json({
+                    'status': 'NEED_VERIFICATION',
+                    'message': msg,
+                    'account': acc_num,
+                    'address': receipt_service.mask_address(acc_data.get('address') or account_row['address']),
+                    'customer_name': '',
+                    'receipts': []
+                }, 200, extra_headers={'Cache-Control': 'no-store'})
+                return
+
             receipts = receipt_service.get_receipts(acc_num, period_filter) if account_row else []
             rec_list = []
             for r in receipts:

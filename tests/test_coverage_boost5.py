@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+import config
 import server
+import services.storage.pipeline as sp
 from database.connection import get_db
 from services.portal_search import (
     _clean_text,
@@ -15,14 +17,35 @@ from services.portal_search import (
     search_portal_content,
 )
 from services.reconciliation.reconcile_service import reconcile_service
-from services.storage.pipeline import PROCESSING_DIR, SPOOL_DIR, storage_pipeline
+from services.storage.pipeline import storage_pipeline
 
 
 class TestStoragePipelineBoost(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
+        self.fake_receipts = os.path.join(self.temp_dir, "receipts")
+        self.fake_spool = os.path.join(self.temp_dir, "spool")
+        self.fake_proc = os.path.join(self.temp_dir, "processing")
+        self.fake_failed = os.path.join(self.temp_dir, "failed")
+        for p in (self.fake_receipts, self.fake_spool, self.fake_proc, self.fake_failed):
+            os.makedirs(p, exist_ok=True)
+
+        self._orig_cfg_dirs = (config.RECEIPTS_DIR, config.SPOOL_DIR, config.PROCESSING_DIR, config.FAILED_DIR)
+        self._orig_sp_dirs = (sp.RECEIPTS_DIR, sp.SPOOL_DIR, sp.PROCESSING_DIR, sp.FAILED_DIR)
+
+        config.RECEIPTS_DIR = self.fake_receipts
+        config.SPOOL_DIR = self.fake_spool
+        config.PROCESSING_DIR = self.fake_proc
+        config.FAILED_DIR = self.fake_failed
+
+        sp.RECEIPTS_DIR = self.fake_receipts
+        sp.SPOOL_DIR = self.fake_spool
+        sp.PROCESSING_DIR = self.fake_proc
+        sp.FAILED_DIR = self.fake_failed
 
     def tearDown(self):
+        config.RECEIPTS_DIR, config.SPOOL_DIR, config.PROCESSING_DIR, config.FAILED_DIR = self._orig_cfg_dirs
+        sp.RECEIPTS_DIR, sp.SPOOL_DIR, sp.PROCESSING_DIR, sp.FAILED_DIR = self._orig_sp_dirs
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_move_to_processing_branches(self):
@@ -103,8 +126,8 @@ class TestStoragePipelineBoost(unittest.TestCase):
 
     def test_cleanup_job_branches(self):
         job_id = "cleanup_test_job"
-        spool_dir = os.path.join(SPOOL_DIR, job_id)
-        proc_dir = os.path.join(PROCESSING_DIR, job_id)
+        spool_dir = os.path.join(sp.SPOOL_DIR, job_id)
+        proc_dir = os.path.join(sp.PROCESSING_DIR, job_id)
         os.makedirs(spool_dir, exist_ok=True)
         os.makedirs(proc_dir, exist_ok=True)
 
