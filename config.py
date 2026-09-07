@@ -201,14 +201,15 @@ PROTECTED_PATHS = {
     '/admin/media', '/admin/media/upload', '/admin/media/delete',
     '/admin/documents', '/admin/documents/edit', '/admin/documents/new', '/admin/documents/save', '/admin/documents/delete',
     '/admin/users', '/admin/users/create', '/admin/users/delete',
-    '/admin/audit'
+    '/admin/audit', '/admin/appeals', '/admin/appeals/view', '/admin/appeals/update'
 }
 CSRF_PROTECTED_PATHS = {
     '/upload', '/import-folder', '/api/upload-batch', '/api/upload-accounts', '/api/sync-receipts', '/api/purge-missing-receipts',
     '/admin/pages/save', '/admin/pages/delete',
     '/admin/media/upload', '/admin/media/delete',
     '/admin/documents/save', '/admin/documents/delete',
-    '/admin/users/create', '/admin/users/delete'
+    '/admin/users/create', '/admin/users/delete',
+    '/admin/appeals/update'
 }
 
 
@@ -221,6 +222,7 @@ RATE_LIMIT_API = int(os.environ.get('RATE_LIMIT_API', '60'))        # 60 зап�
 RATE_LIMIT_LOGIN = int(os.environ.get('RATE_LIMIT_LOGIN', '10'))    # 10 попыток в минуту для логина
 RATE_LIMIT_SEARCH = int(os.environ.get('RATE_LIMIT_SEARCH', '60'))  # 60 запросов в минуту для поиска/квитанций
 RATE_LIMIT_UPLOAD = int(os.environ.get('RATE_LIMIT_UPLOAD', '10'))  # 10 загрузок в минуту для админ-панели
+RATE_LIMIT_APPEALS = int(os.environ.get('RATE_LIMIT_APPEALS', '5'))  # 5 обращений в час с одного IP
 RATE_LIMIT_GRPC = int(os.environ.get('RATE_LIMIT_GRPC', '120'))        # 120 запросов в минуту для gRPC
 RATE_LIMIT_GRPC_RECONCILE = int(os.environ.get('RATE_LIMIT_GRPC_RECONCILE', '30')) # 30 запросов в минуту для тяжелой gRPC сверки
 
@@ -261,6 +263,22 @@ MAX_FORM_BODY_BYTES = int(os.environ.get('MAX_FORM_BODY_BYTES', 2 * 1024 * 1024)
 MAX_CMS_BODY_BYTES = int(os.environ.get('MAX_CMS_BODY_BYTES', 1 * 1024 * 1024))        # 1 MB для CMS HTML/страниц
 MAX_CMS_HTML_BYTES = MAX_CMS_BODY_BYTES                                                # Алиас для соответствия спецификации
 MAX_MEDIA_UPLOAD_BYTES = int(os.environ.get('MAX_MEDIA_UPLOAD_BYTES', 10 * 1024 * 1024)) # 10 MB для медиа файлов CMS
+MAX_APPEAL_BODY_BYTES = int(os.environ.get('MAX_APPEAL_BODY_BYTES', 64 * 1024))            # 64 KB для онлайн-обращения
+
+# SMTP-уведомления о новых обращениях
+SMTP_HOST = os.environ.get('SMTP_HOST', '').strip()
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '').strip()
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'true').lower() in ('true', '1', 'yes')
+SMTP_USE_SSL = os.environ.get('SMTP_USE_SSL', 'false').lower() in ('true', '1', 'yes')
+SMTP_TIMEOUT = float(os.environ.get('SMTP_TIMEOUT', '8'))
+SMTP_FROM_EMAIL = os.environ.get('SMTP_FROM_EMAIL', SMTP_USERNAME).strip()
+APPEALS_NOTIFY_EMAIL = os.environ.get('APPEALS_NOTIFY_EMAIL', '').strip()
+APPEALS_EMAIL_ENABLED = os.environ.get(
+    'APPEALS_EMAIL_ENABLED',
+    'true' if SMTP_HOST and SMTP_FROM_EMAIL else 'false'
+).lower() in ('true', '1', 'yes')
 
 
 
@@ -329,5 +347,4 @@ LOG_FILE = os.environ.get('LOG_FILE', 'logs/app.log')
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', str(5 * 1024 * 1024)))  # 5 МБ
 LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))             # 5 ротированных файлов
-
 

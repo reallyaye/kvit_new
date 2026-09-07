@@ -11,12 +11,13 @@ import tempfile
 import time
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import config
 from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, RATE_LIMIT_UPLOAD, WS_GUID
 from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem
 from logger import logger
+from services.appeals import AppealValidationError, appeal_service
 from services.metrics import metrics_collector
 from services.portal_cms import portal_cms
 from services.receipts import receipt_service
@@ -53,6 +54,11 @@ from templates.admin_cms_views import (
     render_admin_page_editor,
     render_admin_pages_list,
     render_admin_users,
+)
+from templates.appeals_views import (
+    render_admin_appeal_detail,
+    render_admin_appeals_list,
+    render_appeals_page,
 )
 from templates.portal_views import DOCUMENTS_REGISTRY, PORTAL_PAGES
 from templates.portal_views import render_document as render_portal_document
@@ -787,6 +793,38 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         current_role='admin'
                     )
                     self.send_html(layout(body, 'audit', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/appeals':
+                    status_filter = q.get('status', [''])[0].strip().upper()
+                    search_filter = q.get('search', [''])[0].strip()
+                    try:
+                        page_num = max(1, int(q.get('page', ['1'])[0]))
+                    except (ValueError, TypeError):
+                        page_num = 1
+                    appeals = appeal_service.list(status_filter, search_filter, page_num)
+                    stats = appeal_service.get_stats()
+                    body = render_admin_appeals_list(
+                        appeals,
+                        stats,
+                        {'status': status_filter, 'search': search_filter},
+                        csrf_tok,
+                        message=msg,
+                        error=err,
+                        username=u_name,
+                    )
+                    self.send_html(layout(body, 'appeals', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/appeals/view':
+                    try:
+                        appeal_id = int(q.get('id', ['0'])[0])
+                    except (ValueError, TypeError):
+                        appeal_id = 0
+                    appeal = appeal_service.get_by_id(appeal_id) if appeal_id > 0 else None
+                    if not appeal:
+                        self.send_html(layout(render_404_page(), is_admin=True), 404)
+                        return
+                    body = render_admin_appeal_detail(
+                        appeal, csrf_tok, message=msg, error=err, username=u_name
+                    )
+                    self.send_html(layout(body, 'appeals', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/admin/pages/edit':
                     slug = q.get('slug', [''])[0]
                     page_data = portal_cms.get_page(slug) or {'title': slug, 'html': ''}
@@ -833,6 +871,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             # ── 5. Роутинг информационного портала КРЭК ─────────────────────
             elif path in ('/', '/index.php', '/index.html'):
                 self.send_html(render_portal_page('home', is_admin=is_admin))
+            elif path == '/appeals':
+                self.send_html(render_appeals_page(is_admin=is_admin))
             else:
                 PAGE_ALIASES = {
                     'potreb': 'consumers',
@@ -964,6 +1004,18 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     return
 
             # 4. Rate Limit для API эндпоинтов (POST)
+            if u.path == '/api/appeals':
+                allowed, retry_after, remaining = rate_limiter.is_allowed(
+                    'appeals', client_ip, config.RATE_LIMIT_APPEALS, 3600
+                )
+                if not allowed:
+                    self.send_json({
+                        'error': 'Too Many Requests',
+                        'message': 'Превышен лимит отправки обращений. Попробуйте позднее.',
+                        'retry_after': retry_after,
+                    }, 429, {'Retry-After': str(retry_after)})
+                    return
+
             if u.path.startswith('/api/'):
                 allowed, retry_after, remaining = rate_limiter.is_allowed('api', client_ip, RATE_LIMIT_API, 60)
                 if not allowed:
@@ -1023,6 +1075,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(render_forbidden_page('У вас нет прав администратора для удаления документов'), 403)
                     return
                 self._handle_admin_documents_delete()
+            elif u.path == '/admin/appeals/update':
+                self._handle_admin_appeal_update()
+            elif u.path == '/api/appeals':
+                self._handle_appeal_submit()
             elif u.path == '/api/upload-batch':
                 self._handle_api_upload_batch()
             elif u.path == '/api/upload-accounts':
@@ -1037,6 +1093,119 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             ip_throttler.release(client_ip)
 
     # ────────────────────── Обработчики действий ──────────────────────
+
+    def _handle_appeal_submit(self):
+        origin = self.headers.get('Origin', '').strip()
+        host = self.headers.get('Host', '').split(':', 1)[0].strip().lower()
+        if origin and urlparse(origin).hostname != host:
+            self.send_json({
+                'error': 'Forbidden',
+                'message': 'Запрос отправлен с недоверенного сайта.',
+            }, 403)
+            return
+
+        params = self._read_form_params(max_bytes=config.MAX_APPEAL_BODY_BYTES)
+        if not params:
+            return
+        if params.get('website', [''])[0].strip():
+            self.send_json({
+                'error': 'Spam detected',
+                'message': 'Обращение не принято.',
+            }, 400)
+            return
+
+        payload = {
+            field: params.get(field, [''])[0]
+            for field in (
+                'category', 'applicant_name', 'phone', 'email',
+                'account_number', 'service_address', 'message', 'consent',
+            )
+        }
+        try:
+            appeal = appeal_service.create(
+                payload,
+                client_ip=self._get_client_ip(),
+                user_agent=self.headers.get('User-Agent', ''),
+            )
+            notification = {'confirmation_sent': False}
+            try:
+                notification = appeal_service.notify(appeal)
+            except Exception as exc:
+                logger.warning(
+                    '[Appeals] Уведомление не отправлено для %s: %s',
+                    appeal['registration_number'],
+                    exc,
+                )
+            try:
+                auth_service.log_audit(
+                    'public',
+                    self._get_client_ip(),
+                    'APPEAL_CREATE',
+                    f"Зарегистрировано обращение {appeal['registration_number']} ({appeal['category']})",
+                )
+            except Exception as exc:
+                logger.warning(
+                    '[Appeals] Не удалось записать аудит для %s: %s',
+                    appeal['registration_number'],
+                    exc,
+                )
+            self.send_json({
+                'success': True,
+                'registration_number': appeal['registration_number'],
+                'confirmation_sent': notification['confirmation_sent'],
+            }, 201, {'Cache-Control': 'no-store'})
+        except AppealValidationError as exc:
+            self.send_json({
+                'error': 'Validation Error',
+                'message': str(exc),
+            }, 400, {'Cache-Control': 'no-store'})
+        except Exception as exc:
+            logger.exception('[Appeals] Не удалось зарегистрировать обращение: %s', exc)
+            self.send_json({
+                'error': 'Internal Server Error',
+                'message': 'Не удалось зарегистрировать обращение. Попробуйте позднее.',
+            }, 500, {'Cache-Control': 'no-store'})
+
+    def _handle_admin_appeal_update(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        params = self._read_form_params(max_bytes=config.MAX_APPEAL_BODY_BYTES)
+        if not params:
+            return
+        csrf_token = params.get('csrf_token', [''])[0].strip()
+        if not self._verify_csrf(body_csrf=csrf_token):
+            self.send_html(
+                layout(render_forbidden_page(CSRF_INVALID_MSG), is_admin=True),
+                403,
+            )
+            return
+        try:
+            appeal_id = int(params.get('id', ['0'])[0])
+            status = params.get('status', [''])[0].strip().upper()
+            comment = params.get('admin_comment', [''])[0]
+            current_user = self._get_current_user() or {}
+            username = current_user.get('username', 'admin')
+            appeal = appeal_service.update(
+                appeal_id,
+                status,
+                admin_comment=comment,
+                assigned_to=username,
+            )
+            auth_service.log_audit(
+                username,
+                self._get_client_ip(),
+                'APPEAL_UPDATE',
+                f"Обращение {appeal['registration_number']}: статус {status}",
+            )
+            self._redirect(
+                f'/admin/appeals/view?id={appeal_id}&msg={quote("Изменения сохранены")}'
+            )
+        except (AppealValidationError, ValueError) as exc:
+            appeal_id = params.get('id', ['0'])[0]
+            self._redirect(
+                f'/admin/appeals/view?id={quote(str(appeal_id))}&err={quote(str(exc))}'
+            )
 
     def _handle_login(self):
         client_ip = self._get_client_ip()

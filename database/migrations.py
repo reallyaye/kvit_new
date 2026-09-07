@@ -139,6 +139,32 @@ def migrate_db():
                     comment TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_tg_users_status ON telegram_users(status);
+
+                CREATE TABLE IF NOT EXISTS appeals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    registration_number TEXT NOT NULL UNIQUE,
+                    category TEXT NOT NULL,
+                    applicant_name TEXT NOT NULL,
+                    phone TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    account_number TEXT,
+                    service_address TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'NEW',
+                    consent INTEGER NOT NULL DEFAULT 0,
+                    submitted_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    client_ip TEXT,
+                    user_agent TEXT,
+                    assigned_to TEXT,
+                    admin_comment TEXT,
+                    office_notified INTEGER NOT NULL DEFAULT 0,
+                    confirmation_sent INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
+                CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);
+                CREATE INDEX IF NOT EXISTS idx_appeals_email ON appeals(email);
+                CREATE INDEX IF NOT EXISTS idx_appeals_account ON appeals(account_number);
             ''')
 
             # 2. Проверка и динамическое добавление недостающих колонок
@@ -334,7 +360,6 @@ def purge_missing_receipts() -> int:
             changes = con.execute("SELECT changes()").fetchone()
             deleted_count = changes[0] if changes else 0
     return deleted_count
-
 
 
 
