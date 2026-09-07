@@ -99,6 +99,11 @@ REQUIRE_RECEIPT_VERIFICATION = os.environ.get(
     'false' if APP_ENV == 'testing' else 'true'
 ).lower() in ('true', '1', 'yes')
 
+ENABLE_ADDRESS_SEARCH = os.environ.get(
+    'ENABLE_ADDRESS_SEARCH',
+    'false' if IS_PRODUCTION else 'true'
+).lower() in ('true', '1', 'yes')
+
 
 
 # ────────────────────── OCR Настройки ──────────────────────

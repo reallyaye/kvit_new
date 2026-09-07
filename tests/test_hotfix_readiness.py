@@ -149,3 +149,60 @@ def test_receipt_search_verification_lifecycle():
         assert len(h3.sent_json['receipts']) == 1
         assert h3.sent_json['receipts'][0]['access_token'] == 'tok999111_secret_token_value'
 
+
+def test_address_search_protection_and_verification():
+    """Проверка, что поиск по адресу нельзя использовать для обхода верификации квитанций."""
+    from database import get_db
+    con = get_db()
+    con.execute('INSERT OR REPLACE INTO accounts(account_number, customer_name, address) VALUES (?,?,?)',
+                ('999222', 'Секретный Жилец', 'ул. Абая, дом 10, кв. 5'))
+    con.execute('INSERT OR REPLACE INTO receipts(account_number, period, pdf_file, content_hash, access_token, address) VALUES (?,?,?,?,?,?)',
+                ('999222', '09.2026', '99/92/999222_s.pdf', 'h999222', 'tok999222_secret_token_value', 'ул. Абая, дом 10, кв. 5'))
+    con.commit()
+    con.close()
+
+    from server import AppRequestHandler
+    class MockHandler(AppRequestHandler):
+        def __init__(self):
+            self.headers = {}
+            self.sent_json = None
+            self.status_code = None
+        def send_json(self, data, code=200, extra_headers=None, **kwargs):
+            self.sent_json = data
+            self.status_code = code
+
+    # 1. Если ENABLE_ADDRESS_SEARCH отключен -> возвращается 403 FORBIDDEN
+    with patch.object(config, 'ENABLE_ADDRESS_SEARCH', False):
+        h1 = MockHandler()
+        h1._handle_api_search({'address': ['ул. Абая, дом 10, кв. 5']})
+        assert h1.status_code == 403
+        assert h1.sent_json['status'] == 'FORBIDDEN'
+        assert len(h1.sent_json['receipts']) == 0
+
+    # 2. Если поиск по адресу включен, но действует REQUIRE_RECEIPT_VERIFICATION
+    with patch.object(config, 'ENABLE_ADDRESS_SEARCH', True):
+        with patch.object(config, 'REQUIRE_RECEIPT_VERIFICATION', True):
+            # Без проверочного кода -> NEED_VERIFICATION, квитанции и токены скрыты
+            h2 = MockHandler()
+            h2._handle_api_search({'address': ['ул. Абая, дом 10, кв. 5']})
+            assert h2.status_code == 200
+            assert h2.sent_json['status'] == 'NEED_VERIFICATION'
+            assert '***' in h2.sent_json['address']
+            assert len(h2.sent_json['receipts']) == 0
+
+            # С неверным кодом -> NEED_VERIFICATION
+            h3 = MockHandler()
+            h3._handle_api_search({'street': ['Абая'], 'house': ['10'], 'flat': ['5'], 'verify': ['99']})
+            assert h3.status_code == 200
+            assert h3.sent_json['status'] == 'NEED_VERIFICATION'
+            assert len(h3.sent_json['receipts']) == 0
+
+            # С верным кодом (номер дома 10 или квартиры 5) -> EXACT_MATCH с выдачей токена
+            h4 = MockHandler()
+            h4._handle_api_search({'address': ['ул. Абая, дом 10, кв. 5'], 'verify': ['5']})
+            assert h4.status_code == 200
+            assert h4.sent_json['status'] == 'EXACT_MATCH'
+            assert len(h4.sent_json['receipts']) == 1
+            assert h4.sent_json['receipts'][0]['access_token'] == 'tok999222_secret_token_value'
+
+
