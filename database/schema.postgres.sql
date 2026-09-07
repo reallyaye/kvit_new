@@ -109,3 +109,29 @@ CREATE TABLE IF NOT EXISTS telegram_users (
 
 CREATE INDEX IF NOT EXISTS idx_tg_users_status ON telegram_users(status);
 
+CREATE TABLE IF NOT EXISTS appeals (
+    id BIGSERIAL PRIMARY KEY,
+    registration_number VARCHAR(40) NOT NULL UNIQUE,
+    category VARCHAR(32) NOT NULL,
+    applicant_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(64) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    account_number VARCHAR(64),
+    service_address TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'NEW',
+    consent BOOLEAN NOT NULL DEFAULT FALSE,
+    submitted_at DOUBLE PRECISION NOT NULL,
+    updated_at DOUBLE PRECISION NOT NULL,
+    client_ip VARCHAR(64),
+    user_agent TEXT,
+    assigned_to VARCHAR(64),
+    admin_comment TEXT,
+    office_notified BOOLEAN NOT NULL DEFAULT FALSE,
+    confirmation_sent BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
+CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);
+CREATE INDEX IF NOT EXISTS idx_appeals_email ON appeals(email);
+CREATE INDEX IF NOT EXISTS idx_appeals_account ON appeals(account_number);

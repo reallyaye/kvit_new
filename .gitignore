@@ -23,6 +23,7 @@ ENV/
 *.sqlite3-shm
 *.db
 .pytest_tmp/
+.pytest_*/
 
 # Heavy data dumps & tables
 *.xls
