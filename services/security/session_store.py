@@ -206,7 +206,7 @@ class DatabaseSessionStore(BaseSessionStore):
             if now - self._last_cleanup < 300:  # Раз в 5 минут
                 return
             self._last_cleanup = now
-            expired_tokens = [t for t, (exp, _) in self._l1_cache.items() if exp < now]
+            expired_tokens = [t for t, item in self._l1_cache.items() if item[0] < now]
             for t in expired_tokens:
                 self._l1_cache.pop(t, None)
 

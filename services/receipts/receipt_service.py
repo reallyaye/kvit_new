@@ -115,8 +115,63 @@ def extract_addr_parts(text: str):
 
     return house, flat, corpus, street
 
+
+def mask_address(address: str) -> str:
+    """Маскирует номер дома и квартиры для защиты персональных данных."""
+    if not address:
+        return '—'
+    masked = re.sub(
+        r'(\b(?:дом|д\.?|үй(?:і)?|кв\.?|квартира|пәт(?:ер)?)\s*№?\s*)(\d+[\w\-\/]*)',
+        r'\1***',
+        address,
+        flags=re.IGNORECASE
+    )
+    if masked == address:
+        masked = re.sub(r'(\d+[\w\-\/]*)$', r'***', address)
+    return masked
+
+
+def verify_account_ownership(account_row: dict, verification_input: str) -> bool:
+    """Проверяет совпадение проверочного кода (номер дома/квартиры) с данными счета."""
+    if not account_row or not verification_input:
+        return False
+    v = verification_input.strip().lower()
+    if not v:
+        return False
+
+    addr = (account_row.get('address') or '').lower()
+    q_house, q_flat, _, _ = extract_addr_parts(addr)
+
+    # 1. Прямое совпадение с домом или квартирой
+    if v == q_house.lower() or (q_flat and v == q_flat.lower()):
+        return True
+
+    # 2. Совпадение только цифр
+    v_digits = re.sub(r'\D', '', v)
+    if v_digits:
+        h_digits = re.sub(r'\D', '', q_house)
+        f_digits = re.sub(r'\D', '', q_flat)
+        if (h_digits and v_digits == h_digits) or (f_digits and v_digits == f_digits):
+            return True
+
+    # 3. Проверка вхождения в токены адреса
+    tokens = re.findall(r'\b\d+[\w\-\/]*\b', addr)
+    if v in [t.lower() for t in tokens]:
+        return True
+
+    return False
+
+
 class ReceiptService:
     """Сервис для поиска и выдачи квитанций и информации по лицевым счетам."""
+
+    @staticmethod
+    def mask_address(address: str) -> str:
+        return mask_address(address)
+
+    @staticmethod
+    def verify_account_ownership(account_row: dict, verification_input: str) -> bool:
+        return verify_account_ownership(account_row, verification_input)
 
     @staticmethod
     def get_account(account_number: str):

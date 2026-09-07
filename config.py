@@ -93,6 +93,13 @@ for _d in (RECEIPTS_DIR, SPOOL_DIR, PROCESSING_DIR, FAILED_DIR):
 MAINTENANCE_MODE = os.environ.get('MAINTENANCE_MODE', 'false').lower() in ('true', '1', 'yes')
 MAINTENANCE_FLAG_FILE = os.environ.get('MAINTENANCE_FLAG_FILE', os.path.join(BASE, 'data', 'maintenance.flag'))
 
+# ────────────────────── Защита ПДн при поиске квитанций ──────────────────────
+REQUIRE_RECEIPT_VERIFICATION = os.environ.get(
+    'REQUIRE_RECEIPT_VERIFICATION',
+    'false' if APP_ENV == 'testing' else 'true'
+).lower() in ('true', '1', 'yes')
+
+
 
 # ────────────────────── OCR Настройки ──────────────────────
 # ────────────────────── OCR Настройки и Защита от DoS ──────────────────────

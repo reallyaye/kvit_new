@@ -456,9 +456,9 @@ class RedisTaskQueueBackend(BaseTaskQueueBackend):
         now = time.time()
         stale_jobs = self._client.zrangebyscore(self._processing_key, 0, now, start=0, num=batch_size)
         if not stale_jobs:
-            return 0
+            return []
 
-        reclaimed = 0
+        reclaimed: List[str] = []
         try:
             for job_bytes in stale_jobs:
                 jid = job_bytes if isinstance(job_bytes, str) else job_bytes.decode('utf-8')

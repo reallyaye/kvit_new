@@ -11,7 +11,11 @@ DOCS_FILENAME = 'documents.json'
 PAGES_JSON_PATH = os.path.join(BASE_DIR, 'data', PAGES_FILENAME)
 DOCS_JSON_PATH = os.path.join(BASE_DIR, 'data', DOCS_FILENAME)
 
+_pages_mtime = 0.0
+_docs_mtime = 0.0
+
 def load_portal_pages():
+    global _pages_mtime
     paths = [
         PAGES_JSON_PATH,
         os.path.join(os.path.dirname(BASE_DIR), 'data', PAGES_FILENAME),
@@ -20,6 +24,7 @@ def load_portal_pages():
     for p in paths:
         if os.path.isfile(p):
             try:
+                _pages_mtime = os.path.getmtime(p)
                 with open(p, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
@@ -27,6 +32,7 @@ def load_portal_pages():
     return {}
 
 def load_documents_registry():
+    global _docs_mtime
     paths = [
         DOCS_JSON_PATH,
         os.path.join(os.path.dirname(BASE_DIR), 'data', DOCS_FILENAME),
@@ -35,6 +41,7 @@ def load_documents_registry():
     for p in paths:
         if os.path.isfile(p):
             try:
+                _docs_mtime = os.path.getmtime(p)
                 with open(p, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
@@ -44,11 +51,35 @@ def load_documents_registry():
 PORTAL_PAGES = load_portal_pages()
 DOCUMENTS_REGISTRY = load_documents_registry()
 
+def check_and_reload_pages():
+    """Синхронизирует in-memory кэш страниц между несколькими API-контейнерами при обновлении файла на общем диске."""
+    global PORTAL_PAGES, _pages_mtime
+    for p in [PAGES_JSON_PATH, os.path.join(os.getcwd(), 'data', PAGES_FILENAME)]:
+        if os.path.isfile(p):
+            try:
+                mtime = os.path.getmtime(p)
+                if mtime > _pages_mtime or not PORTAL_PAGES:
+                    PORTAL_PAGES = load_portal_pages()
+                break
+            except Exception:
+                pass
+
+def check_and_reload_docs():
+    """Синхронизирует in-memory кэш документов между API-контейнерами."""
+    global DOCUMENTS_REGISTRY, _docs_mtime
+    for p in [DOCS_JSON_PATH, os.path.join(os.getcwd(), 'data', DOCS_FILENAME)]:
+        if os.path.isfile(p):
+            try:
+                mtime = os.path.getmtime(p)
+                if mtime > _docs_mtime or not DOCUMENTS_REGISTRY:
+                    DOCUMENTS_REGISTRY = load_documents_registry()
+                break
+            except Exception:
+                pass
+
 def render_page(page_name: str, is_admin: bool = False) -> str:
     """Рендерит HTML-страницу портала из базы extracted_portal_pages.json."""
-    global PORTAL_PAGES
-    if not PORTAL_PAGES:
-        PORTAL_PAGES = load_portal_pages()
+    check_and_reload_pages()
 
     clean_name = page_name.lower().lstrip('/').removesuffix('.php')
     if clean_name in ('', 'index', 'main'):
@@ -72,6 +103,7 @@ def render_page(page_name: str, is_admin: bool = False) -> str:
 
 def render_document(doc: dict, is_admin: bool = False, doc_key: str = '') -> str:
     """Рендерит документ/отчет из реестра документов в современном корпоративном стиле."""
+    check_and_reload_docs()
     title = doc.get('title', 'ТОО КРЭК — Документ')
     h1 = doc.get('h1', title)
     date_text = doc.get('date_text', '')

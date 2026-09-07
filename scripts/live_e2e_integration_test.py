@@ -42,6 +42,10 @@ def create_sample_receipt_pdf(path: str, account: str, period: str = "12.2026") 
 
 def run_live_e2e_test(base_url: str, admin_pass: str = None):
     base_url = base_url.rstrip('/')
+    parsed = urllib.parse.urlsplit(base_url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f"Invalid URL scheme: {parsed.scheme}. Only HTTP/HTTPS allowed.")
+
     print("=" * 70)
     print("🚀 ЗАПУСК СКВОЗНОГО E2E ТЕСТИРОВАНИЯ РАЗВЕРНУТОЙ СИСТЕМЫ")
     print(f"🎯 URL: {base_url}")
@@ -50,7 +54,7 @@ def run_live_e2e_test(base_url: str, admin_pass: str = None):
     # 1. Проверка доступности шлюза (Healthcheck)
     print("🔍 [1/5] Проверка работоспособности шлюза Nginx и API...")
     try:
-        with urllib.request.urlopen(f"{base_url}/health", timeout=5) as resp:
+        with urllib.request.urlopen(f"{base_url}/health", timeout=5) as resp:  # nosec B310
             status_code = resp.getcode()
             inst = resp.headers.get('X-Backend-Instance', 'unknown')
             print(f"   ✅ Сервис доступен (Status: {status_code}, Backend: {inst})")
@@ -67,7 +71,7 @@ def run_live_e2e_test(base_url: str, admin_pass: str = None):
     try:
         # 3. Поиск (до загрузки — должен отсутствовать)
         search_url = f"{base_url}/api/search?q={test_account}"
-        with urllib.request.urlopen(search_url, timeout=5) as s_resp:
+        with urllib.request.urlopen(search_url, timeout=5) as s_resp:  # nosec B310
             _ = s_resp.read()
             print("   ℹ Проверка первичного поиска: OK (счет пока отсутствует)")
 

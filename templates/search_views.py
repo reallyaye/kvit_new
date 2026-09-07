@@ -247,9 +247,33 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
     }}
     </script>'''
 
-def render_search_result(account: str, period_filter: str, account_row, receipts):
+def render_search_result(account: str, period_filter: str, account_row, receipts, is_verified: bool = True, verification_failed: bool = False):
     acct = html.escape(account)
     addr = html.escape(account_row['address']) if account_row and account_row['address'] else '—'
+
+    if not is_verified and account_row:
+        from services.receipts.receipt_service import mask_address
+        masked_addr = html.escape(mask_address(account_row['address']))
+        err_msg = f'<div class="err" style="margin-bottom:14px">{icon("alert_triangle", 15)} Неверный номер дома/квартиры. Пожалуйста, проверьте введённые данные.</div>' if verification_failed else ''
+        return f'''<div class="card receipt-card-anim">
+            <h1><span style="display:inline-flex;align-items:center;gap:6px">{icon('shield', 22, '#2563eb')} Подтверждение доступа к квитанции</span></h1>
+            <div class="ok" style="background:#f8fafc;border-color:#e2e8f0;margin-bottom:16px">
+                <b>Лицевой счёт:</b> {acct}<br>
+                <b>Адрес:</b> {masked_addr}<br>
+            </div>
+            {err_msg}
+            <div class="warn" style="margin-bottom:16px">
+                <b>Защита персональных данных:</b> Для просмотра начислений и скачивания PDF подтвердите владение счетом, указав номер дома или квартиры.
+            </div>
+            <form method="GET" action="/search" style="display:flex;gap:10px;flex-wrap:wrap">
+                <input type="hidden" name="account" value="{acct}">
+                <input type="hidden" name="period" value="{html.escape(period_filter)}">
+                <input type="text" name="verify" class="input" placeholder="Номер дома или квартиры (например: 15 или 3)" required autofocus style="flex:1;min-width:220px">
+                <button type="submit" class="btn btn-green">{icon('check', 14)} Подтвердить доступ</button>
+            </form>
+            <br>
+            <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
+        </div>'''
 
     if not receipts:
         if period_filter:

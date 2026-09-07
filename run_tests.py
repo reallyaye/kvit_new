@@ -5,6 +5,16 @@ import sys
 import tempfile
 import traceback
 
+# Принудительная изоляция тестового окружения от .env файла до импорта config
+os.environ["APP_ENV"] = "testing"
+os.environ["ENVIRONMENT"] = "testing"
+os.environ["TESTING"] = "True"
+os.environ["DB_TYPE"] = "sqlite"
+os.environ["DATABASE_URL"] = ""
+os.environ["REDIS_ENABLED"] = "false"
+os.environ["SECRET_KEY"] = "test_secure_secret_key_for_testing"
+os.environ["GRPC_API_KEY"] = "test_secure_grpc_key_for_testing"
+
 import config
 
 
