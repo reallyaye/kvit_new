@@ -1,11 +1,7 @@
 """Тестирование подсистемы асинхронных фоновых задач и очереди обработки PDF."""
 import os
-import shutil
-import tempfile
 import time
-import pytest
 
-import config
 from database.connection import get_db
 from services.tasks import TaskStatus, task_manager
 
@@ -83,7 +79,6 @@ def test_task_manager_get_and_list():
     """Проверка методов получения задачи по ID и списка недавних задач."""
     task_manager.start()
 
-    tasks_before = task_manager.list_tasks(limit=10)
     task = task_manager.submit_pdf_job(files=[], source='test_list')
 
     found = task_manager.get_task(task.job_id)

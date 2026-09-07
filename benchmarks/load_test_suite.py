@@ -26,10 +26,9 @@ from typing import List
 # Добавляем корень проекта в sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import config
-from database.connection import get_db, write_transaction
+from database.connection import write_transaction
 from services.pdf import pdf_processor
-from services.receipts.receipt_service import receipt_service
+
 
 def percentile(data: List[float], p: float) -> float:
     if not data:
@@ -46,7 +45,7 @@ def percentile(data: List[float], p: float) -> float:
 
 def run_concurrent_api_load_test(target_url: str, total_requests: int = 5000, concurrency: int = 500):
     """Стресс-тест HTTP API под высокой нагрузкой (500 - 1000 одновременных пользователей)."""
-    print(f"\n" + "=" * 70)
+    print("\n" + "=" * 70)
     print(f"🔥 ЗАПУСК СТРЕСС-ТЕСТА API: {total_requests} запросов | {concurrency} одновременных пользователей")
     print(f"🎯 URL: {target_url}")
     print("=" * 70)
@@ -105,18 +104,18 @@ def run_concurrent_api_load_test(target_url: str, total_requests: int = 5000, co
     min_lat = min(latencies) if latencies else 0
     max_lat = max(latencies) if latencies else 0
 
-    print(f"\n📊 [РЕЗУЛЬТАТЫ СТРЕСС-ТЕСТА API]")
+    print("\n📊 [РЕЗУЛЬТАТЫ СТРЕСС-ТЕСТА API]")
     print(f"  Общее время:       {total_time:.2f} сек")
     print(f"  Пропускная способность: {rps:.1f} req/sec (RPS)")
     print(f"  Успешных запросов:  {sum(v for k, v in status_codes.items() if 200 <= k < 400)} / {total_requests}")
     print(f"  Ошибок сети:       {sum(errors.values())}")
-    print(f"  -------------------------------------------")
+    print("  -------------------------------------------")
     print(f"  Latency Min:       {min_lat:.1f} ms")
     print(f"  Latency p50:       {p50:.1f} ms")
     print(f"  Latency p95:       {p95:.1f} ms")
     print(f"  Latency p99:       {p99:.1f} ms")
     print(f"  Latency Max:       {max_lat:.1f} ms")
-    print(f"  -------------------------------------------")
+    print("  -------------------------------------------")
     print(f"  Коды ответов:      {dict(status_codes)}")
     if backend_instances:
         print(f"  Распределение реплик: {dict(backend_instances)}")
@@ -128,7 +127,7 @@ def run_high_volume_pdf_benchmark(total_docs: int = 30000, worker_threads: int =
     Бенчмарк конвейера импорта и индексации PDF (симуляция до 30 000 квитанций).
     Замеряет скорость разбора, генерации хешей, записи в БД и дисковый throughput.
     """
-    print(f"\n" + "=" * 70)
+    print("\n" + "=" * 70)
     print(f"🚀 ЗАПУСК ТЕСТА ПРОИЗВОДИТЕЛЬНОСТИ ПАЙПЛАЙНА: {total_docs:,} квитанций | {worker_threads} воркеров")
     print("=" * 70)
 
@@ -138,7 +137,6 @@ def run_high_volume_pdf_benchmark(total_docs: int = 30000, worker_threads: int =
         import fitz
 
     # 1. Регистрация тестовых счетов в БД для чистого замера полного цикла
-    con = get_db()
     with write_transaction() as con:
         con.executemany(
             "INSERT OR IGNORE INTO accounts(account_number, customer_name, address) VALUES (?, ?, ?)",
@@ -199,7 +197,7 @@ def run_high_volume_pdf_benchmark(total_docs: int = 30000, worker_threads: int =
     pdf_per_sec = processed_receipts / total_time if total_time > 0 else 0
     pdf_per_min = pdf_per_sec * 60.0
 
-    print(f"\n📊 [РЕЗУЛЬТАТЫ ОБРАБОТКИ ПАЙПЛАЙНА]")
+    print("\n📊 [РЕЗУЛЬТАТЫ ОБРАБОТКИ ПАЙПЛАЙНА]")
     print(f"  Всего документов обработано: {processed_receipts:,} шт.")
     print(f"  Общее время:                 {total_time:.2f} сек")
     print(f"  Скорость обработки:          {pdf_per_sec:.1f} квит/сек  ({pdf_per_min:,.0f} квит/мин)")

@@ -2,6 +2,7 @@ from .auth_views import (
     render_404_page,
     render_forbidden_page,
     render_login_form,
+    render_payload_too_large_page,
     render_rate_limit_page,
     render_throttled_page,
 )
@@ -26,8 +27,10 @@ __all__ = [
     'render_upload_form',
     'render_reconcile_page',
     'render_login_form',
+    'render_payload_too_large_page',
     'render_rate_limit_page',
     'render_throttled_page',
     'render_404_page',
     'render_forbidden_page'
 ]
+

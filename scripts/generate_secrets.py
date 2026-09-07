@@ -1,103 +1,96 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Production Secrets Generator & Safety Auditor
-- Генерирует криптографически стойкие секреты для Production (.env).
-- Проверяет отсутствие утечек секретов в Git.
+CLI-утилита для генерации криптостойких секретов и хеша пароля администратора.
+Использование:
+    python scripts/generate_secrets.py
+    python scripts/generate_secrets.py --password "МойНовыйПароль2026!"
+    python scripts/generate_secrets.py --write-env
 """
+
 import argparse
-import hashlib
 import os
 import secrets
-import subprocess
 import sys
 
-def generate_strong_password(length: int = 32) -> str:
-    alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(-_=+)"
-    return "".join(secrets.choice(alphabet) for _ in range(length))
+# Добавляем корень проекта в sys.path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
-def generate_hex_token(nbytes: int = 32) -> str:
-    return secrets.token_hex(nbytes)
+from services.security.auth_service import hash_password  # noqa: E402
 
-def check_git_status():
-    """Проверяет, что .env файл не закоммичен и игнорируется git."""
-    res = subprocess.run(["git", "status", "--porcelain", ".env"], capture_output=True, text=True)
-    if ".env" in res.stdout:
-        print("⚠ ВНИМАНИЕ: Файл .env виден git! Проверьте .gitignore.")
-    else:
-        print("✅ .env корректно изолирован от Git.")
+
+def generate_all_secrets(admin_password: str | None = None) -> tuple[str, str, str, str]:
+    """Генерирует криптостойкие ключи и PBKDF2-хеш пароля."""
+    secret_key = secrets.token_hex(32)  # 64 hex символа
+    grpc_api_key = secrets.token_hex(32)  # 64 hex символа
+
+    if not admin_password:
+        admin_password = secrets.token_urlsafe(16)
+
+    admin_hash = hash_password(admin_password)
+    return secret_key, grpc_api_key, admin_password, admin_hash
+
+
+def update_env_file(env_path: str, updates: dict[str, str]) -> None:
+    """Безопасно обновляет или добавляет переменные в .env файл."""
+    lines = []
+    keys_updated = set()
+
+    if os.path.exists(env_path):
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                stripped = line.strip()
+                updated_line = line
+                for k, v in updates.items():
+                    if stripped.startswith(f"{k}=") or stripped.startswith(f"export {k}="):
+                        prefix = "export " if stripped.startswith("export ") else ""
+                        updated_line = f"{prefix}{k}={v}\n"
+                        keys_updated.add(k)
+                        break
+                lines.append(updated_line)
+
+    # Добавляем переменные, которых еще не было в .env
+    for k, v in updates.items():
+        if k not in keys_updated:
+            lines.append(f"{k}={v}\n")
+
+    with open(env_path, 'w', encoding='utf-8') as f:
+        f.writelines(lines)
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Генератор секретов для Production")
-    parser.add_argument("--output", "-o", default=".env", help="Имя выходного файла (по умолчанию .env)")
-    parser.add_argument("--force", "-f", action="store_true", help="Перезаписать существующий файл")
-    parser.add_argument("--admin-pass", help="Пароль администратора (если не указан, будет сгенерирован)")
+    parser = argparse.ArgumentParser(description="Генератор криптостойких секретов для Kvit-App")
+    parser.add_argument("--password", "-p", help="Пароль администратора (если не указан, будет сгенерирован автоматически)")
+    parser.add_argument("--write-env", action="store_true", help="Автоматически записать сгенерированные ключи в .env")
+    parser.add_argument("--env-file", default=os.path.join(BASE_DIR, ".env"), help="Путь к целевому файлу .env")
+
     args = parser.parse_args()
 
-    out_path = os.path.abspath(args.output)
-    if os.path.exists(out_path) and not args.force:
-        print(f"❌ Файл {out_path} уже существует! Используйте флаг --force для перезаписи.")
-        sys.exit(1)
+    secret_key, grpc_api_key, raw_password, admin_hash = generate_all_secrets(args.password)
 
-    secret_key = generate_hex_token(32)
-    grpc_api_key = generate_hex_token(32)
-    db_password = generate_strong_password(32)
-    admin_password = args.admin_pass or generate_strong_password(24)
-    admin_password_hash = hashlib.sha256(admin_password.encode('utf-8')).hexdigest()
+    print("=" * 70)
+    print("🔐 СГЕНЕРИРОВАНЫ КРИПТОСТОЙКИЕ СЕКРЕТЫ ДЛЯ KVIT-APP")
+    print("=" * 70)
+    print("\n1. Пароль администратора (сохраните в надежном месте!):")
+    print(f"   {raw_password}\n")
+    print("2. Переменные для файла .env или production окружения:\n")
+    print(f"SECRET_KEY={secret_key}")
+    print(f"ADMIN_PASSWORD_HASH={admin_hash}")
+    print(f"GRPC_API_KEY={grpc_api_key}")
+    print("\n" + "=" * 70)
 
-    env_content = f"""# ==============================================================================
-# Production Environment Variables (Auto-generated)
-# Created at: {subprocess.run(['date', '/t'], shell=True, capture_output=True, text=True).stdout.strip() or 'Deployment'}
-# ==============================================================================
+    if args.write_env:
+        updates = {
+            "SECRET_KEY": secret_key,
+            "ADMIN_PASSWORD_HASH": admin_hash,
+            "GRPC_API_KEY": grpc_api_key,
+        }
+        update_env_file(args.env_file, updates)
+        print(f"✅ Успешно обновлен файл конфигурации: {args.env_file}")
+    else:
+        print("💡 Подсказка: запустите с флагом --write-env для автоматической записи в .env")
 
-APP_ENV=production
-LOG_LEVEL=INFO
-
-# Секретный ключ для подписи сессий и CSRF
-SECRET_KEY={secret_key}
-
-# Учетные данные администратора
-# (Пароль в открытом виде для справки: {admin_password})
-ADMIN_PASSWORD_HASH={admin_password_hash}
-
-# API ключ для gRPC шлюза
-GRPC_API_KEY={grpc_api_key}
-
-# ────────────────────── PostgreSQL ──────────────────────
-DB_TYPE=postgres
-POSTGRES_DB=kvit_db
-POSTGRES_USER=kvit_admin
-POSTGRES_PASSWORD={db_password}
-DATABASE_URL=postgresql://kvit_admin:{db_password}@postgres:5432/kvit_db
-
-# ────────────────────── Redis & Tasks ───────────────────
-REDIS_ENABLED=true
-REDIS_URL=redis://redis:6379/0
-QUEUE_VISIBILITY_TIMEOUT=600
-
-# ────────────────────── Workers & OCR ───────────────────
-WORKER_COUNT=4
-MAX_OCR_CONCURRENT_WORKERS=2
-
-# ────────────────────── Nginx & X-Accel ─────────────────
-TRUST_PROXY=true
-ENABLE_X_ACCEL_REDIRECT=true
-X_ACCEL_PREFIX=/internal_receipts/
-RECEIPTS_DIR=/app/receipts
-"""
-
-    out_path = os.path.abspath(args.output)
-    parent_dir = os.path.dirname(out_path)
-    if parent_dir:
-        os.makedirs(parent_dir, exist_ok=True)
-
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(env_content)
-
-
-    print(f"✅ Файл секретов успешно сгенерирован: {out_path}")
-    print(f"🔑 Пароль администратора (сохраните в защищенном месте!): {admin_password}")
-    check_git_status()
 
 if __name__ == "__main__":
     main()

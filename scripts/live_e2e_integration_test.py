@@ -6,12 +6,9 @@ Live Production / Staging End-to-End Smoke Test
     python scripts/live_e2e_integration_test.py --url http://127.0.0.1/ --admin-password <password>
 """
 import argparse
-import hashlib
-import io
 import os
 import secrets
 import sys
-import time
 import urllib.parse
 import urllib.request
 
@@ -46,7 +43,7 @@ def create_sample_receipt_pdf(path: str, account: str, period: str = "12.2026") 
 def run_live_e2e_test(base_url: str, admin_pass: str = None):
     base_url = base_url.rstrip('/')
     print("=" * 70)
-    print(f"🚀 ЗАПУСК СКВОЗНОГО E2E ТЕСТИРОВАНИЯ РАЗВЕРНУТОЙ СИСТЕМЫ")
+    print("🚀 ЗАПУСК СКВОЗНОГО E2E ТЕСТИРОВАНИЯ РАЗВЕРНУТОЙ СИСТЕМЫ")
     print(f"🎯 URL: {base_url}")
     print("=" * 70)
 
@@ -71,8 +68,8 @@ def run_live_e2e_test(base_url: str, admin_pass: str = None):
         # 3. Поиск (до загрузки — должен отсутствовать)
         search_url = f"{base_url}/api/search?q={test_account}"
         with urllib.request.urlopen(search_url, timeout=5) as s_resp:
-            s_data = s_resp.read().decode('utf-8')
-            print(f"   ℹ Проверка первичного поиска: OK (счет пока отсутствует)")
+            _ = s_resp.read()
+            print("   ℹ Проверка первичного поиска: OK (счет пока отсутствует)")
 
         print("🎉 [3/5] Базовые сетевые проверки и маршруты функционируют корректно.")
         print("=" * 70)

@@ -46,8 +46,6 @@ data/maintenance.flag
 *.xls
 *.xlsx
 *.csv
-!accounts_all.xls
-!accounts_all.xlsx
 !static/files/*.xls
 !static/files/*.xlsx
 !static/files/*.csv
@@ -60,9 +58,22 @@ benchmarks/
 coverage.xml
 .coverage
 htmlcov/
+requirements-dev.txt
+
+# Scratch & Migration scripts
+scratch/
+scratch_*.js
+polish_*.py
+generate_*.py
+apply_*.py
+inspect_*.py
+check_*.py
+upgrade_*.py
+update_*.py
 
 # Documentation & AI assistant state
 .ai/
 .foryou/
 *.md
 LICENSE
+

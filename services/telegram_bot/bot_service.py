@@ -516,9 +516,9 @@ class TelegramBotService:
             err_str = str(e)
             if 'file is too big' in err_str.lower():
                 msg_text = (
-                    f"⚠️ <b>Файл превышает лимит скачивания Telegram (20 МБ).</b>\n\n"
-                    f"Telegram не отдаёт ботам файлы больше 20 МБ.\n\n"
-                    f"🌐 Загрузите этот реестр через веб-портал: <b>https://krec.kz/upload</b>"
+                    "⚠️ <b>Файл превышает лимит скачивания Telegram (20 МБ).</b>\n\n"
+                    "Telegram не отдаёт ботам файлы больше 20 МБ.\n\n"
+                    "🌐 Загрузите этот реестр через веб-портал: <b>https://krec.kz/upload</b>"
                 )
             else:
                 msg_text = f"❌ <b>Произошла ошибка при обработке файла:</b>\n<code>{html.escape(err_str)}</code>"

@@ -1,10 +1,19 @@
 import os
 
+os.environ['APP_ENV'] = 'testing'
+os.environ['DB_TYPE'] = 'sqlite'
+os.environ['DATABASE_URL'] = ''
+
 try:
     import pytest
 except ImportError:
     pytest = None
 import config
+
+config.APP_ENV = 'testing'
+config.IS_PRODUCTION = False
+config.DB_TYPE = 'sqlite'
+config.DATABASE_URL = ''
 
 
 @pytest.fixture(autouse=True)
@@ -15,6 +24,10 @@ def setup_test_env(monkeypatch, tmp_path):
     os.makedirs(receipts_dir, exist_ok=True)
 
     from services.security.auth_service import hash_password
+    monkeypatch.setattr(config, 'APP_ENV', 'testing')
+    monkeypatch.setattr(config, 'IS_PRODUCTION', False)
+    monkeypatch.setattr(config, 'DB_TYPE', 'sqlite')
+    monkeypatch.setattr(config, 'DATABASE_URL', '')
     monkeypatch.setattr(config, 'DB', db_file)
     monkeypatch.setattr(config, 'RECEIPTS_DIR', receipts_dir)
     monkeypatch.setattr(config, 'SECRET_KEY', 'test_secure_secret_key_for_testing')

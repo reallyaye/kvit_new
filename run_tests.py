@@ -249,8 +249,9 @@ def run_all():
             failed += 1
 
     # 10. test_tasks (Менеджер асинхронных фоновых задач обработки PDF)
-    from tests import test_tasks
     import pathlib
+
+    from tests import test_tasks
     for fn_name in [
         'test_task_manager_submit_and_completion',
         'test_task_manager_get_and_list',

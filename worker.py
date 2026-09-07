@@ -32,7 +32,7 @@ def main():
         config.REDIS_ENABLED = True
 
     logger.info("=" * 70)
-    logger.info(f"🚀 Запуск выделенного фонового воркера PDF/OCR")
+    logger.info("🚀 Запуск выделенного фонового воркера PDF/OCR")
     logger.info(f"   Потоков обработки: {args.workers}")
     logger.info(f"   Бэкенд очереди:    {'Redis (' + config.REDIS_URL + ')' if config.REDIS_ENABLED else 'In-Memory Queue'}")
     logger.info(f"   Лимит OCR потоков: {config.MAX_OCR_CONCURRENT_WORKERS}")

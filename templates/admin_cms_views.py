@@ -856,12 +856,12 @@ def render_admin_users(
         ''')
 
     log_rows = []
-    for l in logs:
-        l_time = time_format(l.get('created_at'))
-        l_user = html.escape(l.get('username', ''))
-        l_ip = html.escape(l.get('ip', ''))
-        l_action = html.escape(l.get('action', ''))
-        l_details = html.escape(l.get('details', ''))
+    for log_item in logs:
+        l_time = time_format(log_item.get('created_at'))
+        l_user = html.escape(log_item.get('username', ''))
+        l_ip = html.escape(log_item.get('ip', ''))
+        l_action = html.escape(log_item.get('action', ''))
+        l_details = html.escape(log_item.get('details', ''))
 
         log_rows.append(f'''
         <tr style="border-bottom:1px solid #f1f5f9;font-size:13px;">
@@ -875,7 +875,7 @@ def render_admin_users(
 
     return f'''
     {_admin_nav_bar('users', role=current_role, username=current_username)}
-    
+
     <div style="display:grid;grid-template-columns:1fr 340px;gap:24px;margin-top:20px;align-items:start;">
         <!-- Левая колонка: Список пользователей и Аудит -->
         <div>
@@ -946,7 +946,7 @@ def render_admin_users(
             </h2>
             <form action="/admin/users/create" method="post">
                 <input type="hidden" name="csrf_token" value="{csrf_token}">
-                
+
                 <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:#334155;">Логин (английские буквы)</label>
                 <input type="text" name="username" placeholder="Например: sbyt_operator1" required style="width:100%;margin-bottom:14px;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;">
 
@@ -994,7 +994,7 @@ def _format_audit_action_badge(action: str) -> str:
     if action in mapping:
         style, ic, color, label = mapping[action]
         return f'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;{style}">{icon(ic, 13, color)} {label}</span>'
-    
+
     return f'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;">{icon("activity", 13, "#475569")} {html.escape(action)}</span>'
 
 

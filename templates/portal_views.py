@@ -2,8 +2,8 @@ import json
 import os
 import urllib.parse
 
-from templates.portal_layout import portal_layout
 from templates.icons import icon
+from templates.portal_layout import portal_layout
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES_FILENAME = 'extracted_portal_pages.json'
@@ -16,7 +16,6 @@ def load_portal_pages():
         PAGES_JSON_PATH,
         os.path.join(os.path.dirname(BASE_DIR), 'data', PAGES_FILENAME),
         os.path.join(os.getcwd(), 'data', PAGES_FILENAME),
-        os.path.join(os.getcwd(), 'kvit_test', 'data', PAGES_FILENAME),
     ]
     for p in paths:
         if os.path.isfile(p):
@@ -32,7 +31,6 @@ def load_documents_registry():
         DOCS_JSON_PATH,
         os.path.join(os.path.dirname(BASE_DIR), 'data', DOCS_FILENAME),
         os.path.join(os.getcwd(), 'data', DOCS_FILENAME),
-        os.path.join(os.getcwd(), 'kvit_test', 'data', DOCS_FILENAME),
     ]
     for p in paths:
         if os.path.isfile(p):
@@ -76,7 +74,6 @@ def render_document(doc: dict, is_admin: bool = False, doc_key: str = '') -> str
     """Рендерит документ/отчет из реестра документов в современном корпоративном стиле."""
     title = doc.get('title', 'ТОО КРЭК — Документ')
     h1 = doc.get('h1', title)
-    desc = doc.get('description', 'ТОО КРЭК')
     date_text = doc.get('date_text', '')
     raw_files = doc.get('files', [])
     raw_iframes = doc.get('iframes', [])
@@ -103,7 +100,7 @@ def render_document(doc: dict, is_admin: bool = False, doc_key: str = '') -> str
                 attachments.append(f)
 
     body_parts = []
-    
+
     # Breadcrumbs & Header с кнопкой возврата к отчетам
     date_meta_html = f'<div class="doc-meta-date">{icon("calendar", 14, "#64748b")} <span>Опубликовано: {date_text}</span></div>' if date_text else ''
     body_parts.append(f'''
@@ -176,7 +173,7 @@ def render_document(doc: dict, is_admin: bool = False, doc_key: str = '') -> str
             fname = os.path.basename(att)
             ext = os.path.splitext(fname)[1].lower()
             file_url = '/files/' + urllib.parse.quote(fname)
-            
+
             # Определение типа файла, бейджей и иконок
             if ext in ('.zip', '.rar', '.7z'):
                 badge_text = 'ZIP-архив'

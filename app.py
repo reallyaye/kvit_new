@@ -12,51 +12,79 @@ from database import migrate_db
 from logger import logger
 from server import AppRequestHandler
 from services.grpc_service import create_grpc_server
-from services.security import auth_service
 from services.tasks import task_manager
 from services.telegram_bot import telegram_bot_service
 from services.websocket import ws_manager
 
+INSECURE_SECRET_VALUES = {
+    'kvit-secret-key-production-change-in-prod',
+    'test_secure_secret_key_for_testing',
+    'secret',
+    'secretkey',
+    'admin',
+    'admin123',
+    'changeme',
+    'default',
+    '12345678',
+    'password',
+}
+
 
 def validate_startup_security() -> None:
     """Проверяет обязательные переменные безопасности перед стартом."""
-    if not config.SECRET_KEY:
-        suggested_secret = secrets.token_hex(32)
-        logger.error("=" * 70)
-        logger.error("❌ ОШИБКА БЕЗОПАСНОСТИ: Переменная SECRET_KEY не задана!")
-        logger.error("Ключ SECRET_KEY обязателен для безопасной криптографической подписи CSRF-токенов и сессий.")
-        logger.error("Сгенерирован криптостойкий ключ для вашего файла .env:\n")
-        logger.error(f"    SECRET_KEY={suggested_secret}\n")
-        logger.error("Добавьте эту строку в файл .env и перезапустите приложение.")
-        logger.error("=" * 70)
-        sys.exit(1)
+    if config.IS_PRODUCTION:
+        errors = []
 
-    if not config.GRPC_API_KEY:
-        suggested_key = secrets.token_hex(32)
-        logger.error("=" * 70)
-        logger.error("❌ ОШИБКА КОНФИГУРАЦИИ: Переменная GRPC_API_KEY не задана!")
-        logger.error("Для безопасности gRPC микросервис не может запускаться без секретного ключа.")
-        logger.error("Сгенерирован криптостойкий ключ для вашего файла .env:\n")
-        logger.error(f"    GRPC_API_KEY={suggested_key}\n")
-        logger.error("Добавьте эту строку в файл .env и перезапустите приложение.")
-        logger.error("=" * 70)
-        sys.exit(1)
+        # 1. SECRET_KEY
+        if not config.SECRET_KEY:
+            errors.append("Переменная SECRET_KEY не задана.")
+        elif len(config.SECRET_KEY) < 32:
+            errors.append("SECRET_KEY слишком короткий (требуется не менее 32 символов).")
+        elif config.SECRET_KEY.lower() in INSECURE_SECRET_VALUES:
+            errors.append("SECRET_KEY использует известное тестовое/небезопасное значение.")
 
-    if not config.ADMIN_PASSWORD_HASH:
-        from services.security.auth_service import hash_password
-        raw_pass = os.environ.get('ADMIN_PASSWORD', '').strip()
-        sample_pass = raw_pass if raw_pass else secrets.token_urlsafe(12)
-        sample_hash = hash_password(sample_pass)
-        logger.error("=" * 70)
-        logger.error("❌ ОШИБКА БЕЗОПАСНОСТИ: Переменная ADMIN_PASSWORD_HASH не задана!")
-        logger.error("Хранение паролей в открытом виде (ADMIN_PASSWORD) запрещено в продакшене.")
-        logger.error("Сгенерирован криптостойкий PBKDF2-хеш для вашего пароля:")
-        if not raw_pass:
-            logger.error(f"\n    Пароль: {sample_pass}")
-        logger.error(f"    ADMIN_PASSWORD_HASH={sample_hash}\n")
-        logger.error("Добавьте строку ADMIN_PASSWORD_HASH в файл .env и перезапустите приложение.")
-        logger.error("=" * 70)
-        sys.exit(1)
+        # 2. ADMIN_PASSWORD_HASH
+        if not config.ADMIN_PASSWORD_HASH:
+            errors.append("Переменная ADMIN_PASSWORD_HASH не задана.")
+        else:
+            parts = config.ADMIN_PASSWORD_HASH.split('$')
+            if len(parts) != 4 or parts[0] != 'pbkdf2_sha256':
+                errors.append("ADMIN_PASSWORD_HASH не соответствует формату pbkdf2_sha256$<iterations>$<salt>$<hash>.")
+            elif config.ADMIN_PASSWORD_HASH == 'pbkdf2_sha256$600000$c39a69e0d844f92023de12de1d2f2c54$63ad158940b48e73648c4d9d2d88099f7e0897529040f53c88ffcae75935daa5':
+                errors.append("ADMIN_PASSWORD_HASH использует стандартный пароль по умолчанию (admin123).")
+
+        # 3. GRPC_API_KEY
+        if not config.GRPC_API_KEY:
+            errors.append("Переменная GRPC_API_KEY не задана.")
+        elif len(config.GRPC_API_KEY) < 16:
+            errors.append("GRPC_API_KEY слишком короткий (требуется не менее 16 символов).")
+        elif config.GRPC_API_KEY.lower() in INSECURE_SECRET_VALUES:
+            errors.append("GRPC_API_KEY использует известное тестовое значение.")
+
+        if errors:
+            logger.error("=" * 70)
+            logger.error("❌ ОШИБКА БЕЗОПАСНОСТИ PRODUCTION-КОНФИГУРАЦИИ:")
+            for err in errors:
+                logger.error(f"  • {err}")
+            logger.error("")
+            logger.error("Для генерации криптостойких секретов выполните команду:")
+            logger.error("    python scripts/generate_secrets.py")
+            logger.error("и укажите полученные значения в файле .env или переменных окружения.")
+            logger.error("=" * 70)
+            sys.exit(1)
+    else:
+        # Development / Test mode: fallback to ephemeral secrets if not specified
+        if not config.SECRET_KEY:
+            config.SECRET_KEY = secrets.token_hex(32)
+            logger.info("ℹ️ [DEV] SECRET_KEY не задан. Сгенерирован временный ключ для текущей dev-сессии.")
+        if not config.GRPC_API_KEY:
+            config.GRPC_API_KEY = 'dev-grpc-insecure-key-local'
+        if not config.ADMIN_PASSWORD_HASH:
+            from services.security.auth_service import hash_password
+            raw_pass = os.environ.get('ADMIN_PASSWORD', 'admin').strip()
+            config.ADMIN_PASSWORD_HASH = hash_password(raw_pass)
+            logger.info("ℹ️ [DEV] ADMIN_PASSWORD_HASH не задан. Используется dev-пароль.")
+
 
 
 def get_local_ip() -> str:
@@ -123,7 +151,7 @@ def main():
     grpc_server = create_grpc_server(host=GRPC_HOST, port=GRPC_PORT)
     grpc_server.start()
 
-    if config.TELEGRAM_ENABLED:
+    if config.TELEGRAM_ENABLED and getattr(config, 'RUN_EMBEDDED_BOT', True):
         telegram_bot_service.start_in_thread()
 
     ThreadingHTTPServer.allow_reuse_address = True
@@ -134,20 +162,27 @@ def main():
     local_ip = get_local_ip()
 
     logger.info(f"Веб-сервер ({protocol.upper()}):     {protocol}://{HOST}:{PORT}")
-    if HOST in ('0.0.0.0', '::') and local_ip not in ('127.0.0.1', '0.0.0.0'):
+    if HOST in ('0.0.0.0', '::') and local_ip not in ('127.0.0.1', '0.0.0.0'):  # nosec B104
         logger.info(f"  ➜ Локально на этом ПК:   {protocol}://localhost:{PORT}")
         logger.info(f"  ➜ С других ПК в сети:    {protocol}://{local_ip}:{PORT}")
     logger.info(f"WebSocket шлюз:      {'wss' if is_tls else 'ws'}://{HOST}:{PORT}/ws (Async Multiplexed)")
     logger.info(f"gRPC микросервис:    {GRPC_HOST}:{GRPC_PORT} (TLS={'ON' if config.GRPC_USE_TLS else 'OFF'})")
-    if config.TELEGRAM_ENABLED:
-        logger.info("Telegram-бот:        ВКЛЮЧЕН (фоновый поток Long Polling)")
+    if config.TELEGRAM_ENABLED and getattr(config, 'RUN_EMBEDDED_BOT', True):
+        logger.info("Telegram-бот:        ВКЛЮЧЕН (встроенный фоновый поток Long Polling)")
+    elif config.TELEGRAM_ENABLED:
+        logger.info("Telegram-бот:        ВЫКЛЮЧЕН в веб-сервере (запуск через отдельный сервис bot.py)")
     else:
         logger.info("Telegram-бот:        ВЫКЛЮЧЕН (не задан TELEGRAM_BOT_TOKEN в .env)")
     if config.TRUST_PROXY:
         logger.info("Режим Reverse Proxy: TLS терминируется внешним прокси (Nginx/IIS/Traefik).")
     elif not is_tls:
         logger.info("Архитектура: сервис ожидает Reverse Proxy (Nginx/IIS) с TLS-терминацией перед собой.")
-    task_manager.start()
+
+    if getattr(config, 'RUN_EMBEDDED_WORKER', True):
+        task_manager.start()
+        logger.info("Воркер задач:        ВКЛЮЧЕН (встроенный пул потоков)")
+    else:
+        logger.info("Воркер задач:        ВЫКЛЮЧЕН в веб-сервере (обработка через отдельный worker-контейнер)")
 
     try:
         run_http_loop(http_server)
@@ -161,9 +196,11 @@ def main():
         except Exception:
             pass
         ws_manager.stop()
-        telegram_bot_service.stop()
+        if config.TELEGRAM_ENABLED and getattr(config, 'RUN_EMBEDDED_BOT', True):
+            telegram_bot_service.stop()
         grpc_server.stop(grace=1)
-        task_manager.stop()
+        if getattr(config, 'RUN_EMBEDDED_WORKER', True):
+            task_manager.stop()
         logger.info("Все серверы успешно остановлены.")
 
 

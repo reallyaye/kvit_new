@@ -9,6 +9,7 @@
 - Конвейер хранения incoming → processing → receipts / failed
 - Мониторинг скорости обработки (files/sec) и расчет ETA
 """
+import json
 import os
 import secrets
 import shutil
@@ -154,13 +155,29 @@ class TaskQueueManager:
     """Менеджер очереди задач, координирующий бэкенд, воркеры и мониторинг."""
 
     def __init__(self, backend: Optional[BaseTaskQueueBackend] = None, max_workers: Optional[int] = None):
-        self.backend = backend or create_task_queue_backend()
+        self._backend = backend
         self.max_workers = max_workers or getattr(config, 'WORKER_COUNT', 4)
         self._workers: List[threading.Thread] = []
         self._local_tasks: Dict[str, BackgroundTask] = {}
         self._lock = threading.Lock()
         self._running = False
         self._recovery_timer: Optional[threading.Thread] = None
+
+    @property
+    def backend(self) -> BaseTaskQueueBackend:
+        if self._backend is None:
+            self._backend = create_task_queue_backend()
+        return self._backend
+
+    @backend.setter
+    def backend(self, val: BaseTaskQueueBackend):
+        self._backend = val
+
+    @property
+    def active_workers(self) -> int:
+        """Возвращает количество активных (живых) рабочих потоков."""
+        with self._lock:
+            return len([w for w in self._workers if w.is_alive()]) if self._running else 0
 
     def start(self):
         """Запускает рабочие потоки обработки очереди и монитор зависших задач."""
@@ -189,7 +206,34 @@ class TaskQueueManager:
             )
             self._recovery_timer.start()
 
+            # Фоновый поток Heartbeat для мониторинга живых воркеров
+            self._heartbeat_timer = threading.Thread(
+                target=self._heartbeat_loop,
+                name="TaskWorkerHeartbeat",
+                daemon=True
+            )
+            self._heartbeat_timer.start()
+
             logger.info(f"[TaskManager] Запущено {self.max_workers} воркеров очереди задач.")
+
+    def _heartbeat_loop(self):
+        """Периодически сообщает о работоспособности воркера в Redis (TTL 25с)."""
+        worker_id = f"worker_{os.getpid()}_{secrets.token_hex(4)}"
+        while self._running:
+            try:
+                if hasattr(self.backend, '_client') and self.backend._client:
+                    key = f"kvit:worker:heartbeat:{worker_id}"
+                    data = json.dumps({
+                        'worker_id': worker_id,
+                        'pid': os.getpid(),
+                        'active_workers': self.active_workers,
+                        'max_workers': self.max_workers,
+                        'timestamp': time.time()
+                    })
+                    self.backend._client.set(key, data, ex=25)
+            except Exception as e:
+                logger.debug(f"[TaskManager] Heartbeat write failed: {e}")
+            time.sleep(10.0)
 
     def stop(self):
         """Останавливает рабочие потоки очереди."""
@@ -263,7 +307,7 @@ class TaskQueueManager:
             'queue_length': self.backend.queue_length,
             'processing_queue_length': getattr(self.backend, 'processing_length', 0),
             'dlq_length': getattr(self.backend, 'dlq_length', 0),
-            'active_workers': len([w for w in self._workers if w.is_alive()]) if self._running else 0,
+            'active_workers': self.active_workers,
             'total_jobs': len(all_jobs),
             'pending_count': 0,
             'processing_count': 0,
@@ -535,6 +579,7 @@ class TaskQueueManager:
         """Отправляет отчёт о завершении задачи в Telegram напрямую из воркера."""
         try:
             import html
+
             import config
             if not config.TELEGRAM_BOT_TOKEN or not task.meta:
                 return

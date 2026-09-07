@@ -4,6 +4,7 @@ from concurrent import futures
 
 try:
     import grpc
+
     from proto import receipts_pb2, receipts_pb2_grpc
     GRPC_AVAILABLE = True
 except ImportError:
