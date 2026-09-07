@@ -1,14 +1,9 @@
 # -*- coding: utf-8 -*-
-import io
-import os
-import tempfile
-import urllib.parse
 from unittest import mock
 
-import config
 from services.portal_cms import portal_cms
 from services.security import auth_service
-from templates.portal_views import render_page, render_document
+from templates.portal_views import render_document, render_page
 
 
 def test_portal_cms_list_and_get_pages():

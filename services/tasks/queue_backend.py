@@ -10,10 +10,12 @@
 import json
 import logging
 import queue
+import re
 import threading
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import config
 
@@ -555,29 +557,68 @@ class RedisTaskQueueBackend(BaseTaskQueueBackend):
             return 0
 
 
+def mask_redis_url(url: str) -> str:
+    """Маскирует пароль в строке подключения Redis для безопасного логирования и исключений."""
+    if not url:
+        return ''
+    try:
+        parsed = urlsplit(url)
+        if parsed.password:
+            user = parsed.username or ''
+            host = parsed.hostname or ''
+            netloc = f"{user}:***@{host}"
+            if parsed.port:
+                netloc += f":{parsed.port}"
+            return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+    except Exception:
+        pass
+    return re.sub(r'://([^:]+):([^@]+)@', r'://\1:***@', url)
+
+
 def create_task_queue_backend() -> BaseTaskQueueBackend:
     """
     Фабрика создания бэкенда очереди задач.
-    - Если настроен и доступен Redis -> используется RedisTaskQueueBackend.
-    - В противном случае используется встроенная высокопроизводительная MemoryTaskQueueBackend.
+    - Production: строго распределенный Redis (при недоступности или ошибке подключения - Fail-Fast).
+    - Development / Testing: если Redis недоступен, безопасный откат на MemoryTaskQueueBackend.
     """
-    redis_enabled = getattr(config, 'REDIS_ENABLED', False)
+    is_prod = getattr(config, 'IS_PRODUCTION', False)
     redis_url = getattr(config, 'REDIS_URL', '').strip()
+    masked_url = mask_redis_url(redis_url)
+    redis_enabled = getattr(config, 'REDIS_ENABLED', True if redis_url else False)
 
-    if redis_enabled and redis_url and REDIS_LIB_AVAILABLE:
+    if is_prod:
+        if not redis_url:
+            raise RuntimeError("❌ КРИТИЧЕСКАЯ ОШИБКА: Production окружение требует настроенного Redis (переменная REDIS_URL не задана)!")
+        if not REDIS_LIB_AVAILABLE:
+            raise RuntimeError("❌ КРИТИЧЕСКАЯ ОШИБКА: Production окружение требует доступного Redis, но библиотека 'redis' не установлена в Python!")
         try:
-            backend = RedisTaskQueueBackend(redis_url, config.REDIS_SOCKET_TIMEOUT)
+            backend = RedisTaskQueueBackend(redis_url, getattr(config, 'REDIS_SOCKET_TIMEOUT', 5.0))
             if backend.ping():
-                logger.info(f"[TaskQueue] Инициализирован распределенный Redis бэкенд ({redis_url})")
+                logger.info(f"[TaskQueue] Инициализирован распределенный Redis бэкенд ({masked_url})")
                 return backend
             else:
-                logger.warning(f"[TaskQueue] Redis ({redis_url}) недоступен. Переключение на встроенную In-Memory очередь.")
+                raise RuntimeError(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Production окружение требует доступного Redis ({masked_url}), но узел не отвечает на PING!")
         except Exception as e:
-            logger.warning(f"[TaskQueue] Сбой подключения к Redis: {e}. Переключение на встроенную In-Memory очередь.")
+            if isinstance(e, RuntimeError) and "КРИТИЧЕСКАЯ ОШИБКА" in str(e):
+                raise
+            raise RuntimeError(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Production окружение требует доступного Redis ({masked_url}), но подключение не удалось: {e}") from e
+
+    # Development / Testing fallback
+    if redis_enabled and redis_url and REDIS_LIB_AVAILABLE:
+        try:
+            backend = RedisTaskQueueBackend(redis_url, getattr(config, 'REDIS_SOCKET_TIMEOUT', 5.0))
+            if backend.ping():
+                logger.info(f"[TaskQueue] Инициализирован распределенный Redis бэкенд ({masked_url})")
+                return backend
+            else:
+                logger.warning(f"[TaskQueue] Redis ({masked_url}) недоступен. Переключение на встроенную In-Memory очередь.")
+        except Exception as e:
+            logger.warning(f"[TaskQueue] Сбой подключения к Redis ({masked_url}): {e}. Переключение на встроенную In-Memory очередь.")
     elif redis_enabled and not REDIS_LIB_AVAILABLE:
         logger.warning("[TaskQueue] Библиотека 'redis' не установлена в Python. Переключение на встроенную In-Memory очередь.")
 
     logger.info("[TaskQueue] Инициализирована встроенная MemoryTaskQueueBackend очередь.")
     return MemoryTaskQueueBackend()
+
 
 

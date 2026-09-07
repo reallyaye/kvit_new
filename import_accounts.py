@@ -18,16 +18,14 @@
 
 import argparse
 import csv
-import io
 import json
 import os
 import re
 import sqlite3
 import sys
 import time
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Tuple
 
-import config
 from database.connection import get_db, is_postgres_configured, write_transaction
 from database.migrations import migrate_db
 from logger import logger
@@ -170,10 +168,10 @@ def read_csv_records(file_path: str) -> Generator[Dict[str, str], None, None]:
             if not row or not any(row):
                 continue
 
-            def extract(field: str) -> str:
+            def extract(field: str, r=row) -> str:
                 idx = mapping.get(field)
-                if idx is not None and idx < len(row):
-                    val = row[idx]
+                if idx is not None and idx < len(r):
+                    val = r[idx]
                     return str(val).strip() if val is not None else ''
                 return ''
 
@@ -194,10 +192,14 @@ def read_csv_records(file_path: str) -> Generator[Dict[str, str], None, None]:
             # Если адрес не задан, но есть составные части — собираем
             if not addr and (street or building or flat):
                 parts = []
-                if street: parts.append(street)
-                if building: parts.append(f"д. {building}")
-                if corpus: parts.append(f"корп. {corpus}")
-                if flat: parts.append(f"кв. {flat}")
+                if street:
+                    parts.append(street)
+                if building:
+                    parts.append(f"д. {building}")
+                if corpus:
+                    parts.append(f"корп. {corpus}")
+                if flat:
+                    parts.append(f"кв. {flat}")
                 addr = ", ".join(parts)
 
             yield {
@@ -235,10 +237,10 @@ def read_excel_records(file_path: str) -> Generator[Dict[str, str], None, None]:
                 if not row or not any(row):
                     continue
 
-                def get_val(field: str) -> str:
+                def get_val(field: str, r=row) -> str:
                     idx = mapping.get(field)
-                    if idx is not None and idx < len(row):
-                        v = row[idx]
+                    if idx is not None and idx < len(r):
+                        v = r[idx]
                         if v is None:
                             return ''
                         if isinstance(v, float) and v.is_integer():
@@ -261,8 +263,8 @@ def read_excel_records(file_path: str) -> Generator[Dict[str, str], None, None]:
                     'organization': get_val('organization')
                 }
             book.close()
-        except ImportError:
-            raise RuntimeError("Для чтения .xlsx файлов установите: pip install openpyxl")
+        except ImportError as err:
+            raise RuntimeError("Для чтения .xlsx файлов установите: pip install openpyxl") from err
 
     elif ext == '.xls':
         try:
@@ -278,10 +280,10 @@ def read_excel_records(file_path: str) -> Generator[Dict[str, str], None, None]:
                 mapping['account_number'] = 0
 
             for r_idx in range(1, sheet.nrows):
-                def get_val(field: str) -> str:
+                def get_val(field: str, r=r_idx) -> str:
                     idx = mapping.get(field)
                     if idx is not None and idx < sheet.ncols:
-                        v = sheet.cell_value(r_idx, idx)
+                        v = sheet.cell_value(r, idx)
                         if isinstance(v, float) and v.is_integer():
                             return str(int(v))
                         return str(v).strip()
@@ -301,8 +303,8 @@ def read_excel_records(file_path: str) -> Generator[Dict[str, str], None, None]:
                     'district': get_val('district'),
                     'organization': get_val('organization')
                 }
-        except ImportError:
-            raise RuntimeError("Для чтения .xls файлов установите: pip install xlrd")
+        except ImportError as err:
+            raise RuntimeError("Для чтения .xls файлов установите: pip install xlrd") from err
 
 
 def read_json_records(file_path: str) -> Generator[Dict[str, str], None, None]:

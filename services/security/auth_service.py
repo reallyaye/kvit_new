@@ -6,6 +6,8 @@ from typing import Optional
 
 import config
 from config import SESSION_LIFETIME
+from database.connection import get_db, write_transaction
+from logger import logger
 from services.security.session_store import BaseSessionStore, DatabaseSessionStore
 
 
@@ -35,10 +37,6 @@ def verify_password_hash(password: str, stored_hash: str) -> bool:
         return secrets.compare_digest(dk.hex(), expected_hex)
     except Exception:
         return False
-
-
-from database.connection import get_db, write_transaction
-from logger import logger
 
 
 class AuthService:
@@ -243,7 +241,7 @@ class AuthService:
             raise ValueError("Новый пароль должен содержать не менее 6 символов")
         pwd_hash = hash_password(new_password)
         with write_transaction() as con:
-            res = con.execute("UPDATE users SET password_hash = ? WHERE LOWER(username) = LOWER(?)", (pwd_hash, username.strip()))
+            con.execute("UPDATE users SET password_hash = ? WHERE LOWER(username) = LOWER(?)", (pwd_hash, username.strip()))
             return True
 
     def delete_user(self, username: str) -> bool:
@@ -333,11 +331,11 @@ class AuthService:
             logins = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGIN'").fetchone()[0] or 0
             failed_logins = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGIN_FAILED'").fetchone()[0] or 0
             uploads = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'UPLOAD_RECEIPTS'").fetchone()[0] or 0
-            
+
             # Уникальные пользователи и действия для выпадающих списков фильтра
             user_rows = con.execute("SELECT DISTINCT username FROM audit_logs WHERE username IS NOT NULL AND username != '' ORDER BY username").fetchall()
             action_rows = con.execute("SELECT DISTINCT action FROM audit_logs WHERE action IS NOT NULL AND action != '' ORDER BY action").fetchall()
-            
+
             return {
                 'total': total,
                 'logins': logins,

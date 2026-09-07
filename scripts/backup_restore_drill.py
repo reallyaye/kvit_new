@@ -10,11 +10,11 @@ import argparse
 import os
 import sqlite3
 import subprocess
-import sys
 import time
 
 import config
 from database.connection import get_db, is_postgres_configured
+
 
 def get_db_metrics(con):
     total_accounts = con.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
@@ -49,7 +49,7 @@ def run_sqlite_backup_drill(backup_dir: str):
     src_con.close()
 
     print(f"✅ Онлайн-бэкап создан ({os.path.getsize(backup_file)} байт).")
-    print(f"🔍 [SQLite] Проверка восстановления в изолированной среде...")
+    print("🔍 [SQLite] Проверка восстановления в изолированной среде...")
 
     restore_con = sqlite3.connect(backup_file)
     restore_con.row_factory = sqlite3.Row
@@ -59,10 +59,10 @@ def run_sqlite_backup_drill(backup_dir: str):
     assert orig_metrics["accounts"] == restored_metrics["accounts"], "Несовпадение счетов!"
     assert orig_metrics["receipts"] == restored_metrics["receipts"], "Несовпадение квитанций!"
 
-    print(f"🎉 Проверка восстановления успешно пройдена:")
+    print("🎉 Проверка восстановления успешно пройдена:")
     print(f"   - Счетов: {restored_metrics['accounts']}")
     print(f"   - Квитанций: {restored_metrics['receipts']}")
-    print(f"   - Целостность: 100% OK")
+    print("   - Целостность: 100% OK")
 
 def run_postgres_backup_drill(backup_dir: str):
     safe_dir = _safe_resolve_backup_dir(backup_dir)

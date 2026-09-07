@@ -4,17 +4,11 @@
 1. Аварийное восстановление БД: онлайн-бэкап -> повреждение текущей БД -> восстановление -> сверка счетов и квитанций.
 2. Авария воркера / потеря связи с Redis: задача в статусе PROCESSING перехватывается через reclaim и успешно завершается.
 """
-import os
 import sqlite3
-import tempfile
 import time
-import pytest
 
-import config
 from database.connection import get_db
-from database.migrations import migrate_db
 from services.tasks.queue_backend import MemoryTaskQueueBackend
-from services.tasks.task_manager import TaskQueueManager, TaskStatus
 
 
 def test_database_backup_and_disaster_restore(tmp_path):

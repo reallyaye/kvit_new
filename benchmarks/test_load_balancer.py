@@ -12,6 +12,7 @@ import concurrent.futures
 import time
 import urllib.request
 
+
 def probe_instance(url: str) -> str:
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'KvitLoadBalancerAuditor/1.0'})

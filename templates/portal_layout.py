@@ -10,7 +10,7 @@ def _asset_v(rel_path: str) -> str:
         full_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', rel_path.lstrip('/'))
         return str(int(os.path.getmtime(full_path)))
     except Exception:
-        return '20260901'
+        return '20260903'
 
 
 def portal_layout(
@@ -27,6 +27,7 @@ def portal_layout(
     style_v = _asset_v('css/style.css')
     heroui_v = _asset_v('css/heroui.css')
     sw_v = _asset_v('sw.js')
+    canonical_path = '/' if current_slug in ('home', '', None) else f'/{current_slug}'
 
     admin_bar_html = ''
     if is_admin:
@@ -43,7 +44,7 @@ def portal_layout(
                     {icon('shield', 14, '#38bdf8')} Панель управления
                 </span>
                 <a href="/admin/pages" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
-                    {icon('file_text', 14, '#94a3b8')} Страницы
+                    {icon('layout', 14, '#94a3b8')} Страницы
                 </a>
                 <a href="/admin/media" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
                     {icon('image', 14, '#94a3b8')} Медиа
@@ -80,11 +81,36 @@ def portal_layout(
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="description" content="{escaped_desc}" />
 <meta name="robots" content="index,follow">
+<link rel="canonical" href="https://krec.kz{canonical_path}">
+<meta property="og:title" content="{escaped_title}">
+<meta property="og:description" content="{escaped_desc}">
+<meta property="og:url" content="https://krec.kz{canonical_path}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ТОО «КРЭК»">
+<meta property="og:image" content="https://krec.kz/images/logo.png">
 <title>{escaped_title}</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="stylesheet" href="/css/style.css?v={style_v}" type="text/css" />
 <link rel="stylesheet" href="/css/heroui.css?v={heroui_v}" type="text/css" />
 <link rel="shortcut icon" href="/favicon.ico?v={style_v}" type="image/vnd.microsoft.icon">
+<script type="application/ld+json">
+{{
+  "@context": "https://schema.org",
+  "@type": "GovernmentService",
+  "name": "ТОО «Карагандинская Региональная Энергетическая Компания»",
+  "alternateName": "ТОО «КРЭК»",
+  "url": "https://krec.kz",
+  "logo": "https://krec.kz/images/logo.png",
+  "telephone": "+7-7212-90-03-58",
+  "address": {{
+    "@type": "PostalAddress",
+    "streetAddress": "108 уч. квартал, строение 7",
+    "addressLocality": "Караганда",
+    "addressRegion": "Карагандинская область",
+    "addressCountry": "KZ"
+  }}
+}}
+</script>
 <script>
 if ('serviceWorker' in navigator) {{
     window.addEventListener('load', function() {{
@@ -135,247 +161,312 @@ if ('serviceWorker' in navigator) {{
 
 <div id="wrap">
 
-<!-- ===== ШАПКА САЙТА ===== -->
-<div id="header">
-    <a href="/" class="header-brand">
-        <img src="/images/logo.png?v=8" alt="ТОО КРЭК" class="header-logo-img" />
-        <div class="header-titles">
-            <span class="header-title-main">ТОО &laquo;КРЭК&raquo;</span>
-            <span class="header-title-sub">Карагандинская Региональная Энергетическая Компания</span>
-        </div>
-    </a>
-    <div class="header-right-actions">
-        <a href="/kvit/" class="header-kvit-link">
-            <svg class="svg-icon-stroke" width="16" height="16" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            <span>Квитанции онлайн</span>
-        </a>
-        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Открыть навигационное меню" aria-expanded="false" onclick="toggleMobileNav(event)">
-            <span class="burger-icon-bars">
-                <span></span><span></span><span></span>
-            </span>
-            <span class="mobile-nav-toggle-text">Меню</span>
-        </button>
-    </div>
-</div>
-
-<div class="mobile-nav-backdrop" id="mobileNavBackdrop" onclick="closeMobileNav()"></div>
-
-<!-- ===== НАВИГАЦИОННОЕ МЕНЮ (НА ПК - ПОЛОСА, НА ТЕЛЕФОНЕ - ВЫПАДАЮЩЕЕ МЕНЮ) ===== -->
-<div class="nav" id="portalNav">
-    <ul>
-        <li>
-            <a href="/" class="{'active' if active_nav == 'home' else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                <span>Главная</span>
-            </a>
-        </li>
-
-        <li class="has-submenu">
-            <div class="nav-item-row" onclick="toggleMobileSubmenu(event, this)">
-                <a href="/reports" class="{'active' if active_nav == 'reports' else ''}" onclick="handleSubmenuParentClick(event, this)">
-                    <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                    <span>Отчеты</span>
-                </a>
-                <button type="button" class="submenu-toggle-btn" aria-label="Раскрыть или скрыть подменю" onclick="toggleMobileSubmenu(event, this)">
-                    {icon('chevron_down', 14, '#94a3b8')}
-                </button>
+<!-- ===== ЕДИНЫЙ СОВРЕМЕННЫЙ STICKY HEADER ===== -->
+<header class="krec-header" id="krecHeader">
+    <div class="krec-header-container">
+        <a href="/" class="krec-brand">
+            <img src="/images/logo.png?v=8" alt="ТОО КРЭК" class="krec-logo-img" />
+            <div class="krec-brand-text">
+                <span class="krec-brand-title">ТОО &laquo;КРЭК&raquo;</span>
+                <span class="krec-brand-subtitle">Электрические сети Карагандинской области</span>
             </div>
-            <div class="underblock mega-menu-reports">
-                <div class="mega-column">
-                    <div class="mega-year-pill">
-                        {icon('calendar', 13, '#38bdf8')} 2026 год
-                    </div>
-                    <div class="mega-section-label">
-                        {icon('trending_up', 12, '#94a3b8')} Инвестиционная программа
-                    </div>
-                    <ul class="mega-list">
-                        <li><a href="/invest-1-2026.php">{icon('file_text', 13, '#38bdf8')} <span>Отчет ИП 1 квартал 2026</span></a></li>
-                        <li><a href="/invest-2-2026.php">{icon('file_text', 13, '#38bdf8')} <span>Отчет ИП 2 квартал 2026</span></a></li>
-                    </ul>
-                    <div class="mega-section-label" style="margin-top:10px;">
-                        {icon('circle_dollar', 12, '#94a3b8')} Тарифная смета
-                    </div>
-                    <ul class="mega-list">
-                        <li><a href="/isp_ts_2026_1.php">{icon('file_text', 13, '#38bdf8')} <span>Отчет ТС 1 полугодие 2026</span></a></li>
-                    </ul>
-                </div>
+        </a>
 
-                <div class="mega-column">
-                    <div class="mega-year-pill">
-                        {icon('calendar', 13, '#38bdf8')} 2025 год
-                    </div>
-                    <div class="mega-section-label">
-                        {icon('trending_up', 12, '#94a3b8')} Инвестиционная программа
-                    </div>
-                    <ul class="mega-list">
-                        <li><a href="/invest-1-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 1 квартал 2025</span></a></li>
-                        <li><a href="/invest-2-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 2 квартал 2025</span></a></li>
-                        <li><a href="/invest-3-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 3 квартал 2025</span></a></li>
-                        <li><a href="/invest-4-2025.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 4 квартал 2025</span></a></li>
-                    </ul>
-                    <div class="mega-section-label" style="margin-top:10px;">
-                        {icon('circle_dollar', 12, '#94a3b8')} Тарифная смета
-                    </div>
-                    <ul class="mega-list">
-                        <li><a href="/isp_ts_2025_1.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ТС 1 полугодие 2025</span></a></li>
-                    </ul>
-                </div>
-
-                <div class="mega-column">
-                    <div class="mega-year-pill">
-                        {icon('calendar', 13, '#38bdf8')} 2024 год
-                    </div>
-                    <div class="mega-section-label">
-                        {icon('trending_up', 12, '#94a3b8')} Инвестиционная программа
-                    </div>
-                    <ul class="mega-list">
-                        <li><a href="/invest-1-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 1 квартал 2024</span></a></li>
-                        <li><a href="/invest-2-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 2 квартал 2024</span></a></li>
-                        <li><a href="/invest-3-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 3 квартал 2024</span></a></li>
-                        <li><a href="/invest-4-2024.php">{icon('file_text', 13, '#94a3b8')} <span>Отчет ИП 4 квартал 2024</span></a></li>
-                    </ul>
-                </div>
-
-                <div class="mega-column mega-column-archive">
-                    <div class="mega-archive-card">
-                        <div class="mega-archive-badge">{icon('folder', 13, '#38bdf8')} Архив</div>
-                        <div class="mega-archive-title">Отчетность прошлых лет</div>
-                        <p class="mega-archive-desc">Полный архив отчетов по инвестпрограммам и тарифным сметам за период 2014–2026 гг.</p>
-                        <a href="/reports" class="mega-archive-btn">
-                            <span>Все отчеты</span>
-                            {icon('chevron_right', 13, '#fff')}
+        <!-- Основная навигация -->
+        <nav class="krec-nav" id="portalNav" aria-label="Основная навигация">
+            <div class="krec-nav-mobile-header">
+                <span class="krec-nav-mobile-title">Меню портала</span>
+                <button type="button" class="krec-nav-close-btn" aria-label="Закрыть меню" onclick="closeMobileNav()">&times;</button>
+            </div>
+            <ul class="krec-nav-list">
+                <li class="krec-nav-item has-dropdown">
+                    <a href="/consumers" class="krec-nav-link {'active' if active_nav in ('consumers', 'potreb', 'price', 'tarif', 'pd_byt_potr') else ''}">
+                        <span>Потребителям</span>
+                        <svg class="nav-chevron" width="10" height="10" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </a>
+                    <div class="krec-dropdown">
+                        <a href="/kvit/" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Электронная квитанция</div>
+                                <div class="krec-dd-desc">Поиск, просмотр и скачивание PDF</div>
+                            </div>
+                        </a>
+                        <a href="/tarif" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><circle cx="12" cy="12" r="10"/><line x1="7" y1="6.5" x2="17" y2="6.5"/><line x1="7" y1="10.5" x2="17" y2="10.5"/><line x1="12" y1="10.5" x2="12" y2="18.5"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Тариф на передачу э/э</div>
+                                <div class="krec-dd-desc">Регулируемый тариф (Приказ № 77-ОД)</div>
+                            </div>
+                        </a>
+                        <a href="/price" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Цены на электроснабжение</div>
+                                <div class="krec-dd-desc">Розничные цены для потребителей районов</div>
+                            </div>
+                        </a>
+                        <a href="/pd_byt_potr" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Типовой публичный договор</div>
+                                <div class="krec-dd-desc">Договор электроснабжения</div>
+                            </div>
+                        </a>
+                        <a href="/appeals" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Обратиться в КРЭК</div>
+                                <div class="krec-dd-desc">Электронная приемная обращений</div>
+                            </div>
+                        </a>
+                        <a href="/notices" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Объявления и новости</div>
+                                <div class="krec-dd-desc">Официальные сообщения компании</div>
+                            </div>
                         </a>
                     </div>
-                </div>
-            </div>
-        </li>
+                </li>
 
-        <li class="has-submenu">
-            <div class="nav-item-row" onclick="toggleMobileSubmenu(event, this)">
-                <a href="/load" class="{'active' if active_nav in ('load', 'ktp', 'lines10kv', 'line') else ''}" onclick="handleSubmenuParentClick(event, this)">
-                    <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                    <span>Загрузка ПС</span>
-                </a>
-                <button type="button" class="submenu-toggle-btn" aria-label="Раскрыть или скрыть подменю" onclick="toggleMobileSubmenu(event, this)">
-                    {icon('chevron_down', 14, '#94a3b8')}
-                </button>
-            </div>
-            <div class="underblock mega-menu-simple">
-                <div class="mega-simple-column">
-                    <div class="mega-simple-title">
-                        {icon('zap', 14, '#38bdf8')} Пропускная способность сетей
+                <li class="krec-nav-item has-dropdown">
+                    <a href="/tu" class="krec-nav-link {'active' if active_nav in ('tu', 'connection', 'lists') else ''}">
+                        <span>Подключение</span>
+                        <svg class="nav-chevron" width="10" height="10" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </a>
+                    <div class="krec-dropdown">
+                        <a href="/tu" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Технические условия</div>
+                                <div class="krec-dd-desc">Порядок подключения и этапы</div>
+                            </div>
+                        </a>
+                        <a href="/lists" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Необходимые документы</div>
+                                <div class="krec-dd-desc">Checklist для физлиц, юрлиц и ИП</div>
+                            </div>
+                        </a>
+                        <a href="https://gov.ggk.kz" target="_blank" rel="noopener noreferrer" class="krec-dropdown-item highlight-portal">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Портал АИС ГГК (gov.ggk.kz) ↗</div>
+                                <div class="krec-dd-desc">Подача заявки онлайн с ЭЦП</div>
+                            </div>
+                        </a>
                     </div>
-                    <ul class="mega-list mega-simple-list">
-                        <li>
-                            <a href="/load">
-                                <span class="menu-icon-box">{icon('hard_drive', 14, '#38bdf8')}</span>
-                                <span class="menu-text-wrap">
-                                    <span class="menu-link-title">Подстанции 35-110 кВ</span>
-                                    <span class="menu-link-desc">Загрузка и резерв мощности трансформаторов</span>
-                                </span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="/line">
-                                <span class="menu-icon-box">{icon('activity', 14, '#38bdf8')}</span>
-                                <span class="menu-text-wrap">
-                                    <span class="menu-link-title">Линии 35-110 кВ</span>
-                                    <span class="menu-link-desc">Высоковольтные воздушные линии электропередач</span>
-                                </span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="/lines10kv">
-                                <span class="menu-icon-box">{icon('zap', 14, '#38bdf8')}</span>
-                                <span class="menu-text-wrap">
-                                    <span class="menu-link-title">Линии 6-10 кВ</span>
-                                    <span class="menu-link-desc">Распределительные кабельные и воздушные сети</span>
-                                </span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="/ktp">
-                                <span class="menu-icon-box">{icon('grid', 14, '#38bdf8')}</span>
-                                <span class="menu-text-wrap">
-                                    <span class="menu-link-title">КТП 6(10) кВ</span>
-                                    <span class="menu-link-desc">Комплектные трансформаторные подстанции</span>
-                                </span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </li>
+                </li>
 
-        <li>
-            <a href="/tarif" class="{'active' if active_nav == 'tarif' else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="6" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="18"/></svg>
-                <span>Тарифы</span>
-            </a>
-        </li>
+                <li class="krec-nav-item has-dropdown">
+                    <a href="/load" class="krec-nav-link {'active' if active_nav in ('load', 'line', 'lines10kv', 'ktp') else ''}">
+                        <span>Сеть</span>
+                        <svg class="nav-chevron" width="10" height="10" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </a>
+                    <div class="krec-dropdown">
+                        <a href="/load" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Подстанции 35–110 кВ</div>
+                                <div class="krec-dd-desc">Загрузка и резерв мощности</div>
+                            </div>
+                        </a>
+                        <a href="/line" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Линии 35–110 кВ</div>
+                                <div class="krec-dd-desc">Высоковольтные сети</div>
+                            </div>
+                        </a>
+                        <a href="/lines10kv" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Линии 6–10 кВ</div>
+                                <div class="krec-dd-desc">Распределительные сети</div>
+                            </div>
+                        </a>
+                        <a href="/ktp" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">КТП 6(10) кВ</div>
+                                <div class="krec-dd-desc">Трансформаторные подстанции</div>
+                            </div>
+                        </a>
+                    </div>
+                </li>
 
-        <li>
-            <a href="/zakup" class="{'active' if active_nav == 'zakup' else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-                <span>Закупки</span>
-            </a>
-        </li>
+                <li class="krec-nav-item has-dropdown">
+                    <a href="/contacts" class="krec-nav-link {'active' if active_nav in ('contacts', 'company', 'about') else ''}">
+                        <span>Компания</span>
+                        <svg class="nav-chevron" width="10" height="10" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </a>
+                    <div class="krec-dropdown">
+                        <a href="/#about" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">О компании ТОО «КРЭК»</div>
+                                <div class="krec-dd-desc">Масштаб сети и инфраструктура</div>
+                            </div>
+                        </a>
+                        <a href="/contacts" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Контакты и службы</div>
+                                <div class="krec-dd-desc">Центральный офис и подразделения</div>
+                            </div>
+                        </a>
+                        <a href="/contacts#res" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Районы сетей (6 РЭС)</div>
+                                <div class="krec-dd-desc">Абай, Осакаровка, Нура, Каркаралинск...</div>
+                            </div>
+                        </a>
+                        <a href="/tbquest" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Охрана труда и ТБ</div>
+                                <div class="krec-dd-desc">Техника безопасности персонала</div>
+                            </div>
+                        </a>
+                    </div>
+                </li>
 
-        <li>
-            <a href="/tu" class="{'active' if active_nav == 'tu' else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                <span>Тех. условия</span>
-            </a>
-        </li>
+                <li class="krec-nav-item">
+                    <a href="/zakup" class="krec-nav-link {'active' if active_nav == 'zakup' else ''}">
+                        <span>Закупки</span>
+                    </a>
+                </li>
 
-        <li>
-            <a href="/consumers" class="{'active' if active_nav in ('consumers', 'potreb') else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span>Потребителям</span>
-            </a>
-        </li>
+                <li class="krec-nav-item">
+                    <a href="/vacancy" class="krec-nav-link {'active' if active_nav == 'vacancy' else ''}">
+                        <span>Вакансии</span>
+                    </a>
+                </li>
 
-        <li>
-            <a href="/notices" class="{'active' if active_nav in ('notices', 'notices_old', 'notices.php') else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                <span>Объявления</span>
-            </a>
-        </li>
+                <li class="krec-nav-item has-dropdown">
+                    <a href="/docs" class="krec-nav-link {'active' if active_nav in ('docs', 'reports') else ''}">
+                        <span>Документы</span>
+                        <svg class="nav-chevron" width="10" height="10" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </a>
+                    <div class="krec-dropdown">
+                        <a href="/docs" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Нормативная база</div>
+                                <div class="krec-dd-desc">Законы и правила РК</div>
+                            </div>
+                        </a>
+                        <a href="/reports" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Отчеты по ИП и ТС</div>
+                                <div class="krec-dd-desc">Инвестпрограмма и тарифная смета</div>
+                            </div>
+                        </a>
+                        <a href="/price" class="krec-dropdown-item">
+                            <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                            <div>
+                                <div class="krec-dd-title">Прейскурант услуг</div>
+                                <div class="krec-dd-desc">Регулируемые и сервисные услуги</div>
+                            </div>
+                        </a>
+                    </div>
+                </li>
+            </ul>
+        </nav>
 
-        <li>
-            <a href="/contacts" class="{'active' if active_nav == 'contacts' else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                <span>Контакты</span>
-            </a>
-        </li>
+        <!-- Правый блок: Бургер-меню -->
+        <div class="krec-header-actions">
+            <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Открыть навигационное меню" aria-expanded="false" onclick="toggleMobileNav(event)">
+                <span class="burger-icon-bars">
+                    <span></span><span></span><span></span>
+                </span>
+            </button>
+        </div>
+    </div>
+</header>
 
-        <li>
-            <a href="/kvit/" class="nav-kvit {'active' if active_nav == 'kvit' else ''}" onclick="handleNavLinkClick(event, this)">
-                <svg class="svg-icon-stroke" width="15" height="15" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                <span>Электронные квитанции</span>
-            </a>
-        </li>
-    </ul>
-</div>
+<div class="mobile-nav-backdrop" id="mobileNavBackdrop" onclick="closeMobileNav()"></div>
 
 <!-- ===== ОСНОВНОЙ КОНТЕНТ ===== -->
 <div class="content-container">
 {content}
 </div>
 
-<!-- ===== ПОДВАЛ САЙТА ===== -->
-<div id="footer">
-    <div class="footer-links">
-        <a href="/docs">Нормативные документы</a> &bull;
-        <a href="/vacancy">Вакансии</a> &bull;
-        <a href="/tbquest">Охрана труда и ТБ</a> &bull;
-        <a href="/price">Прейскурант услуг</a> &bull;
-        <a href="/kvit/">Электронные квитанции</a>
+<!-- ===== БОЛЬШОЙ КОРПОРАТИВНЫЙ FOOTER ===== -->
+<footer class="krec-footer" id="krecFooter">
+    <div class="krec-footer-top">
+        <div class="krec-footer-container">
+            <div class="krec-footer-col">
+                <h4 class="krec-footer-title">Потребителям</h4>
+                <ul class="krec-footer-links">
+                    <li><a href="/kvit/">Электронная квитанция</a></li>
+                    <li><a href="/consumers">Сервисный центр потребителей</a></li>
+                    <li><a href="/tarif">Тариф на передачу э/э</a></li>
+                    <li><a href="/price">Цены на электроснабжение</a></li>
+                                        <li><a href="/pd_byt_potr">Типовой публичный договор</a></li>
+                    <li><a href="/appeals">Обратиться в КРЭК</a></li>
+                    <li><a href="/notices">Объявления и новости</a></li>
+                </ul>
+            </div>
+
+            <div class="krec-footer-col">
+                <h4 class="krec-footer-title">Подключение и сеть</h4>
+                <ul class="krec-footer-links">
+                    <li><a href="/tu">Порядок подключения к сетям</a></li>
+                    <li><a href="/tu">Технические условия (ТУ)</a></li>
+                    <li><a href="/lists">Необходимые документы</a></li>
+                    <li><a href="https://gov.ggk.kz" target="_blank" rel="noopener noreferrer">Портал АИС ГГК (gov.ggk.kz) ↗</a></li>
+                    <li><a href="/load">Загрузка подстанций 35–110 кВ</a></li>
+                    <li><a href="/images/nets.png" target="_blank" rel="noopener noreferrer">Схема электрических сетей ↗</a></li>
+                </ul>
+            </div>
+
+            <div class="krec-footer-col">
+                <h4 class="krec-footer-title">Компания</h4>
+                <ul class="krec-footer-links">
+                    <li><a href="/#about">О компании ТОО «КРЭК»</a></li>
+                    <li><a href="/contacts#res">Районы электрических сетей (6 РЭС)</a></li>
+                    <li><a href="/contacts">Контакты и службы</a></li>
+                    <li><a href="/vacancy">Вакансии предприятия</a></li>
+                    <li><a href="/tbquest">Охрана труда и безопасность</a></li>
+                </ul>
+            </div>
+
+            <div class="krec-footer-col">
+                <h4 class="krec-footer-title">Документы и закупки</h4>
+                <ul class="krec-footer-links">
+                    <li><a href="/reports">Отчетность по инвестпрограмме</a></li>
+                    <li><a href="/reports">Отчетность по тарифной смете</a></li>
+                    <li><a href="/docs">Нормативно-правовая база</a></li>
+                    <li><a href="/zakup">Планы закупок и тендеры</a></li>
+                    <li><a href="/price">Прейскурант сервисных услуг</a></li>
+                </ul>
+            </div>
+        </div>
     </div>
-    <div class="footer-copy">
-        &copy; 2005&ndash;2026 ТОО &laquo;Карагандинская Региональная Энергетическая Компания&raquo; (ТОО &laquo;КРЭК&raquo;). Все права защищены.
+
+    <div class="krec-footer-bottom">
+        <div class="krec-footer-container bottom-row">
+            <div class="krec-footer-copy">
+                <div>&copy; 2005&ndash;2026 ТОО &laquo;Карагандинская Региональная Энергетическая Компания&raquo; (ТОО &laquo;КРЭК&raquo;). Все права защищены.</div>
+                <div style="margin-top:6px; font-size:12.5px; color:#94a3b8; display:flex; align-items:center; gap:6px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" class="svg-icon-stroke" style="stroke:#94a3b8;"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    <span>Разработка и создание портала: <a href="https://t.me/REALLY_DE4D" target="_blank" rel="noopener noreferrer" style="color:#e2e8f0; font-weight:700; text-decoration:none; border-bottom:1px dotted #64748b; transition:all 0.2s;" onmouseover="this.style.color='#60a5fa';this.style.borderBottomColor='#60a5fa'" onmouseout="this.style.color='#e2e8f0';this.style.borderBottomColor='#64748b'">Жүніс Тамерлан</a></span>
+                </div>
+            </div>
+            <div class="krec-footer-ods">
+                <span class="ods-badge">ОДС (круглосуточно)</span>
+                <a href="tel:+77212900358" class="ods-tel">+7 (7212) 90-03-58</a>
+                <span class="ods-sep">•</span>
+                <a href="tel:+77212900359" class="ods-tel">+7 (7212) 90-03-59</a>
+            </div>
+        </div>
     </div>
-</div>
+</footer>
 
 </div><!-- /#wrap -->
 
@@ -412,43 +503,48 @@ function closeMobileNav() {{
     document.body.classList.remove('mobile-menu-active');
 }}
 
-function toggleMobileSubmenu(e, elem) {{
-    if (e) {{
-        e.preventDefault();
-        e.stopPropagation();
-    }}
-    const parentLi = elem ? elem.closest('li.has-submenu') : null;
-    if (!parentLi) return;
+function switchAnnouncementLang(lang) {{
+    var ruCard = document.getElementById('announcementRu');
+    var kzCard = document.getElementById('announcementKz');
+    var btnRu = document.getElementById('btnAnnounceRu');
+    var btnKz = document.getElementById('btnAnnounceKz');
 
-    const wasOpen = parentLi.classList.contains('submenu-open');
-
-    // Закрываем другие подменю
-    document.querySelectorAll('.nav > ul > li.has-submenu.submenu-open').forEach(li => {{
-        if (li !== parentLi) {{
-            li.classList.remove('submenu-open');
-        }}
-    }});
-
-    if (wasOpen) {{
-        parentLi.classList.remove('submenu-open');
+    if (lang === 'kz') {{
+        if (ruCard) ruCard.style.display = 'none';
+        if (kzCard) kzCard.style.display = 'block';
+        if (btnRu) btnRu.classList.remove('active');
+        if (btnKz) btnKz.classList.add('active');
     }} else {{
-        parentLi.classList.add('submenu-open');
+        if (kzCard) kzCard.style.display = 'none';
+        if (ruCard) ruCard.style.display = 'block';
+        if (btnKz) btnKz.classList.remove('active');
+        if (btnRu) btnRu.classList.add('active');
     }}
+    try {{
+        localStorage.setItem('krec_announce_lang', lang);
+    }} catch(e) {{}}
 }}
 
-function handleSubmenuParentClick(e, link) {{
-    if (window.innerWidth <= 1080) {{
-        if (e) {{
-            e.preventDefault();
-            e.stopPropagation();
+function switchPortalLang(lang) {{
+    var ruBtn = document.getElementById('btnLangRu');
+    var kzBtn = document.getElementById('btnLangKz');
+    if (ruBtn && kzBtn) {{
+        if (lang === 'kz') {{
+            ruBtn.classList.remove('active');
+            kzBtn.classList.add('active');
+        }} else {{
+            kzBtn.classList.remove('active');
+            ruBtn.classList.add('active');
         }}
-        toggleMobileSubmenu(e, link);
     }}
-}}
+    try {{
+        localStorage.setItem('krec_portal_lang', lang);
+        document.cookie = 'krec_lang=' + lang + '; path=/; max-age=31536000';
+    }} catch(e) {{}}
 
-function handleNavLinkClick(e, link) {{
-    if (window.innerWidth <= 1080) {{
-        closeMobileNav();
+    // Синхронизируем официальные объявления, если присутствуют на странице
+    if (typeof switchAnnouncementLang === 'function') {{
+        switchAnnouncementLang(lang);
     }}
 }}
 
@@ -465,41 +561,13 @@ window.addEventListener('resize', function() {{
 }});
 
 document.addEventListener('DOMContentLoaded', function() {{
-    document.querySelectorAll('#portalNav .underblock a').forEach(function(a) {{
-        a.addEventListener('click', function() {{
-            if (window.innerWidth <= 1080) {{
-                closeMobileNav();
-            }}
-        }});
-    }});
     try {{
-        var saved = localStorage.getItem('krec_announce_lang');
-        if (saved === 'ru') {{
-            switchAnnouncementLang('ru');
+        var saved = localStorage.getItem('krec_portal_lang') || localStorage.getItem('krec_announce_lang');
+        if (saved === 'kz') {{
+            switchPortalLang('kz');
         }}
     }} catch(e) {{}}
 }});
-
-function switchAnnouncementLang(lang) {{
-    var kzElements = document.querySelectorAll('.announce-kz, #announcementKz');
-    var ruElements = document.querySelectorAll('.announce-ru, #announcementRu');
-    var kzBtns = document.querySelectorAll('.btn-announce-kz, #btnAnnounceKz');
-    var ruBtns = document.querySelectorAll('.btn-announce-ru, #btnAnnounceRu');
-    
-    if (lang === 'ru') {{
-        kzElements.forEach(function(el) {{ el.style.display = 'none'; }});
-        ruElements.forEach(function(el) {{ el.style.display = 'block'; }});
-        kzBtns.forEach(function(btn) {{ btn.classList.remove('active'); }});
-        ruBtns.forEach(function(btn) {{ btn.classList.add('active'); }});
-        try {{ localStorage.setItem('krec_announce_lang', 'ru'); }} catch(e) {{}}
-    }} else {{
-        ruElements.forEach(function(el) {{ el.style.display = 'none'; }});
-        kzElements.forEach(function(el) {{ el.style.display = 'block'; }});
-        ruBtns.forEach(function(btn) {{ btn.classList.remove('active'); }});
-        kzBtns.forEach(function(btn) {{ btn.classList.add('active'); }});
-        try {{ localStorage.setItem('krec_announce_lang', 'kz'); }} catch(e) {{}}
-    }}
-}}
 </script>
 </body>
 </html>"""

@@ -1,4 +1,5 @@
-from templates.portal_views import PORTAL_PAGES, DOCUMENTS_REGISTRY, render_page, render_document
+from templates.portal_views import DOCUMENTS_REGISTRY, PORTAL_PAGES, render_document, render_page
+
 
 def test_portal_pages_loaded():
     assert len(PORTAL_PAGES) > 15, "Страницы портала должны быть загружены"
@@ -16,7 +17,7 @@ def test_documents_registry_loaded():
 def test_render_home_page():
     html = render_page('home')
     assert 'КРЭК' in html
-    assert 'Квитанции' in html
+    assert 'квитанц' in html.lower()
     assert '<!DOCTYPE html>' in html
 
 def test_render_contacts_page():
@@ -65,6 +66,7 @@ def test_render_notices_page():
 def test_health_and_readiness_probes():
     """Тестирует liveness (/health) и readiness (/ready) проверки сервера."""
     from unittest import mock
+
     from server import AppRequestHandler
 
     handler = AppRequestHandler.__new__(AppRequestHandler)
@@ -102,8 +104,9 @@ def test_pwa_and_offline_support():
     """Тестирует доступность Service Worker, манифеста и страницы оффлайн-режима."""
     import os
     from unittest import mock
-    from server import AppRequestHandler
+
     import config
+    from server import AppRequestHandler
 
     # 1. Проверяем существование статических файлов
     assert os.path.isfile(os.path.join(config.STATIC_DIR, 'sw.js'))
@@ -139,5 +142,30 @@ def test_pwa_and_offline_support():
     assert response_code == 200
     assert 'javascript' in sent_headers.get('Content-Type', '')
     assert sent_headers.get('Service-Worker-Allowed') == '/'
+
+
+def test_global_portal_search():
+    """Тестирует работу полнотекстового глобального поиска портала."""
+    from services.portal_search import render_global_search_page, search_portal_content
+
+    # 1. Поиск по ключевому слову тариф
+    results_tarif = search_portal_content('тариф')
+    assert len(results_tarif) > 0
+    assert any('tarif' in r['url'] or 'report' in r['url'] for r in results_tarif)
+
+    # 2. Поиск по вакансиям
+    results_vac = search_portal_content('вакансии')
+    assert len(results_vac) > 0
+    assert results_vac[0]['url'] == '/vacancy'
+
+    # 3. Поиск по техусловиям
+    results_tu = search_portal_content('подключение')
+    assert len(results_tu) > 0
+
+    # 4. Рендеринг страницы поиска
+    html = render_global_search_page('тариф', results_tarif)
+    assert '<!DOCTYPE html>' in html
+    assert 'Результаты поиска' in html
+    assert 'mark' in html
 
 

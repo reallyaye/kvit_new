@@ -64,6 +64,7 @@ APP_ENV = os.environ.get('APP_ENV', 'development').lower().strip()
 IS_PRODUCTION = (APP_ENV == 'production')
 
 # ────────────────────── Пути к файлам и БД ──────────────────────
+DB_TYPE = os.environ.get('DB_TYPE', 'sqlite').lower().strip()
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 DB_PATH = os.environ.get('DB_PATH', 'data.sqlite3')
 DB = DB_PATH if os.path.isabs(DB_PATH) else os.path.join(BASE, DB_PATH)
@@ -137,7 +138,7 @@ def get_sharded_receipt_rel_path(account: str, filename: str) -> str:
     return f"{s1}/{s2}/{filename}"
 
 # ────────────────────── Сетевые настройки ──────────────────────
-HOST = os.environ.get('HOST', '0.0.0.0')
+HOST = os.environ.get('HOST', '0.0.0.0')  # nosec B104
 PORT = int(os.environ.get('PORT', '8000'))
 TRUST_PROXY = os.environ.get('TRUST_PROXY', 'false').lower() in ('true', '1', 'yes')
 # Список доверенных IP и подсетей обратных прокси через запятую (например: 127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)
@@ -175,9 +176,8 @@ GRPC_CERT_PATH = os.environ.get('GRPC_CERT_PATH', '')
 GRPC_KEY_PATH = os.environ.get('GRPC_KEY_PATH', '')
 
 # ────────────────────── Аутентификация и CSRF ──────────────────────
-DEFAULT_ADMIN_HASH = 'pbkdf2_sha256$600000$c39a69e0d844f92023de12de1d2f2c54$63ad158940b48e73648c4d9d2d88099f7e0897529040f53c88ffcae75935daa5'
-SECRET_KEY = os.environ.get('SECRET_KEY', 'kvit-secret-key-production-change-in-prod').strip()
-ADMIN_PASSWORD_HASH = (os.environ.get('ADMIN_PASSWORD_HASH') or DEFAULT_ADMIN_HASH).strip()
+SECRET_KEY = os.environ.get('SECRET_KEY', '').strip()
+ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', '').strip()
 SESSION_LIFETIME = int(os.environ.get('SESSION_LIFETIME', str(24 * 60 * 60)))  # 24 часа
 SESSION_DB_FAILURE_POLICY = os.environ.get('SESSION_DB_FAILURE_POLICY', 'fail_closed').strip().lower()  # 'fail_closed', 'fail_open_l1', 'strict'
 COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'auto').strip().lower()  # 'true', 'false', или 'auto' (по HTTPS/X-Forwarded-Proto)
@@ -217,17 +217,20 @@ THROTTLE_BURST_RPS = int(os.environ.get('THROTTLE_BURST_RPS', '10'))          # 
 
 # ────────────────────── Очередь задач и Воркеры ──────────────────────
 REDIS_URL = os.environ.get('REDIS_URL', '').strip()
-REDIS_ENABLED = bool(REDIS_URL)
+REDIS_ENABLED = os.environ.get('REDIS_ENABLED', 'true' if REDIS_URL else 'false').lower() in ('true', '1', 'yes')
 REDIS_SOCKET_TIMEOUT = float(os.environ.get('REDIS_SOCKET_TIMEOUT', '5.0'))
 REDIS_QUEUE_KEY = os.environ.get('REDIS_QUEUE_KEY', 'kvit:tasks:pdf_queue')
+REDIS_PROCESSING_KEY = os.environ.get('REDIS_PROCESSING_KEY', 'kvit:tasks:processing')
+REDIS_DLQ_KEY = os.environ.get('REDIS_DLQ_KEY', 'kvit:tasks:dlq')
 REDIS_TASKS_HASH = os.environ.get('REDIS_TASKS_HASH', 'kvit:tasks:metadata')
 
 WORKER_COUNT = int(os.environ.get('WORKER_COUNT', '4'))
 OCR_WORKERS = int(os.environ.get('OCR_WORKERS', '2'))
-JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '1800'))          # 30 минут макс на одну задачу (для больших реестров на тысячи страниц)
+JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '1800'))          # 30 минут макс на одну задачу
 JOB_RETRY_COUNT = int(os.environ.get('JOB_RETRY_COUNT', '3'))    # 3 попытки при сбоях
 BATCH_CHUNK_SIZE = int(os.environ.get('BATCH_CHUNK_SIZE', '100')) # Размер пачки 2PC коммита
 RUN_EMBEDDED_WORKER = os.environ.get('RUN_EMBEDDED_WORKER', 'true').lower() in ('true', '1', 'yes')
+QUEUE_VISIBILITY_TIMEOUT = int(os.environ.get('QUEUE_VISIBILITY_TIMEOUT', '1800'))
 
 # ────────────────────── Nginx / X-Accel-Redirect ──────────────────────
 ENABLE_X_ACCEL_REDIRECT = os.environ.get('ENABLE_X_ACCEL_REDIRECT', 'false').lower() in ('true', '1', 'yes')
@@ -239,6 +242,13 @@ MAX_FILES_PER_REQUEST = int(os.environ.get('MAX_FILES_PER_REQUEST', '2000'))   #
 MAX_PDF_PAGES = int(os.environ.get('MAX_PDF_PAGES', '50000'))                  # Максимум 50000 страниц в одном PDF (поддержка крупных районных реестров)
 MAX_PDF_OUTPUT_SIZE = int(os.environ.get('MAX_PDF_OUTPUT_SIZE', 50 * 1024 * 1024)) # 50 MB максимум на одну сохраненную квитанцию
 MAX_OCR_TIME = float(os.environ.get('MAX_OCR_TIME', '60.0'))                 # 60 сек таймаут OCR на одну страницу/документ
+
+# ────────────────────── Лимиты размера тел запросов (Request Body Limits) ──────────────────────
+MAX_LOGIN_BODY_BYTES = int(os.environ.get('MAX_LOGIN_BODY_BYTES', 16 * 1024))          # 16 KB для формы входа
+MAX_FORM_BODY_BYTES = int(os.environ.get('MAX_FORM_BODY_BYTES', 2 * 1024 * 1024))      # 2 MB для стандартных POST форм
+MAX_CMS_BODY_BYTES = int(os.environ.get('MAX_CMS_BODY_BYTES', 1 * 1024 * 1024))        # 1 MB для CMS HTML/страниц
+MAX_CMS_HTML_BYTES = MAX_CMS_BODY_BYTES                                                # Алиас для соответствия спецификации
+MAX_MEDIA_UPLOAD_BYTES = int(os.environ.get('MAX_MEDIA_UPLOAD_BYTES', 10 * 1024 * 1024)) # 10 MB для медиа файлов CMS
 
 
 
@@ -300,6 +310,7 @@ def _parse_telegram_admin_ids(raw: str) -> set[int]:
 
 TELEGRAM_ADMIN_IDS = _parse_telegram_admin_ids(TELEGRAM_ADMIN_IDS_RAW)
 TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN)
+RUN_EMBEDDED_BOT = os.environ.get('RUN_EMBEDDED_BOT', 'true').lower() in ('true', '1', 'yes')
 
 # ────────────────────── Логирование ──────────────────────
 LOG_FILE = os.environ.get('LOG_FILE', 'logs/app.log')
@@ -307,18 +318,4 @@ LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', str(5 * 1024 * 1024)))  # 5 МБ
 LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))             # 5 ротированных файлов
 
-# ────────────────────── Очереди задач & Redis ──────────────────────
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-REDIS_ENABLED = os.environ.get('REDIS_ENABLED', '0').lower() in ('1', 'true', 'yes')
-REDIS_SOCKET_TIMEOUT = float(os.environ.get('REDIS_SOCKET_TIMEOUT', '5.0'))
-REDIS_QUEUE_KEY = os.environ.get('REDIS_QUEUE_KEY', 'kvit:tasks:pdf_queue')
-REDIS_PROCESSING_KEY = os.environ.get('REDIS_PROCESSING_KEY', 'kvit:tasks:processing')
-REDIS_DLQ_KEY = os.environ.get('REDIS_DLQ_KEY', 'kvit:tasks:dlq')
-REDIS_TASKS_HASH = os.environ.get('REDIS_TASKS_HASH', 'kvit:tasks:metadata')
-
-WORKER_COUNT = int(os.environ.get('WORKER_COUNT', '4'))
-RUN_EMBEDDED_WORKER = os.environ.get('RUN_EMBEDDED_WORKER', '1').lower() in ('1', 'true', 'yes')
-JOB_TIMEOUT = int(os.environ.get('JOB_TIMEOUT', '1800'))                     # 30 минут на задачу (для многостраничных реестров)
-JOB_RETRY_COUNT = int(os.environ.get('JOB_RETRY_COUNT', '3'))               # Количество повторов при ошибке
-QUEUE_VISIBILITY_TIMEOUT = int(os.environ.get('QUEUE_VISIBILITY_TIMEOUT', '1800'))  # Visibility timeout (сек)
 

@@ -22,36 +22,32 @@ def migrate_db():
     try:
         with write_transaction() as con:
             if is_postgres_configured():
-                # 1. Явные ALTER TABLE и CREATE TABLE для PostgreSQL
-                try:
-                    con.execute("ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS username VARCHAR(64)")
-                    con.execute("ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS role VARCHAR(32) DEFAULT 'admin'")
-                except Exception as e:
-                    logger.warning(f"[DB] Ошибка ALTER TABLE app_sessions: {e}")
-
+                # 1. Загрузка и первичное применение схемы PostgreSQL
                 schema_path = os.path.join(os.path.dirname(__file__), 'schema.postgres.sql')
-                if os.path.exists(schema_path):
-                    with open(schema_path, 'r', encoding='utf-8') as f:
-                        pg_sql = f.read()
-                    for statement in pg_sql.split(';'):
-                        stmt = statement.strip()
-                        if stmt:
-                            try:
-                                con.execute(stmt)
-                            except Exception as e:
-                                logger.debug(f"[DB] PG migration statement: {e}")
+                if not os.path.exists(schema_path):
+                    raise DatabaseMigrationError(f"Файл схемы PostgreSQL не найден: {schema_path}")
 
-                try:
-                    import time, config
+                with open(schema_path, 'r', encoding='utf-8') as f:
+                    pg_sql = f.read()
+
+                if hasattr(con, 'executescript'):
+                    con.executescript(pg_sql)
+                else:
+                    con.execute(pg_sql)
+
+                # 2. Инициализация первичной учетной записи администратора в PostgreSQL
+                import time
+
+                import config
+                admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
+                if admin_hash:
                     admin_row = con.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
-                    admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
-                    if not admin_row and admin_hash:
+                    if not admin_row:
                         con.execute(
                             "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, true, ?)",
                             ('admin', admin_hash, 'Главный Администратор', 'admin', time.time())
                         )
-                except Exception as e:
-                    logger.warning(f"[DB] Предупреждение сидирования администратора PG: {e}")
+
                 logger.info("[DB] Схема PostgreSQL успешно проверена и применена.")
                 return
 
@@ -172,7 +168,9 @@ def migrate_db():
 
             # Инициализация дефолтного админа из config.ADMIN_PASSWORD_HASH если таблица пуста
             try:
-                import time, config
+                import time
+
+                import config
                 admin_row = con.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
                 admin_hash = (getattr(config, 'ADMIN_PASSWORD_HASH', '') or '').strip()
                 if not admin_row and admin_hash:

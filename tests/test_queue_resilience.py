@@ -12,13 +12,12 @@ import os
 import shutil
 import tempfile
 import time
-import pytest
 from unittest.mock import MagicMock
 
 from services.metrics.collector import MetricsCollector
 from services.storage.pipeline import StoragePipeline
 from services.tasks.queue_backend import MemoryTaskQueueBackend, RedisTaskQueueBackend
-from services.tasks.task_manager import BackgroundTask, TaskQueueManager, TaskStatus
+from services.tasks.task_manager import TaskQueueManager, TaskStatus
 
 
 def test_memory_queue_claim_processing_ack():

@@ -37,6 +37,9 @@ def get_db():
     - Production: строго PostgreSQL (при отсутствии DATABASE_URL выдает Fail-Fast ошибку).
     - Development / Small installations / Tests: SQLite (WAL, mmap_size=256MB, кэш 64MB).
     """
+    if getattr(config, 'IS_PRODUCTION', False) and not is_postgres_configured():
+        raise RuntimeError("❌ КРИТИЧЕСКАЯ ОШИБКА: Production окружение требует PostgreSQL (задайте DATABASE_URL=postgresql://...)!")
+
     if is_postgres_configured():
         _ensure_postgres_initialized()
         from database.postgres_backend import get_postgres_db

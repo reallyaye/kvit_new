@@ -13,22 +13,20 @@
 """
 import argparse
 import concurrent.futures
+import json
 import os
 import sys
 import tempfile
 import time
-import urllib.request
 import urllib.parse
-import json
+import urllib.request
 
 # Добавляем корень проекта в sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-import config
-from database.connection import get_db, write_transaction
-from services.tasks.task_manager import task_manager, TaskStatus
+from services.tasks.task_manager import TaskStatus, task_manager  # noqa: E402
 
 
 def generate_sample_pdf_batch(count: int, temp_dir: str):
@@ -69,7 +67,7 @@ def simulate_user_session(user_id: int, base_url: str, account_sample: str) -> d
             latencies.append(time.perf_counter() - t0)
             receipts = data.get('receipts', [])
             token = receipts[0]['access_token'] if receipts else None
-    except Exception as e:
+    except Exception:
         errors += 1
         token = None
 
@@ -147,7 +145,7 @@ def run_load_test(base_url: str = "http://127.0.0.1:8000", concurrent_users: int
     users_duration = time.time() - users_start_time
 
     # 4. Ожидание завершения фонового импорта (или проверка прогресса)
-    print(f"⏳ Ожидание завершения обработки пакета PDF...")
+    print("⏳ Ожидание завершения обработки пакета PDF...")
     while True:
         t_state = task_manager.get_task(task.job_id)
         if not t_state or t_state.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
@@ -171,7 +169,7 @@ def run_load_test(base_url: str = "http://127.0.0.1:8000", concurrent_users: int
     print("\n" + "=" * 75)
     print("📊 РЕЗУЛЬТАТЫ НАГРУЗОЧНОГО ТЕСТИРОВАНИЯ:")
     print("=" * 75)
-    print(f"1. Пользовательский API (User Requests under Heavy Background OCR/PDF Load):")
+    print("1. Пользовательский API (User Requests under Heavy Background OCR/PDF Load):")
     print(f"   • Всего запросов:          {total_requests}")
     print(f"   • Ошибок API:              {total_errors} ({error_rate:.2f}%)")
     print(f"   • Пропускная способность:  {rps:.2f} req/sec")
@@ -180,7 +178,7 @@ def run_load_test(base_url: str = "http://127.0.0.1:8000", concurrent_users: int
     print(f"   • Latency p95:             {p95:.2f} ms")
     print(f"   • Latency p99:             {p99:.2f} ms")
     print(f"   • Latency Max:             {max_lat:.2f} ms")
-    print(f"\n2. Фоновый импорт PDF (Background Queue & Worker Cluster):")
+    print("\n2. Фоновый импорт PDF (Background Queue & Worker Cluster):")
     print(f"   • Файлов обработано:       {task.processed_files} / {task.total_files}")
     print(f"   • Успешно привязано:       {task.added}")
     print(f"   • Дубликатов пропущено:    {task.duplicates}")

@@ -11,20 +11,16 @@
 8. Поиск по адресу/счету -> Получение access_token
 9. Скачивание PDF через защищенный X-Accel-Redirect с верификацией целостности байт и структуры PyMuPDF.
 """
-import concurrent.futures
 import hashlib
 import http.client
 import io
 import os
-import shutil
 import socket
 import socketserver
-import tempfile
 import threading
 import time
 import urllib.parse
 import urllib.request
-import pytest
 
 try:
     import pymupdf as fitz
@@ -35,11 +31,9 @@ import config
 from database.connection import get_db, write_transaction
 from database.migrations import migrate_db
 from server import AppRequestHandler
-from services.pdf import pdf_processor
-from services.receipts.receipt_service import receipt_service
 from services.security import auth_service
 from services.tasks.queue_backend import MemoryTaskQueueBackend
-from services.tasks.task_manager import TaskQueueManager, TaskStatus
+from services.tasks.task_manager import TaskQueueManager
 
 
 def _find_free_port() -> int:
@@ -283,10 +277,10 @@ def test_full_stack_end_to_end_lifecycle(tmp_path):
 
         body_io = io.BytesIO()
         body_io.write(f"--{boundary}\r\n".encode())
-        body_io.write(f'Content-Disposition: form-data; name="csrf_token"\r\n\r\n'.encode())
+        body_io.write('Content-Disposition: form-data; name="csrf_token"\r\n\r\n'.encode())
         body_io.write(f"{csrf_token}\r\n".encode())
         body_io.write(f"--{boundary}\r\n".encode())
-        body_io.write(f'Content-Disposition: form-data; name="pdf_file"; filename="incoming_batch.pdf"\r\n'.encode())
+        body_io.write('Content-Disposition: form-data; name="pdf_file"; filename="incoming_batch.pdf"\r\n'.encode())
         body_io.write(b"Content-Type: application/pdf\r\n\r\n")
         body_io.write(pdf_data)
         body_io.write(b"\r\n")

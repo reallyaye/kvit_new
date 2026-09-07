@@ -6,20 +6,15 @@
 3. Индексированный Batch Lookup счетов и хешей без вычитки всей БД в память.
 4. Реальная работа X-Accel-Redirect (User -> API Auth -> X-Accel-Redirect -> Nginx Protected Path).
 """
-import io
 import os
-import shutil
-import tempfile
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
 import pytest
 
 import config
-from database.connection import get_db, is_postgres_configured
-from database.migrations import migrate_db
+from database.connection import get_db
 from services.pdf import pdf_processor
-from services.receipts.receipt_service import receipt_service
-from services.tasks.queue_backend import create_task_queue_backend, MemoryTaskQueueBackend, RedisTaskQueueBackend
+from services.tasks.queue_backend import MemoryTaskQueueBackend, create_task_queue_backend
 
 
 def _create_test_pdf(path: str, account: str = "800101", period: str = "09.2026"):

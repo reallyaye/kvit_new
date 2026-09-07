@@ -3,7 +3,9 @@ Allow: /
 Disallow: /upload
 Disallow: /reconcile
 Disallow: /login
+Disallow: /admin
 Disallow: /api/
+Disallow: /*.php$
+Disallow: /*.php?*
 
 Sitemap: https://krec.kz/sitemap.xml
-

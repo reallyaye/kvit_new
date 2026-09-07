@@ -2,14 +2,13 @@
 import os
 import sys
 import unittest
-import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import config
-from database.connection import get_db, write_transaction
+from database.connection import write_transaction
 from database.migrations import migrate_db
-from services.security.auth_service import auth_service, hash_password, verify_password_hash
+from services.security.auth_service import auth_service
 
 
 class TestRBACAndAuth(unittest.TestCase):
@@ -98,7 +97,7 @@ class TestRBACAndAuth(unittest.TestCase):
 
         logs = auth_service.list_audit_logs(10)
         self.assertGreaterEqual(len(logs), 2)
-        actions = [l['action'] for l in logs]
+        actions = [item['action'] for item in logs]
         self.assertIn('UPLOAD_RECEIPTS', actions)
         self.assertIn('CREATE_USER', actions)
 
@@ -111,7 +110,7 @@ class TestRBACAndAuth(unittest.TestCase):
 
         # 1. Фильтр по пользователю
         admin_logs = auth_service.list_audit_logs(username='admin')
-        self.assertTrue(all(l['username'] == 'admin' for l in admin_logs))
+        self.assertTrue(all(item['username'] == 'admin' for item in admin_logs))
         self.assertEqual(len(admin_logs), 2)
 
         # 2. Фильтр по действию

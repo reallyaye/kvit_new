@@ -2,18 +2,15 @@ import csv
 import json
 import os
 import sqlite3
+
 import pytest
 
+from database.connection import get_db, write_transaction
 from import_accounts import (
     detect_column_mapping,
-    detect_encoding,
     export_accounts_to_csv,
     import_accounts_file,
-    read_csv_records,
-    read_json_records,
-    read_sqlite_records,
 )
-from database.connection import get_db, write_transaction
 
 
 @pytest.fixture(autouse=True)

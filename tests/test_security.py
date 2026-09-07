@@ -1,5 +1,6 @@
 import threading
 import time
+
 import config
 
 try:
@@ -12,7 +13,6 @@ from services.security.rate_limiter import rate_limiter
 
 
 def test_auth_service_lifecycle():
-    import config
     from services.security.auth_service import hash_password, verify_password_hash
 
     # Тест: проверка через PBKDF2 хеш
@@ -107,7 +107,6 @@ def test_ip_throttler_concurrency_and_burst():
     throttler.release(ip)
 
 def test_client_ip_anti_spoofing():
-    import config
     from server import AppRequestHandler
 
     class MockHandler(AppRequestHandler):
@@ -143,7 +142,6 @@ def test_safe_import_path_protection():
     import shutil
     import tempfile
 
-    import config
 
     test_base = tempfile.mkdtemp(prefix='kvit_sec_test_')
     inside_dir = os.path.join(test_base, 'allowed_folder')
@@ -371,6 +369,7 @@ def test_persistent_state_and_session_sharing():
 def test_session_store_db_failure_policies():
     """Тестирует явные политики поведения SessionStore при сбоях БД."""
     from unittest import mock
+
     from services.security.session_store import DatabaseSessionStore, DBFailurePolicy
 
     now = time.time()
@@ -481,7 +480,6 @@ def test_cookie_secure_flags_and_scheme_detection():
     """Тестирует генерацию атрибута Secure в Set-Cookie в зависимости от режима и протокола."""
     import unittest.mock as mock
 
-    import config
     from server import AppRequestHandler
 
     handler = AppRequestHandler.__new__(AppRequestHandler)
@@ -528,7 +526,6 @@ def test_csrf_token_lifecycle_and_validation():
 
     from server import AppRequestHandler
     from services.security.auth_service import auth_service
-    import config
 
     session_token = auth_service.create_session()
     csrf_token = auth_service.get_csrf_token(session_token)
@@ -580,11 +577,11 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
     """Систематический аудит и матричное тестирование авторизации и CSRF для всех админских эндпоинтов."""
     import io
     from unittest import mock
+
     from server import AppRequestHandler
     from services.security.auth_service import auth_service
 
     admin_session = auth_service.create_session()
-    valid_csrf = auth_service.get_csrf_token(admin_session)
 
     with mock.patch("server.ip_throttler.acquire", return_value=(True, None, 0)), \
          mock.patch("server.rate_limiter.is_allowed", return_value=(True, 0, 100)):
@@ -597,7 +594,7 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             handler_unauth.headers = {}
             handler_unauth.client_address = ("127.0.0.1", 12345)
             redirects = []
-            handler_unauth._redirect = lambda loc, extra_headers=None: redirects.append(loc)
+            handler_unauth._redirect = lambda loc, extra_headers=None, r=redirects: r.append(loc)
             handler_unauth.do_GET()
             assert '/login' in redirects, f"GET {path} без авторизации должен редиректить на /login"
 
@@ -610,7 +607,7 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             h_unauth.headers = {}
             h_unauth.client_address = ("127.0.0.1", 12345)
             resp = {}
-            h_unauth.send_json = lambda data, code=200, extra_headers=None: resp.update({'code': code, 'data': data})
+            h_unauth.send_json = lambda data, code=200, extra_headers=None, target=resp: target.update({'code': code, 'data': data})
             h_unauth.do_POST()
             assert resp.get('code') == 401, f"POST {path} без сессии должен возвращать 401"
 
@@ -620,7 +617,7 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             h_no_csrf.headers = {'Cookie': f'session={admin_session}'}
             h_no_csrf.client_address = ("127.0.0.1", 12345)
             resp = {}
-            h_no_csrf.send_json = lambda data, code=200, extra_headers=None: resp.update({'code': code, 'data': data})
+            h_no_csrf.send_json = lambda data, code=200, extra_headers=None, target=resp: target.update({'code': code, 'data': data})
             h_no_csrf.do_POST()
             assert resp.get('code') == 403, f"POST {path} без CSRF должен возвращать 403"
 
@@ -633,7 +630,7 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             }
             h_bad_csrf.client_address = ("127.0.0.1", 12345)
             resp = {}
-            h_bad_csrf.send_json = lambda data, code=200, extra_headers=None: resp.update({'code': code, 'data': data})
+            h_bad_csrf.send_json = lambda data, code=200, extra_headers=None, target=resp: target.update({'code': code, 'data': data})
             h_bad_csrf.do_POST()
             assert resp.get('code') == 403, f"POST {path} с невалидным CSRF должен возвращать 403"
 
@@ -646,7 +643,7 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             h_unauth.headers = {}
             h_unauth.client_address = ("127.0.0.1", 12345)
             redirects = []
-            h_unauth._redirect = lambda loc, extra_headers=None: redirects.append(loc)
+            h_unauth._redirect = lambda loc, extra_headers=None, r=redirects: r.append(loc)
             h_unauth.do_POST()
             assert '/login' in redirects, f"POST {path} без сессии должен редиректить на /login"
 
@@ -657,7 +654,7 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             h_no_csrf.client_address = ("127.0.0.1", 12345)
             h_no_csrf.rfile = io.BytesIO(b'')
             html_resp = {}
-            h_no_csrf.send_html = lambda html_text, code=200, extra_headers=None: html_resp.update({'code': code, 'html': html_text})
+            h_no_csrf.send_html = lambda html_text, code=200, extra_headers=None, target=html_resp: target.update({'code': code, 'html': html_text})
             h_no_csrf.do_POST()
             assert html_resp.get('code') == 403, f"POST {path} без CSRF должен возвращать 403"
 
@@ -665,8 +662,9 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
 def test_validate_safe_path_canonicalization_and_traversal():
     """Тестирует защиту от path traversal и partial path traversal (pythonsecurity:S8707)."""
     import os
-    import tempfile
     import shutil
+    import tempfile
+
     from services.security.path_validator import validate_safe_path
 
     base_dir = tempfile.mkdtemp(prefix='kvit_safe_base_')

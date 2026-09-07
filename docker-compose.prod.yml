@@ -24,16 +24,17 @@ services:
       - REDIS_URL=${REDIS_URL:?Укажите production строку подключения к Redis REDIS_URL}
       - REDIS_ENABLED=true
       - RUN_EMBEDDED_WORKER=false
+      - RUN_EMBEDDED_BOT=false
       - ENABLE_X_ACCEL_REDIRECT=true
       - X_ACCEL_PREFIX=/internal_receipts/
       - RECEIPTS_DIR=/app/receipts
       - LOG_FILE=/app/logs/api.log
       - LOG_LEVEL=INFO
       - SECRET_KEY=${SECRET_KEY:?Укажите SECRET_KEY}
-      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:?Укажите ADMIN_PASSWORD_HASH}
       - GRPC_API_KEY=${GRPC_API_KEY:?Укажите GRPC_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?Обязательно укажите TELEGRAM_BOT_TOKEN в .env}
-      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-6910951442}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-}
       - TRUST_PROXY=true
     volumes:
       - /opt/kvit/receipts:/app/receipts
@@ -77,7 +78,34 @@ services:
     networks:
       - kvit-net
 
-  # ────────────────────── 3. Public Edge Reverse Proxy (Nginx) ─────────────────
+  # ────────────────────── 3. Dedicated Telegram Bot ───────────────────────────
+  kvit-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: ["python", "bot.py"]
+    environment:
+      - APP_ENV=production
+      - DB_TYPE=postgres
+      - DATABASE_URL=${DATABASE_URL:?Укажите production строку подключения к PostgreSQL DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:?Укажите production строку подключения к Redis REDIS_URL}
+      - REDIS_ENABLED=true
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - RECEIPTS_DIR=/app/receipts
+      - LOG_FILE=/app/logs/bot.log
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=${SECRET_KEY:?Укажите SECRET_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?Обязательно укажите TELEGRAM_BOT_TOKEN в .env}
+      - TELEGRAM_ADMIN_IDS=${TELEGRAM_ADMIN_IDS:-}
+    volumes:
+      - /opt/kvit/receipts:/app/receipts:ro
+      - /opt/kvit/data:/app/data
+      - /opt/kvit/logs:/app/logs
+    networks:
+      - kvit-net
+
+  # ────────────────────── 4. Public Edge Reverse Proxy (Nginx) ─────────────────
   nginx:
     image: nginx:1.25-alpine
     container_name: kvit-edge-nginx

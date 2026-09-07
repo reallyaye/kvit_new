@@ -267,9 +267,9 @@ def test_application_level_resource_limits():
     except ImportError:
         import fitz
 
+    import config
     from server import AppRequestHandler
     from services.pdf.pdf_processor import pdf_processor
-    import config
 
     # 1. Защита от превышения размера загрузки (MAX_UPLOAD_BYTES)
     class MockHandler(AppRequestHandler):

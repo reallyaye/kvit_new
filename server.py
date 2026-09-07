@@ -22,6 +22,12 @@ from services.portal_cms import portal_cms
 from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
 from services.security import auth_service, ip_throttler, rate_limiter
+from services.security.request_guards import (
+    parse_bounded_form,
+    parse_bounded_multipart,
+    read_bounded_body,
+    send_payload_error,
+)
 from services.tasks import task_manager
 from services.websocket import ws_manager
 from templates import (
@@ -234,6 +240,14 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
             pass
 
+    def _read_bounded_body(self, max_bytes: int, allow_chunked: bool = True) -> bytes | None:
+        """Считывает тело запроса с жестким лимитом размера байт (DoS protection)."""
+        return read_bounded_body(self, max_bytes=max_bytes, allow_chunked=allow_chunked)
+
+    def _send_payload_error(self, code: int, message: str) -> None:
+        """Отправляет клиенту ответ об ошибке размера или формата запроса (400 / 413)."""
+        return send_payload_error(self, code=code, message=message)
+
     def _serve_static(self, path: str):
         """Безопасная отдача статических файлов (CSS, JS, изображения, PDF)."""
         clean_path = path.split('?')[0].split('#')[0]
@@ -342,7 +356,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         checks = {}
         all_ok = True
 
-        # 1. Проверка доступности БД
+        # 1. Проверка доступности БД (без утечки учетных данных в ответ)
         try:
             con = get_db()
             try:
@@ -351,24 +365,26 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             finally:
                 con.close()
         except Exception as e:
-            checks['database'] = f'error: {e}'
+            logger.error(f"[Readiness] Ошибка проверки БД: {e}")
+            checks['database'] = 'error' if config.IS_PRODUCTION else f'error: {e}'
             all_ok = False
             metrics_collector.record_db_error()
 
-        # 2. Проверка доступности каталога квитанций
+        # 2. Проверка доступности и возможности записи в каталог квитанций
         try:
             receipts_dir = getattr(config, 'RECEIPTS_DIR', 'receipts')
-            if os.path.exists(receipts_dir) and os.path.isdir(receipts_dir):
-                checks['storage'] = 'ok'
-            else:
-                os.makedirs(receipts_dir, exist_ok=True)
-                checks['storage'] = 'created'
+            os.makedirs(receipts_dir, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=receipts_dir, prefix='.readiness_probe_', delete=True) as tf:
+                tf.write(b'ok')
+                tf.flush()
+            checks['storage'] = 'ok'
         except Exception as e:
-            checks['storage'] = f'error: {e}'
+            logger.error(f"[Readiness] Ошибка хранилища: {e}")
+            checks['storage'] = 'error' if config.IS_PRODUCTION else f'error: {e}'
             all_ok = False
 
-        # 3. Проверка Redis (если включен)
-        if getattr(config, 'REDIS_ENABLED', False):
+        # 3. Проверка Redis (в production обязателен)
+        if config.IS_PRODUCTION or getattr(config, 'REDIS_ENABLED', False):
             try:
                 if task_manager.backend.ping():
                     checks['redis'] = 'ok'
@@ -376,7 +392,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     checks['redis'] = 'unavailable'
                     all_ok = False
             except Exception as re:
-                checks['redis'] = f'error: {re}'
+                logger.error(f"[Readiness] Ошибка проверки Redis: {re}")
+                checks['redis'] = 'error' if config.IS_PRODUCTION else f'error: {re}'
                 all_ok = False
         else:
             checks['redis'] = 'disabled (in-memory queue active)'
@@ -391,7 +408,34 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 'processing': q_stats['processing_count']
             }
         except Exception as qe:
-            checks['tasks_queue'] = f'error: {qe}'
+            logger.error(f"[Readiness] Ошибка получения статистики очереди: {qe}")
+            checks['tasks_queue'] = 'error' if config.IS_PRODUCTION else f'error: {qe}'
+            all_ok = False
+
+        # 5. Проверка доступности воркеров (Heartbeat)
+        try:
+            if not getattr(config, 'RUN_EMBEDDED_WORKER', True):
+                worker_alive = False
+                if hasattr(task_manager.backend, '_client') and task_manager.backend._client:
+                    client = task_manager.backend._client
+                    if hasattr(client, 'scan_iter'):
+                        for _ in client.scan_iter(match='kvit:worker:heartbeat:*', count=10):
+                            worker_alive = True
+                            break
+                    elif hasattr(client, 'keys'):
+                        keys = client.keys('kvit:worker:heartbeat:*')
+                        if keys:
+                            worker_alive = True
+                checks['workers'] = 'ok' if worker_alive else 'no_active_workers'
+                if not worker_alive and config.IS_PRODUCTION:
+                    all_ok = False
+            else:
+                checks['workers'] = f'embedded (active: {checks.get("tasks_queue", {}).get("active_workers", 0)})'
+        except Exception as we:
+            logger.error(f"[Readiness] Ошибка проверки worker heartbeat: {we}")
+            checks['workers'] = 'error'
+            if config.IS_PRODUCTION:
+                all_ok = False
 
         status_code = 200 if all_ok else 503
         self.send_json({
@@ -521,6 +565,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self.send_html(layout(body, 'search', is_admin=is_admin))
                 return
             elif path == '/search':
+                q_text = q.get('q', [''])[0].strip()
                 account = q.get('account', [''])[0].strip()
                 address_query = q.get('address', [''])[0].strip()
                 street = q.get('street', [''])[0].strip()
@@ -528,11 +573,35 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 flat = q.get('flat', [''])[0].strip()
                 period_filter = q.get('period', [''])[0].strip()
 
+                if q_text:
+                    clean_digits = re.sub(r'\D', '', q_text)
+                    if clean_digits and len(clean_digits) >= 5:
+                        account_row = receipt_service.get_account(clean_digits)
+                        if account_row:
+                            receipts = receipt_service.get_receipts(clean_digits, period_filter)
+                            body = render_search_result(clean_digits, period_filter, account_row, receipts)
+                            self.send_html(layout(body, 'search', is_admin=is_admin))
+                            return
+                    from services.portal_search import render_global_search_page, search_portal_content
+                    results = search_portal_content(q_text)
+                    self.send_html(render_global_search_page(q_text, results, is_admin=is_admin))
+                    return
+
                 if account:
                     account_row = receipt_service.get_account(account)
-                    receipts = receipt_service.get_receipts(account, period_filter) if account_row else []
-                    body = render_search_result(account, period_filter, account_row, receipts)
+                    if account_row:
+                        receipts = receipt_service.get_receipts(account, period_filter)
+                        body = render_search_result(account, period_filter, account_row, receipts)
+                        self.send_html(layout(body, 'search', is_admin=is_admin))
+                        return
+                    if any(c.isalpha() for c in account):
+                        from services.portal_search import render_global_search_page, search_portal_content
+                        results = search_portal_content(account)
+                        self.send_html(render_global_search_page(account, results, is_admin=is_admin))
+                        return
+                    body = render_search_result(account, period_filter, None, [])
                     self.send_html(layout(body, 'search', is_admin=is_admin))
+                    return
                 elif street or house:
                     status, acc_data, prompt_msg = receipt_service.search_by_structured_address(street, house, flat)
                     combined_query = f"{street} {house} {flat}".strip()
@@ -736,11 +805,32 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     'zagruzka': 'load',
                     'zagruzka-ps': 'load',
                     'substations': 'load',
+                    'connection': 'tu',
+                    'podklyuchenie': 'tu',
+                    'network': 'load',
+                    'grid': 'load',
+                    'company': 'contacts',
+                    'about': 'contacts',
+                    'documents': 'docs',
+                    'dokumenty': 'docs',
+                    'outages': 'outages',
+                    'otklyucheniya': 'outages',
+                    'appeals': 'appeals',
+                    'obrascheniya': 'appeals',
+                    'safety': 'tbquest',
                 }
                 clean_name = path.strip('/').removesuffix('.php').strip('/')
                 clean_name = PAGE_ALIASES.get(clean_name, clean_name)
 
                 if clean_name in PORTAL_PAGES:
+                    canonical_path = '/' if clean_name == 'home' else f'/{clean_name}'
+                    if path != canonical_path:
+                        target = canonical_path + (f'?{u.query}' if u.query else '')
+                        self.send_response(301)
+                        self.send_header('Location', target)
+                        self.send_header('Content-Length', '0')
+                        self.end_headers()
+                        return
                     self.send_html(render_portal_page(clean_name, is_admin=is_admin))
                     return
 
@@ -748,6 +838,14 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 if not doc_key.endswith('.php'):
                     doc_key += '.php'
                 if doc_key in DOCUMENTS_REGISTRY:
+                    canonical_path = f"/{doc_key.removesuffix('.php')}"
+                    if path != canonical_path:
+                        target = canonical_path + (f'?{u.query}' if u.query else '')
+                        self.send_response(301)
+                        self.send_header('Location', target)
+                        self.send_header('Content-Length', '0')
+                        self.end_headers()
+                        return
                     self.send_html(render_portal_document(DOCUMENTS_REGISTRY[doc_key], is_admin=is_admin, doc_key=doc_key))
                     return
 
@@ -891,8 +989,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_login(self):
         client_ip = self._get_client_ip()
-        length = int(self.headers.get('Content-Length', 0))
-        data = self.rfile.read(length)
+        data = self._read_bounded_body(config.MAX_LOGIN_BODY_BYTES)
+        if data is None:
+            return
         params = parse_qs(data.decode('utf-8', errors='replace'))
         username = params.get('username', [''])[0].strip() or 'admin'
         password = params.get('password', [''])[0]
@@ -903,7 +1002,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             u_name = user.get('username', username)
             token = auth_service.create_session(username=u_name, role=u_role)
             auth_service.log_audit(u_name, client_ip, 'LOGIN', f"Успешный вход (роль: {u_role})")
-            
+
             target_url = '/upload' if u_role == 'operator' else '/admin/pages'
             self._redirect(target_url, extra_headers={
                 'Set-Cookie': self._get_session_cookie_header(token, max_age=config.SESSION_LIFETIME)
@@ -1501,7 +1600,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 'message': 'Квитанция найдена',
                 'account': str(account_row['account_number']),
                 'address': account_row['address'] or '—',
-                'customer_name': account_row['customer_name'] or '',
+                'customer_name': '',  # Защита ПДн: ФИО абонента не отдается в публичный поиск
                 'period_filter': period_filter,
                 'receipts': rec_list
             }, 200, extra_headers={'Cache-Control': 'no-store'})
@@ -1538,7 +1637,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 'message': prompt_msg or 'Квитанция найдена',
                 'account': acc_num,
                 'address': acc_data.get('address') or (account_row['address'] if account_row else '—'),
-                'customer_name': account_row['customer_name'] if account_row else '',
+                'customer_name': '',  # Защита ПДн: ФИО абонента не отдается в публичный поиск
                 'is_corrected': acc_data.get('is_corrected', False),
                 'corrected_street': acc_data.get('corrected_street'),
                 'original_query': acc_data.get('original_query', address_query or f"{street} {house} {flat}".strip()),
@@ -1594,8 +1693,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         })
 
     def _handle_import_folder(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        body_bytes = self.rfile.read(content_length)
+        body_bytes = self._read_bounded_body(config.MAX_FORM_BODY_BYTES)
+        if body_bytes is None:
+            return
         params = parse_qs(body_bytes.decode('utf-8', errors='replace'))
         csrf_token = params.get('csrf_token', [''])[0].strip()
         folder_path = params.get('folder_path', [''])[0].strip()
@@ -1745,80 +1845,16 @@ class AppRequestHandler(BaseHTTPRequestHandler):
 
     # ────────────────────── CMS Обработчики ──────────────────────
 
-    def _read_form_params(self) -> dict:
-        """Считывает и декодирует application/x-www-form-urlencoded параметры формы."""
-        try:
-            length = int(self.headers.get('Content-Length', 0))
-            data = self.rfile.read(length)
-            return parse_qs(data.decode('utf-8', errors='replace'))
-        except Exception:
-            return {}
+    def _read_form_params(self, max_bytes: int | None = None) -> dict:
+        """Считывает и декодирует application/x-www-form-urlencoded параметры формы с контролем размера."""
+        return parse_bounded_form(self, max_bytes=max_bytes)
 
-    def _parse_multipart_fields_and_files(self):
+    def _parse_multipart_fields_and_files(self, max_bytes: int | None = None):
         """
-        Разбирает multipart/form-data на текстовые поля и список файлов:
+        Разбирает multipart/form-data на текстовые поля и список файлов с контролем размера:
         Возвращает: (fields: dict, files: list of (field_name, filename, bytes))
         """
-        content_type = self.headers.get('Content-Type', '')
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-        except (ValueError, TypeError):
-            content_length = 0
-
-        if content_length > config.MAX_UPLOAD_BYTES:
-            return {}, []
-
-        boundary = None
-        for part in content_type.split(';'):
-            part = part.strip()
-            if part.startswith('boundary='):
-                boundary = part[len('boundary='):].strip('"\'')
-                break
-        if not boundary or content_length <= 0:
-            return {}, []
-
-        data = self.rfile.read(content_length)
-        boundary_bytes = boundary.encode('latin1')
-        parts = data.split(b'--' + boundary_bytes)
-
-        fields = {}
-        files = []
-
-        for part in parts:
-            if not part or part == b'--\r\n' or part == b'--\r\n\r\n' or part == b'--':
-                continue
-            if part.startswith(b'\r\n'):
-                part = part[2:]
-            if part.endswith(b'\r\n'):
-                part = part[:-2]
-
-            hdr_end = part.find(b'\r\n\r\n')
-            if hdr_end < 0:
-                hdr_end = part.find(b'\n\n')
-                hdr_len = 2
-            else:
-                hdr_len = 4
-            if hdr_end < 0:
-                continue
-
-            header_bytes = part[:hdr_end]
-            body_bytes = part[hdr_end + hdr_len:]
-            header_text = header_bytes.decode('utf-8', errors='replace')
-
-            m_name = re.search(r'name="([^"]*)"', header_text)
-            m_fn = re.search(r'filename="([^"]*)"', header_text)
-            f_name = m_name.group(1) if m_name else ''
-            f_filename = m_fn.group(1) if m_fn else ''
-
-            if f_filename:
-                files.append((f_name, f_filename, body_bytes))
-            elif f_name:
-                val_text = body_bytes.decode('utf-8', errors='replace')
-                if f_name not in fields:
-                    fields[f_name] = []
-                fields[f_name].append(val_text)
-
-        return fields, files
+        return parse_bounded_multipart(self, max_bytes=max_bytes)
 
     def _handle_admin_pages_save(self):
         if not self._is_admin():
@@ -1828,7 +1864,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         cur_user = self._get_current_user() or {}
         admin_name = cur_user.get('username', 'admin')
 
-        params = self._read_form_params()
+        params = self._read_form_params(max_bytes=config.MAX_CMS_BODY_BYTES)
+        if not params:
+            return
         csrf_token = params.get('csrf_token', [''])[0]
         if not self._verify_csrf(csrf_token):
             self.send_html(layout(render_forbidden_page('Недействительный или отсутствующий CSRF-токен.'), is_admin=True), 403)

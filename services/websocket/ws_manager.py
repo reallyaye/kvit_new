@@ -1,12 +1,22 @@
 import json
+import os
 import selectors
 import socket
 import struct
 import threading
 import time
+import uuid
 
+import config
 from config import WS_SOCKET_TIMEOUT
 from logger import logger
+
+try:
+    import redis
+    REDIS_LIB_AVAILABLE = True
+except ImportError:
+    redis = None
+    REDIS_LIB_AVAILABLE = False
 
 
 class WebSocketClientState:
@@ -27,17 +37,27 @@ class WebSocketClientState:
 class WebSocketManager:
     """
     Высокопроизводительный асинхронный менеджер WebSocket на базе неблокирующего
-    I/O мультиплексирования (selectors / Reactor Pattern).
-    Все WebSocket-клиенты обслуживаются ЕДИНЫМ фоновым потоком без блокировки тредов HTTP-сервера.
+    I/O мультиплексирования (selectors / Reactor Pattern) и межпроцессной шины событий
+    на базе Redis Pub/Sub для многорепличного развертывания.
     """
     def __init__(self):
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._selector = selectors.DefaultSelector()
         self._clients = {}  # {fileno: WebSocketClientState}
         self._running = True
         self._last_cleanup = time.time()
+        self._node_id = f"{os.getpid()}_{uuid.uuid4().hex[:8]}"
+        self._redis_pub = None
         self._loop_thread = threading.Thread(target=self._event_loop, daemon=True, name="WebSocketEventLoop")
         self._loop_thread.start()
+
+        if getattr(config, 'REDIS_ENABLED', False) and REDIS_LIB_AVAILABLE:
+            self._redis_sub_thread = threading.Thread(
+                target=self._redis_subscriber_loop,
+                daemon=True,
+                name="WebSocketRedisSub"
+            )
+            self._redis_sub_thread.start()
 
     def handle_connection(self, client_sock: socket.socket, client_ip: str = "127.0.0.1"):
         """
@@ -110,19 +130,83 @@ class WebSocketManager:
                     pass
                 logger.info(f"[WS] Клиент {state.client_ip} отключен (осталось онлайн: {len(self._clients)})")
 
-    def broadcast(self, event_type: str, payload: dict = None):
-        """Отправляет JSON-событие всем активным WebSocket-клиентам."""
+    def _get_redis_publisher(self):
+        if not getattr(config, 'REDIS_ENABLED', False) or not REDIS_LIB_AVAILABLE:
+            return None
+        if self._redis_pub is None:
+            try:
+                redis_url = getattr(config, 'REDIS_URL', 'redis://localhost:6379/0')
+                self._redis_pub = redis.Redis.from_url(redis_url, socket_timeout=2.0)
+            except Exception as e:
+                logger.debug(f"[WS] Не удалось инициализировать Redis publisher: {e}")
+        return self._redis_pub
+
+    def _redis_subscriber_loop(self):
+        """Фоновый поток подписки на события WebSocket из распределенной шины Redis."""
+        redis_url = getattr(config, 'REDIS_URL', 'redis://localhost:6379/0')
+        channel = getattr(config, 'REDIS_WS_CHANNEL', 'kvit:events:ws')
+        while self._running:
+            try:
+                sub_client = redis.Redis.from_url(redis_url, socket_timeout=5.0)
+                pubsub = sub_client.pubsub()
+                pubsub.subscribe(channel)
+                logger.info(f"[WS] Подписка на шину Redis Pub/Sub активна ({channel})")
+                for msg in pubsub.listen():
+                    if not self._running:
+                        break
+                    if msg and msg.get('type') == 'message':
+                        raw_data = msg.get('data')
+                        if isinstance(raw_data, bytes):
+                            raw_data = raw_data.decode('utf-8', errors='replace')
+                        try:
+                            payload_obj = json.loads(raw_data)
+                            if payload_obj.get('origin_node') == self._node_id:
+                                continue  # Уже отправлено локальным клиентам на этом узле
+                            evt = payload_obj.get('event', '')
+                            data = payload_obj.get('data', {})
+                            self._local_broadcast(evt, data)
+                        except Exception as parse_err:
+                            logger.error(f"[WS] Ошибка парсинга события из Redis: {parse_err}")
+            except Exception as e:
+                if not self._running:
+                    break
+                logger.debug(f"[WS] Ошибка подписки на Redis Pub/Sub, переподключение через 2с: {e}")
+                time.sleep(2.0)
+
+    def _local_broadcast(self, event_type: str, payload: dict = None):
+        """Отправляет JSON-событие всем локально активным WebSocket-клиентам без риска deadlock."""
         msg_data = json.dumps({'event': event_type, 'data': payload or {}, 'timestamp': time.time()}, ensure_ascii=False)
         frame = self._encode_frame(msg_data)
+        dead_clients = []
         with self._lock:
-            dead_clients = []
             for _fn, state in list(self._clients.items()):
                 try:
                     state.sock.sendall(frame)
                 except Exception:
                     dead_clients.append(state.sock)
-            for sock in dead_clients:
-                self.unregister(sock)
+
+        # Вызов unregister строго за пределами lock для предотвращения deadlock
+        for sock in dead_clients:
+            self.unregister(sock)
+
+    def broadcast(self, event_type: str, payload: dict = None, publish_to_redis: bool = True):
+        """Отправляет JSON-событие всем активным WebSocket-клиентам и публикует в Redis Pub/Sub."""
+        self._local_broadcast(event_type, payload)
+
+        if publish_to_redis and getattr(config, 'REDIS_ENABLED', False) and REDIS_LIB_AVAILABLE:
+            pub = self._get_redis_publisher()
+            if pub:
+                try:
+                    channel = getattr(config, 'REDIS_WS_CHANNEL', 'kvit:events:ws')
+                    msg = json.dumps({
+                        'event': event_type,
+                        'data': payload or {},
+                        'timestamp': time.time(),
+                        'origin_node': self._node_id
+                    }, ensure_ascii=False)
+                    pub.publish(channel, msg)
+                except Exception as e:
+                    logger.debug(f"[WS] Ошибка публикации события в Redis Pub/Sub: {e}")
 
     def send(self, client_sock: socket.socket, event_type: str, payload: dict = None):
         """Отправляет событие конкретному клиенту."""

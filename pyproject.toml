@@ -29,3 +29,25 @@ ignore = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 
+[tool.coverage.run]
+source = ["services", "database", "templates", "server", "app", "bot", "worker", "config"]
+omit = [
+    "tests/*",
+    "benchmarks/*",
+    "scratch/*",
+    "scripts/*",
+    "generate_*.py",
+    "polish_*.py",
+    "apply_*.py",
+    "append_*.py",
+    "inspect_*.py",
+    "upgrade_*.py",
+    "update_*.py",
+    "check_*.py",
+]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+
+
