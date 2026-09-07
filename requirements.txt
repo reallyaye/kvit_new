@@ -2,6 +2,6 @@ PyMuPDF==1.25.3
 xlrd==2.0.1
 openpyxl==3.1.5
 grpcio>=1.83.0
-protobuf>=7.35.1
+protobuf>=7.36.1
 psycopg2-binary==2.9.10
 redis>=5.0.0
