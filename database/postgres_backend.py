@@ -157,6 +157,17 @@ def init_postgres_pool(database_url: str, minconn: int = 2, maxconn: int = 50):
         _PG_POOL = pool.ThreadedConnectionPool(minconn, maxconn, dsn=database_url)
         logger.info(f"[PostgreSQL] Пул соединений успешно инициализирован (min={minconn}, max={maxconn})")
 
+def close_postgres_pool():
+    """Закрывает и очищает пул соединений PostgreSQL."""
+    global _PG_POOL
+    if _PG_POOL is not None:
+        try:
+            _PG_POOL.closeall()
+        except Exception:
+            pass
+        _PG_POOL = None
+        logger.info("[PostgreSQL] Пул соединений закрыт.")
+
 def get_postgres_db():
     """Получает соединение из пула PostgreSQL."""
     global _PG_POOL

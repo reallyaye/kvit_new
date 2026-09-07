@@ -1,4 +1,8 @@
 import os
+import socket
+import socketserver
+import threading
+import time
 
 os.environ['APP_ENV'] = 'testing'
 os.environ['DB_TYPE'] = 'sqlite'
@@ -42,3 +46,35 @@ def setup_test_env(monkeypatch, tmp_path):
         'db_file': db_file,
         'receipts_dir': receipts_dir,
     }
+
+
+class E2EThreadedServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+def _get_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture
+def e2e_server():
+    from server import AppRequestHandler
+
+    port = _get_free_port()
+    server = E2EThreadedServer(("127.0.0.1", port), AppRequestHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    base_url = f"http://127.0.0.1:{port}"
+    time.sleep(0.2)
+
+    yield {
+        "base_url": base_url,
+        "admin_password": "admin",
+    }
+
+    server.shutdown()
+    server.server_close()

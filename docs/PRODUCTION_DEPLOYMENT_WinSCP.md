@@ -68,7 +68,38 @@ SSL_KEY_PATH=/opt/kvit/nginx/ssl/privkey.pem
 
 ---
 
-## 📂 3. Строгий регламент WinSCP: Что копировать, а что ЗАПРЕЩЕНО
+## 📨 3. Настройка модуля обращений граждан и почты канцелярии (SMTP)
+
+В файле `.env` на сервере настраиваются параметры модуля официальных электронных обращений (`/appeals`):
+
+```bash
+# ────────────────────── Онлайн-обращения и канцелярия ────────
+# Адрес канцелярии предприятия для приёма обращений
+APPEALS_NOTIFY_EMAIL=info.krec@mail.ru
+# Защита от спама: лимит обращений в час с одного IP-адреса
+RATE_LIMIT_APPEALS=5
+
+# SMTP-шлюз отправки уведомлений (Mail.ru SSL)
+APPEALS_EMAIL_ENABLED=true
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=465
+SMTP_USERNAME=info.krec@mail.ru
+SMTP_PASSWORD=ваш_пароль_для_внешних_приложений
+SMTP_FROM_EMAIL=info.krec@mail.ru
+SMTP_FROM_NAME="ТОО «КРЭК»"
+SMTP_USE_TLS=false
+SMTP_USE_SSL=true
+SMTP_TIMEOUT=8
+```
+
+> [!TIP]
+> **Пароль приложения Mail.ru**:
+> Для отправки писем через ящик `@mail.ru` используется не основной пароль от аккаунта, а **Пароль для внешних приложений** (Mail.ru: *Настройки → Безопасность → Пароли для внешних приложений*).
+> Если пароль ещё не задан, сервис продолжает безопасно регистрировать обращения в базу данных и отображать их в админке без прерывания работы.
+
+---
+
+## 📂 4. Строгий регламент WinSCP: Что копировать, а что ЗАПРЕЩЕНО
 
 Откройте **WinSCP**, подключитесь к вашему серверу (протокол **SFTP**, порт **22**).
 
@@ -77,8 +108,8 @@ SSL_KEY_PATH=/opt/kvit/nginx/ssl/privkey.pem
 
 ### ✅ ЧТО КОПИРОВАТЬ ЧЕРЕЗ WinSCP:
 * 📁 `database/`
-* 📁 `services/`
-* 📁 `templates/`
+* 📁 `services/` (включая `services/appeals/`, `services/metrics/`, `services/receipts/`)
+* 📁 `templates/` (включая `templates/appeals_views.py`, `templates/admin_cms_views.py`)
 * 📁 `static/`
 * 📁 `proto/`
 * 📁 `scripts/`
@@ -96,6 +127,7 @@ SSL_KEY_PATH=/opt/kvit/nginx/ssl/privkey.pem
 * 📄 `Dockerfile`
 * 📄 `docker-compose.yml`
 * 📄 `pyproject.toml`
+
 
 ---
 
@@ -118,7 +150,7 @@ SSL_KEY_PATH=/opt/kvit/nginx/ssl/privkey.pem
 
 ---
 
-## 🛡️ 4. Шаг 1: Создание бэкапа перед обновлением (через SSH)
+## 🛡️ 5. Шаг 1: Создание бэкапа перед обновлением (через SSH)
 
 Перед загрузкой файлов откройте SSH-терминал (PuTTY / WinSCP Terminal) и выполните:
 
@@ -145,9 +177,9 @@ tar -czf /opt/kvit_backups/code_prev_$(date +%Y%m%d_%H%M%S).tar.gz \
 
 ---
 
-## 🚀 5. Шаг 2: Загрузка файлов и применение обновления (Deployment)
+## 🚀 6. Шаг 2: Загрузка файлов и применение обновления (Deployment)
 
-1. В **WinSCP** скопируйте файлы исходного кода (по списку из Раздела 3) в `/opt/kvit`.
+1. В **WinSCP** скопируйте файлы исходного кода (по списку из Раздела 4) в `/opt/kvit`.
 2. В **SSH-терминале** выполните бесшовный перезапуск:
 
 ```bash
@@ -165,7 +197,7 @@ docker compose exec nginx nginx -s reload
 
 ---
 
-## ✅ 6. Шаг 3: Чек-лист проверки после обновления
+## ✅ 7. Шаг 3: Чек-лист проверки после обновления
 
 Выполните контрольные команды в SSH-терминале:
 
@@ -202,9 +234,20 @@ docker compose logs --tail=30 kvit-worker
 2. Введите реальный номер лицевого счета абонента -> нажмите **Найти**.
 3. Нажмите **Скачать PDF** -> файл должен открыться мгновенно (Nginx отдаёт его через `X-Accel-Redirect`).
 
+### 6. Проверка таблицы и модуля обращений граждан (Appeals)
+Выполните запрос к PostgreSQL для подтверждения успешного создания структуры:
+```bash
+docker exec -it kvit-postgres psql -U ${POSTGRES_USER:-kvit_admin} -d ${POSTGRES_DB:-kvit_db} -c "\d appeals"
+```
+*Результат:* Таблица `appeals` присутствует, содержит колонки `registration_number`, `category`, `applicant_name`, `status`, `submitted_at` и все индексы.
+
+### 7. Проверка работы формы обращений и панели администратора
+1. Откройте в браузере `https://krec.kz/appeals` -> форма должна отображаться с корректными полями и валидацией.
+2. Авторизуйтесь под учётной записью администратора и перейдите в `https://krec.kz/admin/appeals` -> должен отображаться реестр поступивших обращений, фильтры и статистика.
+
 ---
 
-## ⏪ 7. Экстренный откат (Rollback Procedure)
+## ⏪ 8. Экстренный откат (Rollback Procedure)
 
 Если после обновления обнаружена критическая ошибка:
 
@@ -223,7 +266,7 @@ docker compose exec nginx nginx -s reload
 
 ---
 
-## 🚫 8. Команды, КАТЕГОРИЧЕСКИ ЗАПРЕЩЕННЫЕ на Production
+## 🚫 9. Команды, КАТЕГОРИЧЕСКИ ЗАПРЕЩЕННЫЕ на Production
 
 | ❌ Опасная команда | Последствия |
 | :--- | :--- |
@@ -235,7 +278,7 @@ docker compose exec nginx nginx -s reload
 
 ---
 
-## 📊 9. Справка по постоянным томам (Persistent Volumes)
+## 📊 10. Справка по постоянным томам (Persistent Volumes)
 
 | Данные | Docker Volume / Каталог | Назначение |
 | :--- | :--- | :--- |

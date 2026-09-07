@@ -18,7 +18,7 @@ from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT
 from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem
 from logger import logger
 from services.appeals import AppealValidationError, appeal_service
-from services.metrics import metrics_collector
+from services.metrics import alert_service, metrics_collector
 from services.portal_cms import portal_cms
 from services.receipts import receipt_service
 from services.reconciliation import reconcile_service
@@ -547,6 +547,17 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_json(metrics_collector.to_dict(), 200, extra_headers={'Cache-Control': 'no-store'})
                 return
+            elif path == '/api/admin/alerts':
+                if not self._is_admin():
+                    self.send_json({'error': 'Unauthorized'}, 401)
+                    return
+                alerts = alert_service.evaluate_all()
+                self.send_json({
+                    'alerts': alerts,
+                    'count': len(alerts),
+                    'has_critical': any(a.get('severity') == 'CRITICAL' for a in alerts),
+                }, 200, extra_headers={'Cache-Control': 'no-store'})
+                return
             elif path == '/api/tasks/stats':
                 if not self._is_admin():
                     self.send_json({'error': 'Unauthorized'}, 401)
@@ -802,6 +813,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         page_num = 1
                     appeals = appeal_service.list(status_filter, search_filter, page_num)
                     stats = appeal_service.get_stats()
+                    active_alerts = alert_service.evaluate_all()
                     body = render_admin_appeals_list(
                         appeals,
                         stats,
@@ -810,6 +822,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         message=msg,
                         error=err,
                         username=u_name,
+                        alerts_list=active_alerts,
                     )
                     self.send_html(layout(body, 'appeals', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/admin/appeals/view':
