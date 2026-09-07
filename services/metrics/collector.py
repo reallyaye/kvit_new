@@ -11,7 +11,7 @@
 import threading
 import time
 from collections import deque
-from typing import Deque, Dict
+from typing import Any, Deque, Dict
 
 
 class MetricsCollector:
@@ -35,6 +35,14 @@ class MetricsCollector:
 
         self._db_errors_total = 0
 
+        self._smtp_operations_total = 0
+        self._smtp_success_total = 0
+        self._smtp_errors_total = 0
+        self._smtp_errors: Deque[Dict[str, Any]] = deque(maxlen=200)
+        self._last_smtp_error = None
+        self._last_smtp_success_time = None
+        self._rolling_requests: Deque[tuple[float, int]] = deque(maxlen=2000)
+
     def record_request(self, method: str, path: str, status_code: int, duration_sec: float):
         """Регистрирует завершенный HTTP-запрос."""
         endpoint = path.split('?')[0]
@@ -51,6 +59,45 @@ class MetricsCollector:
             self._requests_by_status[status_code] = self._requests_by_status.get(status_code, 0) + 1
             self._requests_by_endpoint[endpoint] = self._requests_by_endpoint.get(endpoint, 0) + 1
             self._latencies.append(duration_sec)
+            self._rolling_requests.append((time.time(), status_code))
+
+    def record_smtp_error(self, error_msg: str):
+        """Регистрирует ошибку отправки через SMTP."""
+        now = time.time()
+        with self._lock:
+            self._smtp_operations_total += 1
+            self._smtp_errors_total += 1
+            self._last_smtp_error = str(error_msg)
+            self._smtp_errors.append({'timestamp': now, 'error': str(error_msg)})
+
+    def record_smtp_success(self):
+        """Регистрирует успешную отправку сообщения через SMTP."""
+        now = time.time()
+        with self._lock:
+            self._smtp_operations_total += 1
+            self._smtp_success_total += 1
+            self._last_smtp_success_time = now
+
+    def get_recent_smtp_errors(self, window_seconds: float = 900.0) -> list:
+        """Возвращает список ошибок SMTP за указанное окно времени (по умолчанию 15 минут)."""
+        cutoff = time.time() - window_seconds
+        with self._lock:
+            return [e for e in self._smtp_errors if e['timestamp'] >= cutoff]
+
+    def get_recent_5xx_rate(self, window_seconds: float = 300.0) -> dict:
+        """Вычисляет статистику ошибок 5xx за скользящее окно (по умолчанию 5 минут)."""
+        cutoff = time.time() - window_seconds
+        with self._lock:
+            recent = [status for ts, status in self._rolling_requests if ts >= cutoff]
+        total = len(recent)
+        count_5xx = sum(1 for s in recent if 500 <= s < 600)
+        rate_pct = round((count_5xx / total * 100), 2) if total > 0 else 0.0
+        return {
+            'window_seconds': window_seconds,
+            'total_requests': total,
+            'count_5xx': count_5xx,
+            'rate_pct': rate_pct,
+        }
 
     def record_ocr(self, duration_sec: float, pages: int = 1):
         """Регистрирует завершенную операцию OCR."""
@@ -109,11 +156,19 @@ class MetricsCollector:
             pdf_dur = self._pdf_duration_total
             pdf_files = self._pdf_files_total
             db_errors = self._db_errors_total
+            smtp_ops = self._smtp_operations_total
+            smtp_succ = self._smtp_success_total
+            smtp_errs = self._smtp_errors_total
+            last_smtp_err = self._last_smtp_error
+            last_smtp_succ = self._last_smtp_success_time
 
         # Вычисляем процент ошибок 5xx и 4xx
         errors_5xx = sum(count for sc, count in status_copy.items() if 500 <= sc < 600)
         errors_4xx = sum(count for sc, count in status_copy.items() if 400 <= sc < 500)
         error_rate_pct = round((errors_5xx / req_total * 100), 2) if req_total > 0 else 0.0
+
+        recent_5xx_stats = self.get_recent_5xx_rate(300.0)
+        recent_smtp_errors = self.get_recent_smtp_errors(900.0)
 
         return {
             'uptime_seconds': round(uptime, 2),
@@ -127,6 +182,7 @@ class MetricsCollector:
                 'latencies': latency_stats,
                 'top_endpoints': sorted(endpoints_copy.items(), key=lambda x: x[1], reverse=True)[:15]
             },
+            'recent_5xx': recent_5xx_stats,
             'ocr': {
                 'operations_total': ocr_ops,
                 'pages_total': ocr_pages,
@@ -141,6 +197,14 @@ class MetricsCollector:
             },
             'database': {
                 'errors_total': db_errors
+            },
+            'smtp': {
+                'operations_total': smtp_ops,
+                'success_total': smtp_succ,
+                'errors_total': smtp_errs,
+                'last_error': last_smtp_err,
+                'last_success_time': last_smtp_succ,
+                'recent_errors_15m': len(recent_smtp_errors),
             }
         }
 
@@ -165,7 +229,13 @@ class MetricsCollector:
             f"pdf_files_total {d['pdf_processing']['files_total']}",
             '# HELP db_errors_total Total DB errors encountered',
             '# TYPE db_errors_total counter',
-            f"db_errors_total {d['database']['errors_total']}"
+            f"db_errors_total {d['database']['errors_total']}",
+            '# HELP smtp_errors_total Total SMTP transmission errors',
+            '# TYPE smtp_errors_total counter',
+            f"smtp_errors_total {d['smtp']['errors_total']}",
+            '# HELP smtp_success_total Total successful SMTP transmissions',
+            '# TYPE smtp_success_total counter',
+            f"smtp_success_total {d['smtp']['success_total']}",
         ]
         for sc, count in d['requests']['by_status'].items():
             lines.append(f'http_requests_by_status{{status="{sc}"}} {count}')

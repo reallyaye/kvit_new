@@ -248,6 +248,7 @@ def test_async_websocket_multiplexer():
 
     # Создаем пару связанных сокетов для имитации клиента и сервера
     s_srv, s_cli = socket.socketpair()
+    s_cli.settimeout(5.0)
     try:
         ws_manager.register(s_srv, "127.0.0.1")
         time.sleep(0.05)

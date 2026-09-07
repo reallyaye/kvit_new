@@ -10,6 +10,7 @@ import config
 from database import get_db
 from database.connection import write_transaction
 from logger import logger
+from services.metrics import metrics_collector
 
 APPEAL_CATEGORIES = {
     'billing': 'Начисления и оплата',
@@ -250,9 +251,12 @@ class AppealService:
                     try:
                         client.send_message(message)
                         result[flag] = True
+                        metrics_collector.record_smtp_success()
                     except Exception as exc:
+                        metrics_collector.record_smtp_error(str(exc))
                         logger.warning('[Appeals] Email %s failed for %s: %s', flag, appeal['registration_number'], exc)
         except Exception as exc:
+            metrics_collector.record_smtp_error(str(exc))
             logger.warning('[Appeals] SMTP unavailable for %s: %s', appeal['registration_number'], exc)
 
         if any(result.values()):

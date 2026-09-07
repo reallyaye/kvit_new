@@ -69,9 +69,25 @@ def _format_datetime(timestamp):
         return '—'
 
 
-def render_admin_appeals_list(data, stats, filters, csrf_token, message=None, error=None, username='admin'):
+def render_admin_appeals_list(data, stats, filters, csrf_token, message=None, error=None, username='admin', alerts_list=None):
     del csrf_token
     alerts = (f'<div class="ok">{html.escape(message)}</div>' if message else '') + (f'<div class="err">{html.escape(error)}</div>' if error else '')
+
+    active_alerts_html = ''
+    if alerts_list:
+        items = []
+        for a in alerts_list:
+            is_crit = a.get('severity') == 'CRITICAL'
+            bg = '#fef2f2' if is_crit else '#fffbeb'
+            border = '#f87171' if is_crit else '#fcd34d'
+            text_color = '#991b1b' if is_crit else '#92400e'
+            icon = '🚨' if is_crit else '⚠️'
+            items.append(
+                f'<div style="background:{bg};border:1px solid {border};color:{text_color};padding:12px 16px;border-radius:10px;margin-bottom:10px;font-size:14px;display:flex;align-items:center;gap:10px;">'
+                f'<span style="font-size:18px;">{icon}</span><div><strong>{html.escape(a.get("title", ""))}</strong>: {html.escape(a.get("message", ""))}</div></div>'
+            )
+        active_alerts_html = f'<div class="appeal-system-alerts" style="margin-bottom:20px;">{"".join(items)}</div>'
+
     cards = ''.join(f'<div class="appeal-stat"><small>{html.escape(label)}</small><strong>{stats.get(key, 0)}</strong></div>' for key, label in [('TOTAL', 'Всего'), ('NEW', 'Новые'), ('IN_REVIEW', 'На рассмотрении'), ('ANSWERED', 'Ответ направлен')])
     rows = []
     for appeal in data['items']:
@@ -85,7 +101,7 @@ def render_admin_appeals_list(data, stats, filters, csrf_token, message=None, er
             params = {'status': filters.get('status', ''), 'search': filters.get('search', ''), 'page': page}
             links.append(f'<a class="btn btn-sm" href="/admin/appeals?{urllib.parse.urlencode(params)}">{page}</a>')
         pagination = '<div class="appeal-pagination">' + ''.join(links) + '</div>'
-    return f'''{_admin_nav_bar('appeals', 'admin', username)}<div class="appeal-admin">{alerts}<h1>Обращения граждан</h1><p>Реестр обращений, поступивших через сайт</p><div class="appeal-stats">{cards}</div><form method="get" action="/admin/appeals" class="appeal-filter"><input class="input" name="search" value="{html.escape(filters.get('search', ''))}" placeholder="Номер, ФИО, email, телефон или лицевой счёт"><select class="input" name="status">{status_options}</select><button class="btn btn-primary" type="submit">Найти</button></form><div class="appeal-table"><table><thead><tr><th>Номер</th><th>Дата</th><th>Заявитель</th><th>Категория</th><th>Статус</th></tr></thead><tbody>{rows_html}</tbody></table></div>{pagination}</div><style>.appeal-admin{{max-width:1200px;margin:26px auto;padding:0 18px}}.appeal-admin>p{{color:#64748b}}.appeal-stats{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}}.appeal-stat{{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px}}.appeal-stat small{{display:block;color:#64748b}}.appeal-stat strong{{display:block;font-size:25px;margin-top:4px}}.appeal-filter{{display:flex;gap:10px;background:#fff;border:1px solid #e2e8f0;padding:14px;border-radius:12px;margin-bottom:16px}}.appeal-filter input{{flex:1}}.appeal-table{{overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px}}.appeal-table table{{width:100%;border-collapse:collapse}}.appeal-table th,.appeal-table td{{padding:13px;text-align:left;border-bottom:1px solid #eef2f7;font-size:14px}}.appeal-table th{{color:#64748b;font-size:12px;text-transform:uppercase}}.appeal-table a{{font-weight:700;color:#2563eb}}.appeal-empty{{text-align:center!important;padding:35px!important;color:#64748b}}.appeal-pagination{{display:flex;gap:6px;margin-top:18px}}@media(max-width:700px){{.appeal-stats{{grid-template-columns:1fr 1fr}}.appeal-filter{{flex-direction:column}}}}</style>'''
+    return f'''{_admin_nav_bar('appeals', 'admin', username)}<div class="appeal-admin">{alerts}{active_alerts_html}<h1>Обращения граждан</h1><p>Реестр обращений, поступивших через сайт</p><div class="appeal-stats">{cards}</div><form method="get" action="/admin/appeals" class="appeal-filter"><input class="input" name="search" value="{html.escape(filters.get('search', ''))}" placeholder="Номер, ФИО, email, телефон или лицевой счёт"><select class="input" name="status">{status_options}</select><button class="btn btn-primary" type="submit">Найти</button></form><div class="appeal-table"><table><thead><tr><th>Номер</th><th>Дата</th><th>Заявитель</th><th>Категория</th><th>Статус</th></tr></thead><tbody>{rows_html}</tbody></table></div>{pagination}</div><style>.appeal-admin{{max-width:1200px;margin:26px auto;padding:0 18px}}.appeal-admin>p{{color:#64748b}}.appeal-stats{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}}.appeal-stat{{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px}}.appeal-stat small{{display:block;color:#64748b}}.appeal-stat strong{{display:block;font-size:25px;margin-top:4px}}.appeal-filter{{display:flex;gap:10px;background:#fff;border:1px solid #e2e8f0;padding:14px;border-radius:12px;margin-bottom:16px}}.appeal-filter input{{flex:1}}.appeal-table{{overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px}}.appeal-table table{{width:100%;border-collapse:collapse}}.appeal-table th,.appeal-table td{{padding:13px;text-align:left;border-bottom:1px solid #eef2f7;font-size:14px}}.appeal-table th{{color:#64748b;font-size:12px;text-transform:uppercase}}.appeal-table a{{font-weight:700;color:#2563eb}}.appeal-empty{{text-align:center!important;padding:35px!important;color:#64748b}}.appeal-pagination{{display:flex;gap:6px;margin-top:18px}}@media(max-width:700px){{.appeal-stats{{grid-template-columns:1fr 1fr}}.appeal-filter{{flex-direction:column}}}}</style>'''
 
 
 def render_admin_appeal_detail(appeal, csrf_token, message=None, error=None, username='admin'):

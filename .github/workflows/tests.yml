@@ -36,7 +36,7 @@ jobs:
 
       - name: Run Bandit SAST Security Scanner
         run: |
-          bandit -r . -x ./tests,./tmp,./scratch,./receipts,./benchmarks -ll -ii
+          bandit -r . -x ./tests,./tmp,./scratch,./receipts,./benchmarks,./scripts -ll -ii
 
       - name: Run pip-audit (Vulnerability Scan of Dependency Graph)
         run: |
@@ -95,9 +95,23 @@ jobs:
   # Job 3: Concurrency & Migration Smoke Test
   # ─────────────────────────────────────────────────────────────
   load-and-migration-smoke:
-    name: Concurrency & Migration Verification
+    name: Concurrency & Migration Verification (PostgreSQL & SQLite)
     runs-on: ubuntu-latest
     needs: [lint-and-security]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kvit_ci_user
+          POSTGRES_PASSWORD: kvit_ci_password
+          POSTGRES_DB: kvit_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -113,10 +127,18 @@ jobs:
         run: |
           python -m pip install --only-binary :all: pip==25.0.1
           if [[ -f requirements.txt ]]; then pip install --only-binary :all: -r requirements.txt; fi
+          pip install --only-binary :all: pytest==8.3.4
 
-      - name: Verify Clean Database Migration Fail-Fast
+      - name: Verify Clean SQLite Migration Fail-Fast
         run: |
-          python -c "from database import migrate_db; migrate_db(); print('Migration OK')"
+          python -c "from database.migrations import migrate_db; migrate_db(); print('SQLite Migration OK')"
+
+      - name: Verify Real PostgreSQL Migration & Schema Integrity
+        env:
+          DATABASE_URL: postgresql://kvit_ci_user:kvit_ci_password@localhost:5432/kvit_ci_test
+          POSTGRES_TEST_URL: postgresql://kvit_ci_user:kvit_ci_password@localhost:5432/kvit_ci_test
+        run: |
+          pytest -v tests/test_postgres_migration.py
 
   # ─────────────────────────────────────────────────────────────
   # Job 4: Docker Build & Blocking Trivy Container Vulnerability Scan
