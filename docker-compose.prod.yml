@@ -39,6 +39,8 @@ services:
     volumes:
       - /opt/kvit/receipts:/app/receipts
       - /opt/kvit/data:/app/data
+      - /opt/kvit/static_uploads:/app/static/images/uploads
+      - /opt/kvit/static_files:/app/static/files
       - /opt/kvit/logs:/app/logs
     networks:
       - kvit-net
@@ -91,7 +93,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:?Укажите production строку подключения к PostgreSQL DATABASE_URL}
       - REDIS_URL=${REDIS_URL:?Укажите production строку подключения к Redis REDIS_URL}
       - REDIS_ENABLED=true
-      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:?Обязательно укажите ADMIN_PASSWORD_HASH в .env для работы /login бота}
       - RECEIPTS_DIR=/app/receipts
       - LOG_FILE=/app/logs/bot.log
       - LOG_LEVEL=INFO
@@ -121,6 +123,8 @@ services:
       - ${SSL_KEY_PATH:-/etc/letsencrypt/live/krec.kz/privkey.pem}:/etc/nginx/ssl/privkey.pem:ro
       - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
       - ./static:/app/static:ro
+      - /opt/kvit/static_uploads:/app/static/images/uploads:ro
+      - /opt/kvit/static_files:/app/static/files:ro
       - /opt/kvit/receipts:/app/receipts:ro
       - /opt/kvit/logs/nginx:/var/log/nginx
 

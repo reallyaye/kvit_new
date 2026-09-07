@@ -96,7 +96,7 @@ def write_transaction(max_retries: int = 10, base_delay: float = 0.05):
                     logger.error(f"[DB] Превышен лимит попыток записи ({max_retries}): {e}")
                     raise
                 delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0.01, 0.05)
-                logger.warn(f"[DB] База данных заблокирована другим процессом. Повтор записи #{attempt} через {delay:.3f}с...")
+                logger.warning(f"[DB] База данных заблокирована другим процессом. Повтор записи #{attempt} через {delay:.3f}с...")
                 time.sleep(delay)
             else:
                 raise

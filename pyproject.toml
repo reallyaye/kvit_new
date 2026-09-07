@@ -22,12 +22,13 @@ ignore = [
 "database/__init__.py" = ["F401"]
 "templates/__init__.py" = ["F401"]
 "services/__init__.py" = ["F401"]
-"tests/*" = ["B011", "E701"]  # Специфика синтаксиса тестов
+"tests/*" = ["B011", "E701", "E702", "F841"]  # Специфика синтаксиса тестов
 
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "--basetemp=.pytest_tmp"
 
 [tool.coverage.run]
 source = ["services", "database", "templates", "server", "app", "bot", "worker", "config"]
@@ -44,10 +45,17 @@ omit = [
     "upgrade_*.py",
     "update_*.py",
     "check_*.py",
+    "run_tests.py",
+    "test_parse_tarifs.py",
+    "encrypt_env.py",
+    "set_password.py",
+    "import_data.py",
+    "grpc_client.py",
+    "proto/*",
 ]
 
 [tool.coverage.report]
-fail_under = 60
+fail_under = 80
 show_missing = true
 
 

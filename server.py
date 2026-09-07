@@ -151,6 +151,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         return f"session={token}; Path=/; Max-Age={max_age}; HttpOnly; SameSite=Strict{secure_flag}"
 
     def _get_session_token(self):
+        if not hasattr(self, 'headers') or not self.headers:
+            return None
         cookie_header = self.headers.get('Cookie')
         if not cookie_header:
             return None
@@ -422,9 +424,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         for _ in client.scan_iter(match='kvit:worker:heartbeat:*', count=10):
                             worker_alive = True
                             break
-                    elif hasattr(client, 'keys'):
-                        keys = client.keys('kvit:worker:heartbeat:*')
-                        if keys:
+                    elif hasattr(client, 'scan'):
+                        _, matched_keys = client.scan(cursor=0, match='kvit:worker:heartbeat:*', count=10)
+                        if matched_keys:
                             worker_alive = True
                 checks['workers'] = 'ok' if worker_alive else 'no_active_workers'
                 if not worker_alive and config.IS_PRODUCTION:
@@ -572,14 +574,24 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 house = q.get('house', [''])[0].strip()
                 flat = q.get('flat', [''])[0].strip()
                 period_filter = q.get('period', [''])[0].strip()
+                verify_code = q.get('verify', q.get('code', q.get('verify_code', [''])))[0].strip()
 
                 if q_text:
                     clean_digits = re.sub(r'\D', '', q_text)
                     if clean_digits and len(clean_digits) >= 5:
                         account_row = receipt_service.get_account(clean_digits)
                         if account_row:
-                            receipts = receipt_service.get_receipts(clean_digits, period_filter)
-                            body = render_search_result(clean_digits, period_filter, account_row, receipts)
+                            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                            is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
+                            receipts = receipt_service.get_receipts(clean_digits, period_filter) if is_verified else []
+                            body = render_search_result(
+                                clean_digits,
+                                period_filter,
+                                account_row,
+                                receipts,
+                                is_verified=is_verified,
+                                verification_failed=bool(verify_code and not is_verified)
+                            )
                             self.send_html(layout(body, 'search', is_admin=is_admin))
                             return
                     from services.portal_search import render_global_search_page, search_portal_content
@@ -590,8 +602,17 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 if account:
                     account_row = receipt_service.get_account(account)
                     if account_row:
-                        receipts = receipt_service.get_receipts(account, period_filter)
-                        body = render_search_result(account, period_filter, account_row, receipts)
+                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                        is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
+                        receipts = receipt_service.get_receipts(account, period_filter) if is_verified else []
+                        body = render_search_result(
+                            account,
+                            period_filter,
+                            account_row,
+                            receipts,
+                            is_verified=is_verified,
+                            verification_failed=bool(verify_code and not is_verified)
+                        )
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                         return
                     if any(c.isalpha() for c in account):
@@ -1572,7 +1593,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         street = q.get('street', [''])[0].strip()
         house = q.get('house', [''])[0].strip()
         flat = q.get('flat', [''])[0].strip()
+        verify_code = q.get('verify', q.get('code', q.get('verify_code', [''])))[0].strip()
         period_filter = q.get('period', [''])[0].strip()
+        is_admin = self._is_admin()
 
         if account:
             account_row = receipt_service.get_account(account)
@@ -1581,6 +1604,21 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     'status': 'NOT_FOUND',
                     'message': f'Лицевой счёт {account} отсутствует в базе данных.',
                     'account': account,
+                    'receipts': []
+                }, 200, extra_headers={'Cache-Control': 'no-store'})
+                return
+
+            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+            is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
+
+            if require_verification and not is_verified:
+                msg = 'Неверный номер дома/квартиры для данного лицевого счета.' if verify_code else 'Для доступа к квитанции введите номер дома или квартиры.'
+                self.send_json({
+                    'status': 'NEED_VERIFICATION',
+                    'message': msg,
+                    'account': str(account_row['account_number']),
+                    'address': receipt_service.mask_address(account_row['address']),
+                    'customer_name': '',
                     'receipts': []
                 }, 200, extra_headers={'Cache-Control': 'no-store'})
                 return

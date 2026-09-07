@@ -82,7 +82,7 @@ jobs:
           SECRET_KEY: "ci_secret_signing_key_for_testing_2026"
         run: |
           python run_tests.py
-          pytest -v --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=60
+          pytest -v --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
       - name: Upload Test Coverage Artifacts
         if: matrix.python-version == '3.11'
