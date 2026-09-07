@@ -200,6 +200,8 @@ class AlertService:
 
         return alerts
 
+    get_active_alerts = evaluate_all
+
     def dispatch_telegram_alerts(self, client=None) -> int:
         """
         Отправляет критические алерты в Telegram администраторам с соблюдением кулдауна.
