@@ -494,8 +494,8 @@ class StatsService:
                     deleted = cur.rowcount
                 else:
                     try:
-                        from config import is_postgres
-                        if not is_postgres() and hasattr(con, 'execute'):
+                        from database.connection import is_postgres_configured
+                        if not is_postgres_configured() and hasattr(con, 'execute'):
                             changes = con.execute("SELECT changes()").fetchone()
                             deleted = changes[0] if changes else 0
                         else:
