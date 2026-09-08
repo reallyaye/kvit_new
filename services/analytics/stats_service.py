@@ -144,7 +144,7 @@ class StatsService:
                     INSERT INTO page_visits (visited_at, path, ip_hash, user_agent, device_type, browser, os, is_bot)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (ts, norm_path, ip_h, ua_str, device_type, browser, os_name, 1 if is_bot else 0)
+                    (ts, norm_path, ip_h, ua_str, device_type, browser, os_name, bool(is_bot))
                 )
             return True
         except Exception as exc:
@@ -190,12 +190,12 @@ class StatsService:
         try:
             con = get_db()
             try:
-                # 1. KPI метрики (реальные люди, is_bot = 0)
+                # 1. KPI метрики (реальные люди, NOT is_bot)
                 row_today = con.execute(
                     """
                     SELECT COUNT(DISTINCT ip_hash), COUNT(*)
                     FROM page_visits
-                    WHERE visited_at >= ? AND (is_bot = 0 OR is_bot IS FALSE)
+                    WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (today_start,)
                 ).fetchone()
@@ -207,7 +207,7 @@ class StatsService:
                     """
                     SELECT COUNT(*)
                     FROM page_visits
-                    WHERE visited_at >= ? AND (is_bot = 1 OR is_bot IS TRUE)
+                    WHERE visited_at >= ? AND is_bot
                     """,
                     (today_start,)
                 ).fetchone()
@@ -218,7 +218,7 @@ class StatsService:
                     """
                     SELECT COUNT(DISTINCT ip_hash), COUNT(*)
                     FROM page_visits
-                    WHERE visited_at >= ? AND visited_at < ? AND (is_bot = 0 OR is_bot IS FALSE)
+                    WHERE visited_at >= ? AND visited_at < ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (yesterday_start, today_start)
                 ).fetchone()
@@ -230,7 +230,7 @@ class StatsService:
                     """
                     SELECT COUNT(DISTINCT ip_hash), COUNT(*)
                     FROM page_visits
-                    WHERE visited_at >= ? AND (is_bot = 0 OR is_bot IS FALSE)
+                    WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (week_start,)
                 ).fetchone()
@@ -242,7 +242,7 @@ class StatsService:
                     """
                     SELECT COUNT(DISTINCT ip_hash), COUNT(*)
                     FROM page_visits
-                    WHERE visited_at >= ? AND (is_bot = 0 OR is_bot IS FALSE)
+                    WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (month_start,)
                 ).fetchone()
@@ -264,7 +264,7 @@ class StatsService:
                         """
                         SELECT COUNT(DISTINCT ip_hash), COUNT(*)
                         FROM page_visits
-                        WHERE visited_at >= ? AND visited_at < ? AND (is_bot = 0 OR is_bot IS FALSE)
+                        WHERE visited_at >= ? AND visited_at < ? AND (NOT is_bot OR is_bot IS NULL)
                         """,
                         (d_start, d_end)
                     ).fetchone()
@@ -285,7 +285,7 @@ class StatsService:
                     """
                     SELECT path, COUNT(*) as views_cnt, COUNT(DISTINCT ip_hash) as visitors_cnt
                     FROM page_visits
-                    WHERE visited_at >= ? AND (is_bot = 0 OR is_bot IS FALSE)
+                    WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     GROUP BY path
                     ORDER BY views_cnt DESC
                     LIMIT 10
@@ -335,7 +335,7 @@ class StatsService:
                     """
                     SELECT browser, COUNT(*) as cnt
                     FROM page_visits
-                    WHERE visited_at >= ? AND (is_bot = 0 OR is_bot IS FALSE)
+                    WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     GROUP BY browser
                     ORDER BY cnt DESC
                     LIMIT 5
@@ -438,7 +438,7 @@ class StatsService:
                     device_type, browser, os_name, is_bot = self.parse_user_agent(ua)
                     ip_h = self._hash_ip(ip)
 
-                    batch.append((ts, url[:255], ip_h, ua[:500], device_type, browser, os_name, 1 if is_bot else 0))
+                    batch.append((ts, url[:255], ip_h, ua[:500], device_type, browser, os_name, bool(is_bot)))
 
                     if len(batch) >= batch_size:
                         with write_transaction() as con:
