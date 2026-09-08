@@ -24,6 +24,7 @@
 | 11 | **Замечания к кодовой базе, линтерам и безопасности** (`ruff`, Bandit, пароли в `scratch/`, `DOCS_LICENSES.md`) | В [pyproject.toml](file:///c:/Users/zhunis/Desktop/portal/kvit_new/pyproject.toml) исключение `receipts` исправлено на `"/receipts"`. В `receipt_service.py` отсортированы импорты и удалена неиспользуемая переменная `query_str_norm`. В `services/mail/test_delivery.py` закрыто замечание Bandit B310. Из скриптов в `scratch/` полностью удалены хардкод-пароли SSH. В [DOCS_LICENSES.md](file:///c:/Users/zhunis/Desktop/portal/kvit_new/DOCS_LICENSES.md) детально зафиксированы правовые основания по служебным произведениям (ст. 14 Закона РК об авторском праве). | **Устранено** |
 | 12 | **Фактическая ротация Nginx-логов отсутствовала** (активные `access.log` и `error.log` не ротировались и могли превысить лимит 90 дней) | Создан [nginx/Dockerfile](file:///c:/Users/zhunis/Desktop/portal/kvit_new/nginx/Dockerfile) на базе Alpine с установкой пакетов `logrotate`, `gzip`, `tzdata`. Разработан скрипт [nginx/rotate-logs.sh](file:///c:/Users/zhunis/Desktop/portal/kvit_new/nginx/rotate-logs.sh), выполняющий atomic rename файлов логов, сигнал `nginx -s reopen`, сжатие `gzip` и удаление файлов старше 90 дней (`find ... -mtime +90 -delete`). В [docker-compose.yml](file:///c:/Users/zhunis/Desktop/portal/kvit_new/docker-compose.yml) настроен образ `kvit-nginx:latest` и фоновый суточный вызов ротации. | **Устранено** |
 | 13 | **Связка каталогов загрузки `data/uploads` и права доступа** (риск ошибки создания root-владельца при чистом деплое) | Зафиксированы файлы `.gitkeep` в [data/uploads/.gitkeep](file:///c:/Users/zhunis/Desktop/portal/kvit_new/data/uploads/.gitkeep) и `static/images/uploads/.gitkeep`. В `.gitignore` добавлено исключение `!/data/uploads/.gitkeep`. В [Dockerfile](file:///c:/Users/zhunis/Desktop/portal/kvit_new/Dockerfile) и скрипте деплоя добавлено автоматическое создание каталогов с правами `775` и `chown -R appuser:appuser` (UID/GID 1000). | **Устранено** |
+| 14 | **Отключение требования верификации адреса по лицевому счету** (пользователю выводилось предупреждение «Требуется уточнить адрес: Для доступа к квитанции введите номер дома или квартиры») | В [config.py](file:///c:/Users/zhunis/Desktop/portal/kvit_new/config.py) значение по умолчанию `REQUIRE_RECEIPT_VERIFICATION` установлено в `False`. В [server.py](file:///c:/Users/zhunis/Desktop/portal/kvit_new/server.py) удалено условие `or config.IS_PRODUCTION` из всех обработчиков поиска. Теперь при вводе лицевого счёта пользователь сразу получает квитанцию (`EXACT_MATCH`), без запросов номеров дома/квартиры. В [templates/search_views.py](file:///c:/Users/zhunis/Desktop/portal/kvit_new/templates/search_views.py) обновлена обработка AJAX-ответов. Проверено на боевом сервере. | **Устранено** |
 
 ---
 
@@ -71,7 +72,7 @@ python -m bandit -r services database templates server.py app.py worker.py -ll
 
 ## 4. Развёртывание на сервере (Production)
 
-- **Ревизия в Git:** [9990996](https://github.com/reallyaye/kvit_new/commit/9990996) (`main` и `origin/main` синхронизированы).
+- **Ревизия в Git:** [6cf3c74](https://github.com/reallyaye/kvit_new/commit/6cf3c74) (`main` и `origin/main` синхронизированы).
 - **Состояние контейнеров на сервере `172.30.0.2`:**
   ```text
   NAMES                    STATUS                    PORTS
@@ -84,7 +85,8 @@ python -m bandit -r services database templates server.py app.py worker.py -ll
   ```
 - **Проверка живого сервиса:**
   - **Health probe:** `HTTP 200` (`{"status": "ok", "service": "kvit-service"}`).
+  - **Поиск квитанции по лицевому счёту (без запроса адреса):** Запрос `/api/search?account=800146` возвращает `STATUS: EXACT_MATCH`, адрес и токен доступа к квитанции без запроса дома/квартиры.
   - **Страница обращений `/appeals`:** `HTTP 200`, длина HTML 59 615 байт.
-  - **Тестирование ротации логов Nginx:** Скрипт `/usr/local/bin/rotate-logs.sh` выполнен внутри `kvit-nginx`. Старые файлы (65 МБ `access.log` и 5.9 МБ `error.log`) отротированы в `access.log.1` и `error.log.1`, активные файлы логов атомарно переоткрыты через сигнал Nginx и очищены. Срок хранения 90 дней обеспечивается суточным циклом контейнера.
+  - **Тестирование ротации логов Nginx:** Скрипт `/usr/local/bin/rotate-logs.sh` выполнен внутри `kvit-nginx`. Старые файлы (65 МБ `access.log` и 5.9 МБ `error.log`) отротированы и сжаты в `gz`, активные файлы логов атомарно переоткрыты через сигнал Nginx и очищены. Срок хранения 90 дней обеспечивается суточным циклом контейнера.
   - **Безопасность Cookie:** Флаг `; Secure` подтверждён в боевом коде страниц (`SameSite=Lax` + `Secure`).
   - **HTTP-редирект с порта 80:** `Location: https://krec.kz/` подтверждён.
