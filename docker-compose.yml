@@ -254,13 +254,16 @@ services:
       # Сертификаты, созданные Certbot.
       - /etc/letsencrypt:/etc/letsencrypt:ro
 
-    # Периодически перечитывает обновлённый сертификат.
+    # Периодически перечитывает обновлённый сертификат и очищает архивные логи старше 90 дней.
     command:
       - /bin/sh
       - -c
       - |
         (while sleep 6h; do
           nginx -t && nginx -s reload;
+        done) &
+        (while sleep 24h; do
+          find /var/log/nginx -type f \( -name "*.gz" -o -name "*.old" -o -name "*.[0-9]*" \) -mtime +90 -delete 2>/dev/null || true;
         done) &
         exec nginx -g 'daemon off;'
 

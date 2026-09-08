@@ -51,9 +51,11 @@ def query_doh(name: str, qtype: str, timeout: float = 4.0) -> List[Dict[str, Any
         try:
             req = urllib.request.Request(
                 url,
-                headers={'Accept': 'application/dns-json', 'User-Agent': 'KrecMailTester/1.0'}
+                headers={'Accept': 'application/dns-json', 'User-Agent': 'KrecMailTester/1.0'},
             )
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if not url.startswith('https://'):
+                continue
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
                 data = json.loads(resp.read().decode('utf-8'))
                 if 'Answer' in data:
                     return data['Answer']
