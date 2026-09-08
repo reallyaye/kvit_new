@@ -90,3 +90,46 @@ python -m bandit -r services database templates server.py app.py worker.py -ll
   - **Тестирование ротации логов Nginx:** Скрипт `/usr/local/bin/rotate-logs.sh` выполнен внутри `kvit-nginx`. Старые файлы (65 МБ `access.log` и 5.9 МБ `error.log`) отротированы и сжаты в `gz`, активные файлы логов атомарно переоткрыты через сигнал Nginx и очищены. Срок хранения 90 дней обеспечивается суточным циклом контейнера.
   - **Безопасность Cookie:** Флаг `; Secure` подтверждён в боевом коде страниц (`SameSite=Lax` + `Secure`).
   - **HTTP-редирект с порта 80:** `Location: https://krec.kz/` подтверждён.
+
+---
+
+## 5. Устранение ошибки детекции квитанций-сирот при `known_accounts=None`
+
+### 5.1. Анализ проблемы
+1. **Потеря результата запроса в `pdf_processor.py` (строка 280):**
+   При `known_accounts=None` (штатный режим работы воркера фоновой загрузки) выполнялся запрос в БД `SELECT account_number FROM accounts WHERE account_number IN (...)`, но результат `{row[0] for row in rows}` не присваивался переменной `known_accounts`.
+2. **Ложное срабатывание проверки `is_orphan`:**
+   В строке 393 проверялось `is_orphan = (known_accounts is not None and account not in known_accounts)`. Из-за того, что `known_accounts` оставался `None`, выражение вычислялось в `False`. В результате неизвестный лицевой счёт ошибочно считался валидным (`added=1`, `orphan=0`).
+3. **Авторегистрация счетов-сирот в `atomic_importer.py`:**
+   В цикле фиксации транзакции выполнялась безусловная вставка `INSERT INTO accounts`, создававшая в реестре ошибочно распознанный номер счёта.
+
+### 5.2. Реализованные исправления
+1. **[pdf_processor.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/services/pdf/pdf_processor.py):**
+   - Результат запроса счетов теперь корректно присваивается: `known_accounts = {str(row[0]).strip() for row in rows}` (или `set()` если список пуст).
+   - Проверка `is_orphan` строго определяет сирот: `is_orphan = (str(account).strip() not in known_accounts)`.
+2. **[atomic_importer.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/services/pdf/atomic_importer.py):**
+   - Добавлено условие `if r.account and not r.is_orphan:`, гарантирующее, что квитанция с несуществующим счётом сохраняется в `receipts`, но **не создаёт** ложную запись в таблице `accounts`.
+3. **[tests/test_pdf_processor.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/tests/test_pdf_processor.py):**
+   - Добавлен сквозной тест `test_pdf_processor_orphan_when_known_accounts_is_none`:
+     - Несуществующий счёт при `known_accounts=None` получает `orphan=1`, `added=0`.
+     - Счёт не попадает в `accounts`, квитанция попадает в `receipts` и учитывается в `reconcile_service.get_reconciliation_data(filt='orphans')`.
+     - Существующий счёт при `known_accounts=None` получает `added=1`, `orphan=0`.
+4. **[run_tests.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/run_tests.py):**
+   - Добавлен `tests/test_pdf_processor.py` в список запуска по умолчанию (все 114 тестов проходят успешно: `114 passed in 91.47s`).
+
+### 5.3. Деплой и доступ к боевой PostgreSQL
+- **Подключение к серверу:**
+  - SSH: `user@172.30.0.2`, порт **`22022`**, пароль `REDACTED_SSH_PASSWORD`.
+- **Подключение к боевой PostgreSQL:**
+  - Контейнер: `kvit-postgres`.
+  - Пользователь: **`kvit_admin`** (не `postgres` и не `kvit_user`).
+  - База данных: **`kvit_db`**.
+  - Пароль: `REDACTED_PG_PASSWORD`.
+  - Команда для проверки через SSH:
+    ```bash
+    docker exec -it kvit-postgres psql -U kvit_admin -d kvit_db -c "SELECT count(*) FROM accounts; SELECT count(*) FROM receipts;"
+    ```
+  - Текущие показатели боевой БД: **38 294** счёта в реестре, **34 408** квитанций.
+- **Статус на боевом сервере:**
+  - Изменения запушены в `main` ([7df3708](https://github.com/reallyaye/kvit_new/commit/7df3708)) и подтянуты на сервер через `git pull`.
+  - Контейнеры `kvit-api` and `kvit-worker` перезапущены и находятся в статусе `healthy`.
