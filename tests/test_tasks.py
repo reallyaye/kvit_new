@@ -107,6 +107,6 @@ def test_task_manager_error_isolation(tmp_path):
             break
         time.sleep(0.05)
 
-    assert task.status == TaskStatus.COMPLETED
+    assert task.status == TaskStatus.FAILED
     assert task.skipped >= 1
     assert any('corrupt.pdf' in d for d in task.details)
