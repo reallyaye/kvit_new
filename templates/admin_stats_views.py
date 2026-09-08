@@ -44,6 +44,135 @@ def _get_labeled_indices(daily_trend: list, target_count: int = 8) -> set:
     return selected
 
 
+_STATS_CHART_CSS = """
+<style>
+    .chart-group:hover rect.view-bar, .chart-group.active rect.view-bar { fill: #1d4ed8 !important; opacity: 1 !important; filter: drop-shadow(0 3px 6px rgba(37,99,235,0.35)); }
+    .chart-group:hover rect.user-bar, .chart-group.active rect.user-bar { fill: #0284c7 !important; }
+    .chart-group:hover text.bar-val, .chart-group.active text.bar-val { font-weight: 700 !important; fill: #0f172a !important; }
+    .chart-group:hover rect.bar-col-bg, .chart-group.active rect.bar-col-bg { opacity: 1 !important; }
+
+    .stats-chart-wrapper {
+        position: relative;
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 8px;
+    }
+
+    .chart-tooltip {
+        position: absolute;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        background: rgba(15, 23, 42, 0.94);
+        backdrop-filter: blur(8px);
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 12px;
+        line-height: 1.4;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.2);
+        z-index: 50;
+        white-space: nowrap;
+        min-width: 175px;
+        border: 1px solid rgba(255,255,255,0.14);
+    }
+    .chart-tooltip.visible { opacity: 1; }
+    .chart-tooltip.tooltip-top { transform: translate(-50%, -100%); }
+    .chart-tooltip.tooltip-top::after {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 6px 6px 0;
+        border-style: solid;
+        border-color: rgba(15, 23, 42, 0.94) transparent transparent transparent;
+    }
+    .chart-tooltip.tooltip-bottom { transform: translate(-50%, 0); }
+    .chart-tooltip.tooltip-bottom::after {
+        content: '';
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 0 6px 6px;
+        border-style: solid;
+        border-color: transparent transparent rgba(15, 23, 42, 0.94) transparent;
+    }
+</style>
+"""
+
+_STATS_TOOLTIP_SCRIPT = """
+<script>
+(function() {
+    var tooltip = document.getElementById('statsChartTooltip');
+    var wrapper = document.getElementById('statsChartWrapper');
+    var svg = document.getElementById('statsChartSvg');
+    if (!tooltip || !wrapper || !svg) return;
+
+    var groups = svg.querySelectorAll('.chart-group');
+    function showTooltip(group) {
+        var dateStr = group.getAttribute('data-fulldate') || group.getAttribute('data-date') || '';
+        var views = Number(group.getAttribute('data-views') || 0).toLocaleString('ru-RU');
+        var visitors = Number(group.getAttribute('data-visitors') || 0).toLocaleString('ru-RU');
+        var cx = Number(group.getAttribute('data-cx') || 0);
+        var cy = Number(group.getAttribute('data-cy') || 0);
+
+        tooltip.innerHTML = '<div style="font-size:12.5px;font-weight:700;color:#f8fafc;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.14);">' + dateStr + '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:4px;">' +
+                '<span style="display:flex;align-items:center;color:#94a3b8;"><span style="width:8px;height:8px;border-radius:2px;background:#2563eb;display:inline-block;margin-right:6px;"></span>Просмотры</span>' +
+                '<span style="font-weight:700;color:#fff;font-size:13px;font-family:Consolas,monospace;">' + views + '</span>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:4px;">' +
+                '<span style="display:flex;align-items:center;color:#94a3b8;"><span style="width:8px;height:8px;border-radius:2px;background:#38bdf8;display:inline-block;margin-right:6px;"></span>Уникальные</span>' +
+                '<span style="font-weight:700;color:#38bdf8;font-size:13px;font-family:Consolas,monospace;">' + visitors + '</span>' +
+            '</div>';
+
+        var svgRect = svg.getBoundingClientRect();
+        var wrapRect = wrapper.getBoundingClientRect();
+        var scaleX = svgRect.width / 860.0;
+        var scaleY = svgRect.height / 195.0;
+
+        var left = (svgRect.left - wrapRect.left + wrapper.scrollLeft) + (cx * scaleX);
+        var barTop = (svgRect.top - wrapRect.top) + (cy * scaleY);
+
+        if (barTop < 75) {
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = (barTop + 28) + 'px';
+            tooltip.className = 'chart-tooltip tooltip-bottom visible';
+        } else {
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = (barTop - 10) + 'px';
+            tooltip.className = 'chart-tooltip tooltip-top visible';
+        }
+        groups.forEach(function(g) { g.classList.remove('active'); });
+        group.classList.add('active');
+    }
+
+    function hideTooltip() {
+        tooltip.className = 'chart-tooltip';
+        groups.forEach(function(g) { g.classList.remove('active'); });
+    }
+
+    groups.forEach(function(g) {
+        g.addEventListener('mouseenter', function() { showTooltip(g); });
+        g.addEventListener('mouseleave', hideTooltip);
+        g.addEventListener('focus', function() { showTooltip(g); });
+        g.addEventListener('blur', hideTooltip);
+        g.addEventListener('click', function(e) {
+            e.stopPropagation();
+            showTooltip(g);
+        });
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!wrapper.contains(e.target)) hideTooltip();
+    });
+})();
+</script>
+"""
+
+
 def render_admin_stats_dashboard(
     stats: Dict[str, Any],
     csrf_token: str = '',
@@ -103,6 +232,14 @@ def render_admin_stats_dashboard(
             is_first_of_month = d_str.endswith('-01')
             is_last_day = (idx == num_days - 1)
 
+            # Форматирование полной даты для всплывающего окна
+            months_full_ru = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
+            try:
+                _parts = [int(p) for p in d_str.split('-')]
+                full_date_str = f"{_parts[2]} {months_full_ru[_parts[1]]} {_parts[0]}"
+            except Exception:
+                full_date_str = d_str
+
             if is_first_of_month:
                 lbl_color = '#2563eb'
                 lbl_weight = '700'
@@ -130,8 +267,16 @@ def render_admin_stats_dashboard(
                 '''
 
             chart_bars_html.append(f'''
-            <g class="chart-group" tabindex="0" style="cursor:pointer;">
+            <g class="chart-group" tabindex="0" style="cursor:pointer;"
+               data-date="{d_str}"
+               data-fulldate="{full_date_str}"
+               data-views="{v_val}"
+               data-visitors="{u_val}"
+               data-cx="{cx:.1f}"
+               data-cy="{y:.1f}">
                 <title>{d_str}: {u_val} уникальных посетителей, {v_val} просмотров</title>
+                <!-- Подсветка всей колонки при наведении -->
+                <rect class="bar-col-bg" x="{x - bar_gap/2}" y="10" width="{bar_width + bar_gap}" height="{baseline - 10}" rx="6" fill="#f1f5f9" opacity="0" style="transition:opacity 0.15s; pointer-events:none;"></rect>
                 <!-- Общие просмотры -->
                 <rect class="view-bar" x="{x}" y="{y}" width="{bar_width}" height="{bar_h}" rx="3.5" fill="url(#blueGrad)" opacity="0.85">
                     <animate attributeName="height" from="0" to="{bar_h}" dur="0.4s" fill="freeze" />
@@ -148,13 +293,10 @@ def render_admin_stats_dashboard(
             ''')
 
     chart_svg = f'''
-    <style>
-        .chart-group:hover rect.view-bar {{ fill: #1d4ed8 !important; opacity: 1 !important; filter: drop-shadow(0 2px 4px rgba(37,99,235,0.25)); }}
-        .chart-group:hover rect.user-bar {{ fill: #0284c7 !important; }}
-        .chart-group:hover text.bar-val {{ font-weight: 700 !important; fill: #0f172a !important; }}
-    </style>
-    <div style="width:100%;overflow-x:auto;padding-bottom:8px;">
-        <svg viewBox="0 0 {chart_width} {chart_height}" width="100%" height="{chart_height}" style="min-width:650px;display:block;">
+    {_STATS_CHART_CSS}
+    <div class="stats-chart-wrapper" id="statsChartWrapper">
+        <div id="statsChartTooltip" class="chart-tooltip"></div>
+        <svg id="statsChartSvg" viewBox="0 0 {chart_width} {chart_height}" width="100%" height="{chart_height}" style="min-width:650px;display:block;">
             <defs>
                 <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                     <stop offset="0%" stop-color="#2563eb" />
@@ -167,6 +309,7 @@ def render_admin_stats_dashboard(
             {''.join(chart_bars_html)}
         </svg>
     </div>
+    {_STATS_TOOLTIP_SCRIPT}
     ''' if daily_trend else '<div style="padding:40px;text-align:center;color:#64748b;">Нет накопленных данных за выбранный период</div>'
 
     # 2. Популярные страницы
