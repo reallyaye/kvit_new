@@ -543,7 +543,16 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             if not path.startswith(('/api/', '/admin', '/login', '/logout', '/static/')):
                 dnt = self.headers.get('DNT') == '1'
                 cookie_hdr = self.headers.get('Cookie', '')
-                analytics_allowed = (not dnt) and ('krec_analytics=1' in cookie_hdr)
+                analytics_allowed = False
+                if not dnt and cookie_hdr:
+                    try:
+                        from http.cookies import SimpleCookie
+                        sc = SimpleCookie()
+                        sc.load(cookie_hdr)
+                        if 'krec_analytics' in sc and sc['krec_analytics'].value == '1':
+                            analytics_allowed = True
+                    except Exception:
+                        analytics_allowed = False
                 if analytics_allowed:
                     ua_hdr = self.headers.get('User-Agent', '')
                     stats_service.record_visit(path, client_ip, ua_hdr)

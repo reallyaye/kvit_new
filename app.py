@@ -181,11 +181,10 @@ def main():
     if getattr(config, 'RUN_EMBEDDED_WORKER', True):
         task_manager.start()
         logger.info("Воркер задач:        ВКЛЮЧЕН (встроенный пул потоков)")
+        from services.retention_scheduler import start_retention_scheduler
+        start_retention_scheduler(interval_seconds=86400, initial_delay=30)
     else:
         logger.info("Воркер задач:        ВЫКЛЮЧЕН в веб-сервере (обработка через отдельный worker-контейнер)")
-
-    from services.retention_scheduler import start_retention_scheduler
-    start_retention_scheduler(interval_seconds=86400, initial_delay=30)
 
     try:
         run_http_loop(http_server)

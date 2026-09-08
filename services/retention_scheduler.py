@@ -16,28 +16,58 @@ _scheduler_started = False
 _scheduler_lock = threading.Lock()
 
 
+ADVISORY_LOCK_ID = 949494
+
+
 def run_retention_cycle(visits_days: int = 90, appeals_days: int = 1095) -> dict:
-    """Выполняет один цикл автоматической очистки данных."""
-    logger.info("[Retention] Запуск планового цикла очистки устаревших персональных данных...")
-    results = {'purged_visits': 0, 'anonymized_appeals': 0}
-    try:
-        results['purged_visits'] = stats_service.purge_old_visits(days=visits_days)
-    except Exception as exc:
-        logger.warning("[Retention] Сбой очистки визитов: %s", exc)
+    """Выполняет один цикл автоматической очистки данных с защитой от параллельного запуска."""
+    from database.connection import get_db, is_postgres_configured
+
+    lock_acquired = False
+    con = None
+    if is_postgres_configured():
+        try:
+            con = get_db()
+            cur = con.execute("SELECT pg_try_advisory_lock(?)", (ADVISORY_LOCK_ID,))
+            row = cur.fetchone()
+            lock_acquired = bool(row[0]) if row else False
+            if not lock_acquired:
+                logger.info("[Retention] Цикл очистки уже выполняется другим процессом/воркером. Пропуск.")
+                return {'purged_visits': 0, 'anonymized_appeals': 0}
+        except Exception as exc:
+            logger.warning("[Retention] Не удалось проверить advisory lock PostgreSQL: %s", exc)
 
     try:
-        results['anonymized_appeals'] = appeal_service.purge_expired_appeals(retention_days=appeals_days)
-    except Exception as exc:
-        logger.warning("[Retention] Сбой обезличивания обращений: %s", exc)
+        logger.info("[Retention] Запуск планового цикла очистки устаревших персональных данных...")
+        results = {'purged_visits': 0, 'anonymized_appeals': 0}
+        try:
+            results['purged_visits'] = stats_service.purge_old_visits(days=visits_days)
+        except Exception as exc:
+            logger.warning("[Retention] Сбой очистки визитов: %s", exc)
 
-    logger.info(
-        "[Retention] Плановый цикл завершен: удалено %d сетевых визитов (>%d дн.), обезличено %d архивных обращений (>%d дн.)",
-        results['purged_visits'],
-        visits_days,
-        results['anonymized_appeals'],
-        appeals_days,
-    )
-    return results
+        try:
+            results['anonymized_appeals'] = appeal_service.purge_expired_appeals(retention_days=appeals_days)
+        except Exception as exc:
+            logger.warning("[Retention] Сбой обезличивания обращений: %s", exc)
+
+        logger.info(
+            "[Retention] Плановый цикл завершен: удалено %d сетевых визитов (>%d дн.), обезличено %d архивных обращений (>%d дн.)",
+            results['purged_visits'],
+            visits_days,
+            results['anonymized_appeals'],
+            appeals_days,
+        )
+        return results
+    finally:
+        if lock_acquired and con is not None:
+            try:
+                con.execute("SELECT pg_advisory_unlock(?)", (ADVISORY_LOCK_ID,))
+            except Exception as exc:
+                logger.warning("[Retention] Ошибка снятия advisory lock: %s", exc)
+            try:
+                con.close()
+            except Exception:
+                pass
 
 
 def _retention_worker_loop(interval_seconds: int = 86400, initial_delay: int = 60):

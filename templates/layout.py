@@ -674,7 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {{
                     }}
                 }}
             }}
-            document.cookie = 'krec_analytics=0; path=/; max-age=31536000; SameSite=Lax';
+            document.cookie = 'krec_analytics=0; path=/; max-age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
         }} catch(e) {{}}
 
         try {{
@@ -732,7 +732,7 @@ document.addEventListener('DOMContentLoaded', function() {{
         try {{
             localStorage.setItem('krec_cookie_consent', JSON.stringify(val));
             if (allowAnalytics) {{
-                document.cookie = 'krec_analytics=1; path=/; max-age=31536000; SameSite=Lax';
+                document.cookie = 'krec_analytics=1; path=/; max-age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
             }} else {{
                 purgeTrackingData();
             }}

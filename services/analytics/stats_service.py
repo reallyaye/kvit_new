@@ -490,10 +490,18 @@ class StatsService:
         try:
             with write_transaction() as con:
                 cur = con.execute("DELETE FROM page_visits WHERE visited_at < ?", (cutoff,))
-                deleted = cur.rowcount if hasattr(cur, 'rowcount') and cur.rowcount != -1 else 0
-                if deleted == 0:
-                    changes = con.execute("SELECT changes()").fetchone() if hasattr(con, 'execute') else None
-                    deleted = changes[0] if changes else 0
+                if hasattr(cur, 'rowcount') and cur.rowcount is not None and cur.rowcount >= 0:
+                    deleted = cur.rowcount
+                else:
+                    try:
+                        from config import is_postgres
+                        if not is_postgres() and hasattr(con, 'execute'):
+                            changes = con.execute("SELECT changes()").fetchone()
+                            deleted = changes[0] if changes else 0
+                        else:
+                            deleted = 0
+                    except Exception:
+                        deleted = 0
                 logger.info("[Analytics] Очищено %d старых записей посещений (старше %d дней)", deleted, days)
                 return deleted
         except Exception as exc:
