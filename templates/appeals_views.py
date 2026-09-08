@@ -14,22 +14,39 @@ def render_appeals_page(is_admin=False):
     )
     content = f'''
     <section class="appeals-page">
-      <div class="appeals-intro"><h1>Официальный канал ТОО «КРЭК»</h1><p>Подача заявлений, вопросов, предложений и жалоб по вопросам электроснабжения, начислений и подключения к сетям.</p></div>
+      <div class="appeals-intro"><h1>Электронная приёмная обращений потребителей</h1><p>Подача обращений, вопросов и заявлений в ТОО «Карагандинская Региональная Энергетическая Компания» (ТОО «КРЭК»).</p></div>
       <div class="appeals-grid">
         <div class="appeals-card appeals-form-card">
           <h2>Форма подачи обращения</h2>
-          <p class="appeals-help">Все поля, отмеченные звёздочкой (*), обязательны. Обращение будет зарегистрировано с присвоением входящего номера.</p>
+          <p class="appeals-help">Поля, отмеченные звёздочкой (*), обязательны. Каждому обращению присваивается уникальный номер для отслеживания статуса на сайте.</p>
           <form id="appeal-form" action="/api/appeals" method="post" novalidate>
+            <input type="hidden" name="consent_version" value="v1.0-2026-kz">
             <label>Категория обращения *<select name="category" required><option value="">Выберите тематику обращения…</option>{options}</select></label>
             <div class="appeals-fields">
-              <label>ФИО заявителя (или наименование организации) *<input name="applicant_name" maxlength="255" autocomplete="name" required placeholder="Иванов Иван Иванович"></label>
-              <label>Контактный телефон *<input name="phone" type="tel" maxlength="64" autocomplete="tel" required placeholder="+7 (___) ___-__-__"></label>
-              <label>Адрес электронной почты (для ответа) *<input name="email" type="email" maxlength="254" autocomplete="email" required placeholder="example@mail.kz"></label>
-              <label>Номер лицевого счёта (при наличии)<input name="account_number" maxlength="64" inputmode="numeric" placeholder="Например: 12345678"></label>
+              <label>ФИО заявителя (или наименование организации) *<input name="applicant_name" class="ym-disable-keys" maxlength="255" autocomplete="name" required placeholder="Иванов Иван Иванович"></label>
+              <label>Контактный телефон *<input name="phone" class="ym-disable-keys" type="tel" maxlength="64" autocomplete="tel" required placeholder="+7 (___) ___-__-__"></label>
+              <label>Адрес электронной почты (для получения ответа)<input name="email" class="ym-disable-keys" type="email" maxlength="254" autocomplete="email" placeholder="example@mail.kz"></label>
+              <label>Номер лицевого счёта (при наличии)<input name="account_number" class="ym-disable-keys" maxlength="64" inputmode="numeric" placeholder="Например: 12345678"></label>
             </div>
-            <label>Адрес объекта электроснабжения *<input name="service_address" maxlength="500" autocomplete="street-address" required placeholder="Район, населённый пункт, улица, дом, кв."></label>
-            <label>Суть обращения *<textarea name="message" minlength="10" maxlength="5000" rows="6" required placeholder="Подробно опишите суть вопроса, дату происшествия или требуемые действия…"></textarea></label>
-            <label class="appeals-consent"><input name="consent" type="checkbox" value="1" required><span>Даю согласие на обработку персональных данных в соответствии с законодательством Республики Казахстан *</span></label>
+            <label>Адрес объекта электроснабжения (обязательно при отключениях и ТУ)<input name="service_address" class="ym-disable-keys" maxlength="500" autocomplete="street-address" placeholder="Район, населённый пункт, улица, дом, кв."></label>
+            <label>Суть обращения *<textarea name="message" class="ym-disable-keys" minlength="10" maxlength="5000" rows="6" required placeholder="Подробно опишите суть вопроса, дату происшествия или требуемые действия…"></textarea></label>
+            <div class="appeals-consent-box" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:16px; margin-bottom:20px;">
+              <label class="appeals-consent" style="margin-bottom:6px;">
+                <input name="consent" type="checkbox" value="1" required>
+                <span>Подтверждаю согласие на сбор, обработку и хранение персональных данных в соответствии с Законом Республики Казахстан «О персональных данных и их защите» *</span>
+              </label>
+              <details style="font-size:12.5px; color:#64748b; margin-top:8px; line-height:1.5;">
+                <summary style="cursor:pointer; color:#2563eb; font-weight:600;">Условия, цели и порядок отзыва согласия (нажмите, чтобы развернуть)</summary>
+                <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #cbd5e1;">
+                  <p style="margin:4px 0;"><strong>Оператор:</strong> ТОО «Карагандинская Региональная Энергетическая Компания» (БИН 031140001297, Республика Казахстан, г. Караганда, 108 учетный квартал, строение 7).</p>
+                  <p style="margin:4px 0;"><strong>Цель сбора:</strong> Рассмотрение обращения, связь с заявителем, предоставление ответа и исполнение обязанностей оператора сетей.</p>
+                  <p style="margin:4px 0;"><strong>Перечень данных:</strong> ФИО, телефон, email, лицевой счёт, адрес объекта, текст обращения.</p>
+                  <p style="margin:4px 0;"><strong>Передача третьим лицам:</strong> Для направления ответа привлекается почтовый сервис (SMTP). Другим третьим лицам данные не передаются.</p>
+                  <p style="margin:4px 0;"><strong>Срок хранения:</strong> 3 года с даты подачи обращения. По истечении срока данные обезличиваются.</p>
+                  <p style="margin:4px 0;"><strong>Отзыв согласия:</strong> Заявление в канцелярию ТОО «КРЭК» или на email: <a href="mailto:dpo@krec.kz" style="color:#2563eb;">dpo@krec.kz</a>. Подробнее: <a href="/privacy" target="_blank" style="color:#2563eb; text-decoration:underline;">Политика конфиденциальности</a>.</p>
+                </div>
+              </details>
+            </div>
             <div class="appeals-honeypot" aria-hidden="true"><label>Не заполняйте это поле<input name="website" tabindex="-1" autocomplete="off"></label></div>
             <div id="appeal-result" class="appeals-result" role="status" aria-live="polite"></div>
             <button id="appeal-submit" class="appeals-submit" type="submit">Отправить обращение</button>
@@ -37,9 +54,9 @@ def render_appeals_page(is_admin=False):
         </div>
         <aside>
           <div class="appeals-card"><h3>Порядок рассмотрения</h3><ol class="appeals-steps">
-            <li><strong>Регистрация обращения</strong><span>В течение 1 рабочего дня с присвоением входящего номера.</span></li>
-            <li><strong>Срок рассмотрения</strong><span>До 15 календарных дней со дня поступления согласно законодательству РК.</span></li>
-            <li><strong>Официальный ответ</strong><span>Направляется на указанную электронную почту заявителя.</span></li>
+            <li><strong>Регистрация обращения</strong><span>В течение 1 рабочего дня с присвоением уникального регистрационного номера.</span></li>
+            <li><strong>Срок рассмотрения</strong><span>До 15 рабочих дней со дня поступления в соответствии с законодательством Республики Казахстан (АППК РК).</span></li>
+            <li><strong>Ответ потребителю</strong><span>Направляется на указанную электронную почту заявителя или почтовым отправлением.</span></li>
           </ol></div>
           <div class="appeals-card appeals-office"><h3>Канцелярия предприятия</h3><p>Письменное заявление можно подать лично:</p><p><strong>г. Караганда, 108 уч. квартал, строение 7</strong></p><p>Канцелярия: <strong>+7 (7212) 90-03-50</strong></p><small>Пн–Пт с 08:00 до 17:00 (обед 12:00–13:00)</small></div>
         </aside>

@@ -43,7 +43,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         <!-- Поиск по адресу -->
         <form id="searchAddressForm" action="/search" method="get" style="{form_addr_style}" onsubmit="handleAjaxSearch(event, this, 'address')">
             <label>Точный адрес объекта</label>
-            <input name="address" type="search" placeholder="Например: ул. Абая 10, кв 5 или Абая 10-5" value="{html.escape(default_address)}" required>
+            <input name="address" class="ym-disable-keys" type="search" placeholder="Например: ул. Абая 10, кв 5 или Абая 10-5" value="{html.escape(default_address)}" autocomplete="off" required>
             <p style="color:#64748b;font-size:12px;margin:4px 0 12px;display:flex;align-items:center;gap:5px">{icon('shield', 13)} Укажите улицу, номер дома и квартиру (например: <i>ул. Абая 10, кв 5</i> или <i>Абая 10-5</i>).</p>
             <label>Период</label>
             <select name="period">
@@ -59,7 +59,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         <!-- Поиск по лицевому счёту -->
         <form id="searchAccountForm" action="/search" method="get" style="{form_acc_style}" onsubmit="handleAjaxSearch(event, this, 'account')">
             <label>Лицевой счёт</label>
-            <input name="account" type="search" inputmode="numeric" placeholder="Например: 800146" value="{html.escape(default_account)}" required>
+            <input name="account" class="ym-disable-keys" type="search" inputmode="numeric" placeholder="Например: 800146" value="{html.escape(default_account)}" autocomplete="off" required>
             <label>Период</label>
             <select name="period">
                 {period_options}

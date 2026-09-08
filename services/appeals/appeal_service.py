@@ -37,6 +37,7 @@ _APPEAL_COLUMNS = (
     'email', 'account_number', 'service_address', 'message', 'status',
     'consent', 'submitted_at', 'updated_at', 'client_ip', 'user_agent',
     'assigned_to', 'admin_comment', 'office_notified', 'confirmation_sent',
+    'consent_version',
 )
 
 
@@ -47,7 +48,7 @@ class AppealValidationError(ValueError):
 def _row_to_dict(row):
     if not row:
         return None
-    return {column: row[index] for index, column in enumerate(_APPEAL_COLUMNS)}
+    return {column: row[index] for index, column in enumerate(_APPEAL_COLUMNS[:len(row)])}
 
 
 def _clean(value, max_length):
@@ -64,6 +65,7 @@ class AppealService:
         service_address = _clean(payload.get('service_address'), 500)
         message = _clean(payload.get('message'), 5000)
         consent = str(payload.get('consent', '')).lower() in ('1', 'true', 'yes', 'on')
+        consent_version = _clean(payload.get('consent_version'), 32) or 'v1.0-2026-kz'
 
         if category not in APPEAL_CATEGORIES:
             raise AppealValidationError('Выберите категорию обращения.')
@@ -72,12 +74,16 @@ class AppealService:
         digits = re.sub(r'\D', '', phone)
         if not 10 <= len(digits) <= 15:
             raise AppealValidationError('Укажите корректный контактный телефон.')
-        if len(email) > 254 or not _EMAIL_RE.fullmatch(email):
+        if email and (len(email) > 254 or not _EMAIL_RE.fullmatch(email)):
             raise AppealValidationError('Укажите корректный адрес электронной почты.')
         if account_number and not _ACCOUNT_RE.fullmatch(account_number):
             raise AppealValidationError('Лицевой счёт содержит недопустимые символы.')
-        if len(service_address) < 5:
+        if category in ('outage', 'connection') and len(service_address) < 5:
             raise AppealValidationError('Укажите адрес объекта электроснабжения.')
+        elif service_address and len(service_address) < 5:
+            raise AppealValidationError('Укажите корректный адрес объекта электроснабжения.')
+        elif not service_address:
+            service_address = 'Не указан'
         if len(message) < 10:
             raise AppealValidationError('Опишите суть обращения подробнее (не менее 10 символов).')
         if not consent:
@@ -92,6 +98,7 @@ class AppealService:
             'service_address': service_address,
             'message': message,
             'consent': True,
+            'consent_version': consent_version,
         }
 
     @staticmethod
@@ -100,8 +107,15 @@ class AppealService:
         return f'ЭП-{datetime.now().strftime("%Y%m%d")}-{suffix}'
 
     def create(self, payload, client_ip='', user_agent=''):
+        from services.analytics.stats_service import stats_service
+
         data = self.validate(payload)
         now = time.time()
+        # Минимизация сетевых данных: не сохраняем сырой IP и сырой UA пользователя в открытом виде
+        anonymized_ip = stats_service._hash_ip(client_ip, now) if client_ip else ''
+        dev_info = stats_service.parse_user_agent(user_agent) if user_agent else ('desktop', 'Other', 'Other', False)
+        safe_ua = f"{dev_info[0]} / {dev_info[1]}" if user_agent else ''
+
         for _ in range(5):
             registration_number = self._new_registration_number()
             try:
@@ -110,13 +124,13 @@ class AppealService:
                         '''INSERT INTO appeals (
                             registration_number, category, applicant_name, phone, email,
                             account_number, service_address, message, status, consent,
-                            submitted_at, updated_at, client_ip, user_agent
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?)''',
+                            submitted_at, updated_at, client_ip, user_agent, consent_version
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?, ?)''',
                         (
                             registration_number, data['category'], data['applicant_name'],
                             data['phone'], data['email'], data['account_number'],
                             data['service_address'], data['message'], data['consent'],
-                            now, now, _clean(client_ip, 64), _clean(user_agent, 500),
+                            now, now, anonymized_ip, safe_ua, data['consent_version'],
                         ),
                     )
                 appeal = self.get_by_registration_number(registration_number)
@@ -229,12 +243,13 @@ class AppealService:
             office.set_content(self._office_email_body(appeal))
             messages.append(('office_notified', office))
 
-        confirmation = EmailMessage()
-        confirmation['Subject'] = f"Обращение зарегистрировано: {appeal['registration_number']}"
-        confirmation['From'] = config.SMTP_FROM_EMAIL
-        confirmation['To'] = appeal['email']
-        confirmation.set_content(self._confirmation_email_body(appeal))
-        messages.append(('confirmation_sent', confirmation))
+        if appeal.get('email'):
+            confirmation = EmailMessage()
+            confirmation['Subject'] = f"Обращение зарегистрировано: {appeal['registration_number']}"
+            confirmation['From'] = config.SMTP_FROM_EMAIL
+            confirmation['To'] = appeal['email']
+            confirmation.set_content(self._confirmation_email_body(appeal))
+            messages.append(('confirmation_sent', confirmation))
 
         try:
             smtp_class = smtplib.SMTP_SSL if config.SMTP_USE_SSL else smtplib.SMTP
@@ -285,10 +300,41 @@ class AppealService:
         return (
             f"Здравствуйте, {appeal['applicant_name']}!\n\n"
             f"Ваше обращение зарегистрировано под номером {appeal['registration_number']}.\n"
-            "Срок рассмотрения — до 15 календарных дней со дня поступления.\n"
+            "Срок рассмотрения — до 15 рабочих дней со дня поступления в соответствии с законодательством Республики Казахстан (АППК РК).\n"
             "Ответ будет направлен на этот адрес электронной почты.\n\n"
             "ТОО «КРЭК»"
         )
+
+    def purge_expired_appeals(self, retention_days: int = 1095) -> int:
+        """
+        Обезличивает персональные данные обращений, срок хранения которых истёк (по умолчанию 3 года).
+        Оставляет только агрегированные статистические метаданные (номер, дата, категория, статус).
+        """
+        cutoff = time.time() - (max(1, retention_days) * 86400.0)
+        try:
+            with write_transaction() as con:
+                cur = con.execute(
+                    '''UPDATE appeals
+                       SET applicant_name = 'Обезличено (истёк срок хранения)',
+                           phone = 'Обезличено',
+                           email = '',
+                           service_address = 'Обезличено',
+                           message = 'Текст обращения удален по истечении срока хранения персональных данных',
+                           client_ip = '',
+                           user_agent = ''
+                       WHERE status IN ('CLOSED', 'REJECTED', 'ANSWERED')
+                         AND submitted_at < ?''',
+                    (cutoff,),
+                )
+                affected = cur.rowcount if hasattr(cur, 'rowcount') and cur.rowcount != -1 else 0
+                if affected == 0:
+                    changes = con.execute("SELECT changes()").fetchone() if hasattr(con, 'execute') else None
+                    affected = changes[0] if changes else 0
+                logger.info("[Appeals] Обезличено %d архивных обращений старше %d дней", affected, retention_days)
+                return affected
+        except Exception as exc:
+            logger.warning("[Appeals] Ошибка очистки архивных обращений: %s", exc)
+            return 0
 
 
 appeal_service = AppealService()

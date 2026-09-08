@@ -99,17 +99,21 @@ def portal_layout(
 <script type="application/ld+json">
 {{
   "@context": "https://schema.org",
-  "@type": "GovernmentService",
+  "@type": "Organization",
   "name": "ТОО «Карагандинская Региональная Энергетическая Компания»",
   "alternateName": "ТОО «КРЭК»",
   "url": "https://krec.kz",
   "logo": "https://krec.kz/images/logo.png",
   "telephone": "+7-7212-90-03-58",
+  "email": "info@krec.kz",
+  "taxID": "031140001297",
+  "leiCode": "031140001297",
   "address": {{
     "@type": "PostalAddress",
     "streetAddress": "108 уч. квартал, строение 7",
     "addressLocality": "Караганда",
     "addressRegion": "Карагандинская область",
+    "postalCode": "100000",
     "addressCountry": "KZ"
   }}
 }}
@@ -132,35 +136,6 @@ if ('serviceWorker' in navigator) {{
 </head>
 <body>
 {admin_bar_html}
-<!-- Yandex.Metrika counter -->
-<script type="text/javascript" >
-    (function (d, w, c) {{
-        (w[c] = w[c] || []).push(function() {{
-            try {{
-                w.yaCounter51197381 = new Ya.Metrika2({{
-                    id:51197381,
-                    clickmap:true,
-                    trackLinks:true,
-                    accurateTrackBounce:true,
-                    webvisor:true
-                }});
-            }} catch(e) {{ }}
-        }});
-
-        var n = d.getElementsByTagName("script")[0],
-            s = d.createElement("script"),
-            f = function () {{ n.parentNode.insertBefore(s, n); }};
-        s.type = "text/javascript";
-        s.async = true;
-        s.src = "https://mc.yandex.ru/metrika/tag.js";
-
-        if (w.opera == "[object Opera]") {{
-            d.addEventListener("DOMContentLoaded", f, false);
-        }} else {{ f(); }}
-    }})(document, window, "yandex_metrika_callbacks2");
-</script>
-<noscript><div><img src="https://mc.yandex.ru/watch/51197381" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-<!-- /Yandex.Metrika counter -->
 
 <div id="wrap">
 
@@ -433,7 +408,10 @@ if ('serviceWorker' in navigator) {{
                 <ul class="krec-footer-links">
                     <li><a href="/#about">О компании ТОО «КРЭК»</a></li>
                     <li><a href="/contacts#res">Районы электрических сетей (6 РЭС)</a></li>
-                    <li><a href="/contacts">Контакты и службы</a></li>
+                    <li><a href="/contacts">Контакты и реквизиты</a></li>
+                    <li><a href="/privacy">Политика конфиденциальности</a></li>
+                    <li><a href="/terms">Условия использования</a></li>
+                    <li><a href="javascript:void(0)" onclick="krecOpenCookieModal()">Настройки файлов cookie</a></li>
                     <li><a href="/vacancy">Вакансии предприятия</a></li>
                     <li><a href="/tbquest">Охрана труда и безопасность</a></li>
                 </ul>
@@ -447,6 +425,7 @@ if ('serviceWorker' in navigator) {{
                     <li><a href="/docs">Нормативно-правовая база</a></li>
                     <li><a href="/zakup">Планы закупок и тендеры</a></li>
                     <li><a href="/price">Прейскурант сервисных услуг</a></li>
+                    <li><a href="/privacy#rights">Защита персональных данных</a></li>
                 </ul>
             </div>
         </div>
@@ -456,7 +435,13 @@ if ('serviceWorker' in navigator) {{
         <div class="krec-footer-container bottom-row">
             <div class="krec-footer-copy">
                 <div>&copy; 2005&ndash;2026 ТОО &laquo;Карагандинская Региональная Энергетическая Компания&raquo; (ТОО &laquo;КРЭК&raquo;). Все права защищены.</div>
-                <div style="margin-top:6px; font-size:12.5px; color:#94a3b8; display:flex; align-items:center; gap:6px;">
+                <div style="margin-top:4px; font-size:12.5px; color:#cbd5e1;">
+                    БИН: <strong>031140001297</strong> &bull; 100000, Карагандинская обл., г. Караганда, район им. Казыбек би, 108 учетный квартал, стр. 7
+                </div>
+                <div style="margin-top:3px; font-size:12px; color:#94a3b8;">
+                    Вопросы по персональным данным: <a href="mailto:dpo@krec.kz" style="color:#93c5fd; text-decoration:none;">dpo@krec.kz</a> &bull; Канцелярия: +7 (7212) 90-03-50
+                </div>
+                <div style="margin-top:6px; font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:6px;">
                     <svg width="13" height="13" viewBox="0 0 24 24" class="svg-icon-stroke" style="stroke:#94a3b8;"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                     <span>Разработка и создание портала: <a href="https://t.me/REALLY_DE4D" target="_blank" rel="noopener noreferrer" style="color:#e2e8f0; font-weight:700; text-decoration:none; border-bottom:1px dotted #64748b; transition:all 0.2s;" onmouseover="this.style.color='#60a5fa';this.style.borderBottomColor='#60a5fa'" onmouseout="this.style.color='#e2e8f0';this.style.borderBottomColor='#64748b'">Жүніс Тамерлан</a></span>
                 </div>
@@ -472,6 +457,297 @@ if ('serviceWorker' in navigator) {{
 </footer>
 
 </div><!-- /#wrap -->
+
+<!-- ===== КОРПОРАТИВНЫЙ БАННЕР СОГЛАСИЯ НА COOKIES ===== -->
+<div id="krecCookieBanner" class="krec-cookie-banner" style="display:none;" role="region" aria-label="Уведомление о файлах cookie">
+    <div class="krec-cookie-container">
+        <div class="krec-cookie-text">
+            <div class="krec-cookie-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Файлы cookie и конфиденциальность данных</span>
+            </div>
+            <p>Мы используем обязательные cookies для работы портала и аналитические cookies (Яндекс.Метрика) для анализа посещаемости сайта. На страницах поиска квитанций и обращений запись экрана и перехват ввода клавиатуры отключены. Вы можете принять все или продолжить только с техническими cookies. Подробнее: <a href="/privacy" style="color:#60a5fa;text-decoration:underline;">Политика сбора и обработки данных</a>.</p>
+        </div>
+        <div class="krec-cookie-actions">
+            <button type="button" class="krec-cookie-btn krec-cookie-btn-primary" onclick="krecAcceptAllCookies()">Принять все</button>
+            <button type="button" class="krec-cookie-btn krec-cookie-btn-outline" onclick="krecRejectCookies()">Только необходимые</button>
+            <button type="button" class="krec-cookie-btn krec-cookie-btn-subtle" onclick="krecOpenCookieModal()">Настроить</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== МОДАЛЬНОЕ ОКНО НАСТРОЙКИ COOKIES ===== -->
+<div id="krecCookieModal" class="krec-cookie-modal-backdrop" style="display:none;" onclick="if(event.target===this)krecCloseCookieModal()">
+    <div class="krec-cookie-modal-content" role="dialog" aria-modal="true" aria-labelledby="krecCookieModalTitle">
+        <div class="krec-cookie-modal-header">
+            <h3 id="krecCookieModalTitle">Настройки файлов cookie и аналитики</h3>
+            <button type="button" class="krec-cookie-close-btn" onclick="krecCloseCookieModal()" aria-label="Закрыть">&times;</button>
+        </div>
+        <div class="krec-cookie-modal-body">
+            <p style="margin-bottom:16px; font-size:13.5px; color:#64748b; line-height:1.5;">В соответствии с Законом Республики Казахстан «О персональных данных и их защите» вы можете настроить категории используемых файлов cookie.</p>
+
+            <div class="krec-cookie-option">
+                <div class="krec-cookie-opt-header">
+                    <div>
+                        <strong>Технические (необходимые) cookies</strong>
+                        <span class="krec-badge-req">Всегда активны</span>
+                    </div>
+                </div>
+                <p>Обеспечивают базовое функционирование сайта: выбор языка, сессии, предотвращение атак. Без них сайт не может работать.</p>
+            </div>
+
+            <div class="krec-cookie-option">
+                <div class="krec-cookie-opt-header">
+                    <div>
+                        <strong>Аналитические cookies (Яндекс.Метрика)</strong>
+                    </div>
+                    <label class="krec-switch">
+                        <input type="checkbox" id="krecConsentAnalyticsCheckbox">
+                        <span class="krec-slider"></span>
+                    </label>
+                </div>
+                <p>Сбор агрегированной обезличенной статистики посещаемости. На страницах поиска квитанций и формы обращений Webvisor (запись действий на экране) отключён принудительно.</p>
+            </div>
+        </div>
+        <div class="krec-cookie-modal-footer">
+            <button type="button" class="krec-cookie-btn krec-cookie-btn-outline" onclick="krecCloseCookieModal()">Отмена</button>
+            <button type="button" class="krec-cookie-btn krec-cookie-btn-primary" onclick="krecSaveCookieSettings()">Сохранить выбор</button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Cookie Banner & Modal styles */
+.krec-cookie-banner {{
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    max-width: 960px;
+    margin: 0 auto;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 18px 24px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+    z-index: 99999;
+    color: #f8fafc;
+    font-family: 'Inter', -apple-system, sans-serif;
+    animation: krecSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}}
+@keyframes krecSlideUp {{
+    from {{ transform: translateY(100%); opacity: 0; }}
+    to {{ transform: translateY(0); opacity: 1; }}
+}}
+.krec-cookie-container {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}}
+.krec-cookie-text {{
+    flex: 1 1 500px;
+}}
+.krec-cookie-title {{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 15px;
+    color: #38bdf8;
+    margin-bottom: 6px;
+}}
+.krec-cookie-text p {{
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #cbd5e1;
+}}
+.krec-cookie-actions {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}}
+.krec-cookie-btn {{
+    padding: 9px 18px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    border: none;
+}}
+.krec-cookie-btn-primary {{
+    background: #2563eb;
+    color: #ffffff;
+}}
+.krec-cookie-btn-primary:hover {{
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}}
+.krec-cookie-btn-outline {{
+    background: rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}}
+.krec-cookie-btn-outline:hover {{
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.35);
+}}
+.krec-cookie-btn-subtle {{
+    background: transparent;
+    color: #94a3b8;
+    padding: 9px 12px;
+}}
+.krec-cookie-btn-subtle:hover {{
+    color: #f8fafc;
+    text-decoration: underline;
+}}
+.krec-cookie-modal-backdrop {{
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+}}
+.krec-cookie-modal-content {{
+    background: #ffffff;
+    color: #0f172a;
+    width: 100%;
+    max-width: 540px;
+    border-radius: 18px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    animation: krecModalZoom 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}}
+@keyframes krecModalZoom {{
+    from {{ transform: scale(0.95); opacity: 0; }}
+    to {{ transform: scale(1); opacity: 1; }}
+}}
+.krec-cookie-modal-header {{
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}}
+.krec-cookie-modal-header h3 {{
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+}}
+.krec-cookie-close-btn {{
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #64748b;
+    line-height: 1;
+}}
+.krec-cookie-modal-body {{
+    padding: 20px 24px;
+    max-height: 60vh;
+    overflow-y: auto;
+}}
+.krec-cookie-option {{
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}}
+.krec-cookie-opt-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}}
+.krec-badge-req {{
+    font-size: 11px;
+    background: #e2e8f0;
+    color: #475569;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    margin-left: 8px;
+    font-weight: 600;
+}}
+.krec-cookie-option p {{
+    margin: 0;
+    font-size: 12.5px;
+    color: #64748b;
+    line-height: 1.45;
+}}
+.krec-switch {{
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}}
+.krec-switch input {{
+    opacity: 0;
+    width: 0;
+    height: 0;
+}}
+.krec-slider {{
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #cbd5e1;
+    transition: .25s;
+    border-radius: 24px;
+}}
+.krec-slider:before {{
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .25s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}}
+.krec-switch input:checked + .krec-slider {{
+    background-color: #2563eb;
+}}
+.krec-switch input:checked + .krec-slider:before {{
+    transform: translateX(20px);
+}}
+.krec-cookie-modal-footer {{
+    padding: 16px 24px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}}
+.krec-cookie-modal-footer .krec-cookie-btn-outline {{
+    background: #ffffff;
+    color: #475569;
+    border-color: #cbd5e1;
+}}
+.krec-cookie-modal-footer .krec-cookie-btn-outline:hover {{
+    background: #f1f5f9;
+}}
+</style>
 
 <script>
 function toggleMobileNav(e) {{
@@ -571,6 +847,115 @@ document.addEventListener('DOMContentLoaded', function() {{
         }}
     }} catch(e) {{}}
 }});
+
+// ===== COOKIE CONSENT & METRIKA SHIELD =====
+(function() {{
+    var sensitiveSlugs = ['appeals', 'search', 'kvit', 'receipt'];
+    var currentSlug = '{current_slug}'.toLowerCase();
+    var isSensitive = sensitiveSlugs.indexOf(currentSlug) !== -1;
+
+    function getStoredConsent() {{
+        try {{
+            var raw = localStorage.getItem('krec_cookie_consent');
+            if (raw) return JSON.parse(raw);
+        }} catch(e) {{}}
+        return null;
+    }}
+
+    function storeConsent(allowAnalytics) {{
+        var val = {{
+            analytics: !!allowAnalytics,
+            necessary: true,
+            timestamp: new Date().toISOString(),
+            version: 'v1.0-2026-kz'
+        }};
+        try {{
+            localStorage.setItem('krec_cookie_consent', JSON.stringify(val));
+            document.cookie = 'krec_analytics=' + (allowAnalytics ? '1' : '0') + '; path=/; max-age=31536000; SameSite=Lax';
+        }} catch(e) {{}}
+        return val;
+    }}
+
+    function loadYandexMetrika(enableWebvisor) {{
+        if (window.yaCounter51197381 || window._krecMetrikaInitialized) return;
+        window._krecMetrikaInitialized = true;
+
+        (function (d, w, c) {{
+            (w[c] = w[c] || []).push(function() {{
+                try {{
+                    // На чувствительных страницах (/appeals, /search, /kvit, /receipt)
+                    // Webvisor, clickmap и отслеживание ссылок принудительно отключены
+                    w.yaCounter51197381 = new Ya.Metrika2({{
+                        id: 51197381,
+                        clickmap: !isSensitive,
+                        trackLinks: !isSensitive,
+                        accurateTrackBounce: true,
+                        webvisor: enableWebvisor && !isSensitive
+                    }});
+                }} catch(e) {{ }}
+            }});
+
+            var n = d.getElementsByTagName("script")[0],
+                s = d.createElement("script"),
+                f = function () {{ n.parentNode.insertBefore(s, n); }};
+            s.type = "text/javascript";
+            s.async = true;
+            s.src = "https://mc.yandex.ru/metrika/tag.js";
+
+            if (w.opera == "[object Opera]") {{
+                d.addEventListener("DOMContentLoaded", f, false);
+            }} else {{ f(); }}
+        }})(document, window, "yandex_metrika_callbacks2");
+    }}
+
+    window.krecAcceptAllCookies = function() {{
+        storeConsent(true);
+        var b = document.getElementById('krecCookieBanner');
+        if (b) b.style.display = 'none';
+        loadYandexMetrika(true);
+    }};
+
+    window.krecRejectCookies = function() {{
+        storeConsent(false);
+        var b = document.getElementById('krecCookieBanner');
+        if (b) b.style.display = 'none';
+    }};
+
+    window.krecOpenCookieModal = function() {{
+        var c = getStoredConsent();
+        var chk = document.getElementById('krecConsentAnalyticsCheckbox');
+        if (chk) chk.checked = !!(c && c.analytics);
+        var modal = document.getElementById('krecCookieModal');
+        if (modal) modal.style.display = 'flex';
+    }};
+
+    window.krecCloseCookieModal = function() {{
+        var modal = document.getElementById('krecCookieModal');
+        if (modal) modal.style.display = 'none';
+    }};
+
+    window.krecSaveCookieSettings = function() {{
+        var chk = document.getElementById('krecConsentAnalyticsCheckbox');
+        var allowed = chk ? chk.checked : false;
+        storeConsent(allowed);
+        krecCloseCookieModal();
+        var b = document.getElementById('krecCookieBanner');
+        if (b) b.style.display = 'none';
+        if (allowed) {{
+            loadYandexMetrika(true);
+        }}
+    }};
+
+    document.addEventListener('DOMContentLoaded', function() {{
+        var consent = getStoredConsent();
+        if (!consent) {{
+            var b = document.getElementById('krecCookieBanner');
+            if (b) b.style.display = 'block';
+        }} else if (consent.analytics) {{
+            loadYandexMetrika(true);
+        }}
+    }});
+}})();
 </script>
 </body>
 </html>"""

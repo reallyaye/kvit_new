@@ -159,7 +159,8 @@ def migrate_db():
                     assigned_to TEXT,
                     admin_comment TEXT,
                     office_notified INTEGER NOT NULL DEFAULT 0,
-                    confirmation_sent INTEGER NOT NULL DEFAULT 0
+                    confirmation_sent INTEGER NOT NULL DEFAULT 0,
+                    consent_version TEXT DEFAULT 'v1.0-2026-kz'
                 );
                 CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
                 CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);
@@ -184,6 +185,10 @@ def migrate_db():
             ''')
 
             # 2. Проверка и динамическое добавление недостающих колонок
+            appeal_cols = [row[1] for row in con.execute('PRAGMA table_info(appeals)').fetchall()]
+            if 'consent_version' not in appeal_cols:
+                con.execute("ALTER TABLE appeals ADD COLUMN consent_version TEXT DEFAULT 'v1.0-2026-kz'")
+
             sess_cols = [row[1] for row in con.execute('PRAGMA table_info(app_sessions)').fetchall()]
             if 'username' not in sess_cols:
                 con.execute('ALTER TABLE app_sessions ADD COLUMN username TEXT')
