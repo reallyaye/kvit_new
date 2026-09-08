@@ -43,6 +43,9 @@ def portal_layout(
                 <span style="font-weight:700;color:#38bdf8;display:inline-flex;align-items:center;gap:6px;background:rgba(56,189,248,0.12);padding:3px 10px;border-radius:9999px;border:1px solid rgba(56,189,248,0.25);">
                     {icon('shield', 14, '#38bdf8')} Панель управления
                 </span>
+                <a href="/admin/stats" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
+                    {icon('trending_up', 14, '#94a3b8')} Посещаемость
+                </a>
                 <a href="/admin/pages" style="color:#cbd5e1;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;transition:background .15s;">
                     {icon('layout', 14, '#94a3b8')} Страницы
                 </a>

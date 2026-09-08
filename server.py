@@ -17,6 +17,7 @@ import config
 from config import PROTECTED_PATHS, RATE_LIMIT_API, RATE_LIMIT_LOGIN, RATE_LIMIT_SEARCH, RATE_LIMIT_UPLOAD, WS_GUID
 from database import get_db, purge_missing_receipts, sync_receipts_with_filesystem
 from logger import logger
+from services.analytics import stats_service
 from services.appeals import AppealValidationError, appeal_service
 from services.metrics import alert_service, metrics_collector
 from services.portal_cms import portal_cms
@@ -55,6 +56,7 @@ from templates.admin_cms_views import (
     render_admin_pages_list,
     render_admin_users,
 )
+from templates.admin_stats_views import render_admin_stats_dashboard
 from templates.appeals_views import (
     render_admin_appeal_detail,
     render_admin_appeals_list,
@@ -534,6 +536,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(layout(body, 'search', is_admin=is_admin), 429, {'Retry-After': str(retry_after)})
                     return
 
+            # Учет посещения страницы в подсистеме веб-аналитики
+            if not path.startswith(('/api/', '/admin', '/login', '/logout', '/static/')):
+                ua_hdr = self.headers.get('User-Agent', '')
+                stats_service.record_visit(path, client_ip, ua_hdr)
+
             # ── 4. Роутинг API и сервиса квитанций ───────────────────────────
             if path in ('/api/metrics', '/metrics'):
                 if 'text' in q or self.headers.get('Accept', '').startswith('text/plain'):
@@ -557,6 +564,12 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     'count': len(alerts),
                     'has_critical': any(a.get('severity') == 'CRITICAL' for a in alerts),
                 }, 200, extra_headers={'Cache-Control': 'no-store'})
+                return
+            elif path == '/api/admin/stats':
+                if not self._is_admin():
+                    self.send_json({'error': 'Unauthorized'}, 401)
+                    return
+                self.send_json(stats_service.get_dashboard_stats(), 200, extra_headers={'Cache-Control': 'no-store'})
                 return
             elif path == '/api/tasks/stats':
                 if not self._is_admin():
@@ -804,6 +817,16 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         current_role='admin'
                     )
                     self.send_html(layout(body, 'audit', is_admin=True, csrf_token=csrf_tok))
+                elif path == '/admin/stats':
+                    stats_data = stats_service.get_dashboard_stats(days=30)
+                    body = render_admin_stats_dashboard(
+                        stats_data,
+                        csrf_token=csrf_tok,
+                        username=u_name,
+                        message=msg,
+                        error=err
+                    )
+                    self.send_html(layout(body, 'stats', is_admin=True, csrf_token=csrf_tok))
                 elif path == '/admin/appeals':
                     status_filter = q.get('status', [''])[0].strip().upper()
                     search_filter = q.get('search', [''])[0].strip()
@@ -1090,6 +1113,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self._handle_admin_documents_delete()
             elif u.path == '/admin/appeals/update':
                 self._handle_admin_appeal_update()
+            elif u.path == '/admin/stats/import-nginx':
+                self._handle_admin_stats_import_nginx()
             elif u.path == '/api/appeals':
                 self._handle_appeal_submit()
             elif u.path == '/api/upload-batch':
@@ -1219,6 +1244,40 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self._redirect(
                 f'/admin/appeals/view?id={quote(str(appeal_id))}&err={quote(str(exc))}'
             )
+
+    def _handle_admin_stats_import_nginx(self):
+        if not self._is_admin():
+            self._redirect('/login')
+            return
+        params = self._read_form_params()
+        if not params:
+            return
+        csrf_token = params.get('csrf_token', [''])[0].strip()
+        if not self._verify_csrf(body_csrf=csrf_token):
+            self.send_html(
+                layout(render_forbidden_page(CSRF_INVALID_MSG), is_admin=True),
+                403,
+            )
+            return
+
+        candidates = [
+            getattr(config, 'NGINX_ACCESS_LOG', ''),
+            '/var/log/nginx/access.log',
+            os.path.join(os.getcwd(), 'logs', 'nginx_access.log'),
+            os.path.join(os.getcwd(), 'access.log'),
+        ]
+        target_log = None
+        for c in candidates:
+            if c and os.path.isfile(c):
+                target_log = c
+                break
+
+        if not target_log:
+            self._redirect(f'/admin/stats?err={quote("Файл логов Nginx (/var/log/nginx/access.log) не найден в путях")}')
+            return
+
+        count = stats_service.import_from_nginx_log(target_log, max_lines=50000)
+        self._redirect(f'/admin/stats?msg={quote(f"Успешно импортировано {count} записей визитов из лога Nginx")}')
 
     def _handle_login(self):
         client_ip = self._get_client_ip()

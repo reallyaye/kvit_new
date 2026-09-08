@@ -17,6 +17,7 @@ def _admin_nav_bar(active_tab: str = 'pages', role: str = 'admin', username: str
         badge_sub = f"Оператор: {html.escape(username)}"
     else:
         tabs = [
+            ('stats', '/admin/stats', 'trending_up', 'Посещаемость'),
             ('appeals', '/admin/appeals', 'bell', 'Обращения'),
             ('pages', '/admin/pages', 'file_text', 'Страницы сайта'),
             ('media', '/admin/media', 'image', 'Медиа и файлы'),

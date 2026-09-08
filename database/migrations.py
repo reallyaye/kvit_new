@@ -165,6 +165,22 @@ def migrate_db():
                 CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);
                 CREATE INDEX IF NOT EXISTS idx_appeals_email ON appeals(email);
                 CREATE INDEX IF NOT EXISTS idx_appeals_account ON appeals(account_number);
+
+                CREATE TABLE IF NOT EXISTS page_visits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    visited_at REAL NOT NULL,
+                    path TEXT NOT NULL,
+                    ip_hash TEXT NOT NULL,
+                    user_agent TEXT,
+                    device_type TEXT NOT NULL DEFAULT 'desktop',
+                    browser TEXT NOT NULL DEFAULT 'Other',
+                    os TEXT NOT NULL DEFAULT 'Other',
+                    is_bot INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_visits_time ON page_visits(visited_at);
+                CREATE INDEX IF NOT EXISTS idx_visits_path ON page_visits(path);
+                CREATE INDEX IF NOT EXISTS idx_visits_ip_hash ON page_visits(ip_hash);
+                CREATE INDEX IF NOT EXISTS idx_visits_device ON page_visits(device_type);
             ''')
 
             # 2. Проверка и динамическое добавление недостающих колонок
