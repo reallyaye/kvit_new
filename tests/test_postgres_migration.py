@@ -81,6 +81,7 @@ def test_postgres_migration_and_schema_verification(pg_connection, monkeypatch):
         "security_blocks",
         "telegram_users",
         "appeals",
+        "page_visits",
     }
 
     with raw_conn.cursor() as cur:
