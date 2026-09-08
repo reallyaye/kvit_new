@@ -45,10 +45,16 @@ class StatsService:
         re.compile(r'postman', re.IGNORECASE),
     ]
 
-    def _hash_ip(self, ip_str: str) -> str:
-        """Анонимизирует IP-адрес с солью для соблюдения конфиденциальности."""
+    def _hash_ip(self, ip_str: str, ts: Optional[float] = None) -> str:
+        """
+        Анонимизирует IP-адрес с ежемесячно ротируемой солью для k-anonymity.
+        Исключает долговременное сопоставление сетевых идентификаторов.
+        """
         secret = getattr(config, 'SECRET_KEY', 'krec_analytics_salt_key')
-        raw = f"{ip_str}_{secret}"
+        timestamp = ts if ts is not None else time.time()
+        dt = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+        monthly_salt = f"{secret}_{dt.year}_{dt.month:02d}"
+        raw = f"{ip_str}_{monthly_salt}"
         return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]
 
     def parse_user_agent(self, ua: str) -> Tuple[str, str, str, bool]:
@@ -132,7 +138,7 @@ class StatsService:
             return False
 
         ts = visited_at if visited_at is not None else time.time()
-        ip_h = self._hash_ip(client_ip or '127.0.0.1')
+        ip_h = self._hash_ip(client_ip or '127.0.0.1', ts)
         ua_str = (user_agent or '')[:500]
 
         device_type, browser, os_name, is_bot = self.parse_user_agent(ua_str)
@@ -144,7 +150,7 @@ class StatsService:
                     INSERT INTO page_visits (visited_at, path, ip_hash, user_agent, device_type, browser, os, is_bot)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (ts, norm_path, ip_h, ua_str, device_type, browser, os_name, bool(is_bot))
+                    (ts, norm_path, ip_h, None, device_type, browser, os_name, bool(is_bot))
                 )
             return True
         except Exception as exc:
@@ -442,9 +448,9 @@ class StatsService:
                         ts = time.time()
 
                     device_type, browser, os_name, is_bot = self.parse_user_agent(ua)
-                    ip_h = self._hash_ip(ip)
+                    ip_h = self._hash_ip(ip, ts)
 
-                    batch.append((ts, url[:255], ip_h, ua[:500], device_type, browser, os_name, bool(is_bot)))
+                    batch.append((ts, url[:255], ip_h, None, device_type, browser, os_name, bool(is_bot)))
 
                     if len(batch) >= batch_size:
                         with write_transaction() as con:
@@ -474,6 +480,25 @@ class StatsService:
         except Exception as exc:
             logger.error("[Analytics] Ошибка импорта лога Nginx: %s", exc)
             return imported_count
+
+    def purge_old_visits(self, days: int = 90) -> int:
+        """
+        Удаляет записи посещений старше заданного количества дней (по умолчанию 90 дней).
+        Обеспечивает соблюдение принципа ограничения сроков хранения персональных данных.
+        """
+        cutoff = time.time() - (max(1, days) * 86400.0)
+        try:
+            with write_transaction() as con:
+                cur = con.execute("DELETE FROM page_visits WHERE visited_at < ?", (cutoff,))
+                deleted = cur.rowcount if hasattr(cur, 'rowcount') and cur.rowcount != -1 else 0
+                if deleted == 0:
+                    changes = con.execute("SELECT changes()").fetchone() if hasattr(con, 'execute') else None
+                    deleted = changes[0] if changes else 0
+                logger.info("[Analytics] Очищено %d старых записей посещений (старше %d дней)", deleted, days)
+                return deleted
+        except Exception as exc:
+            logger.warning("[Analytics] Ошибка очистки старых посещений: %s", exc)
+            return 0
 
 
 stats_service = StatsService()

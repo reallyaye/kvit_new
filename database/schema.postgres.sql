@@ -128,8 +128,11 @@ CREATE TABLE IF NOT EXISTS appeals (
     assigned_to VARCHAR(64),
     admin_comment TEXT,
     office_notified BOOLEAN NOT NULL DEFAULT FALSE,
-    confirmation_sent BOOLEAN NOT NULL DEFAULT FALSE
+    confirmation_sent BOOLEAN NOT NULL DEFAULT FALSE,
+    consent_version VARCHAR(32) NOT NULL DEFAULT 'v1.0-2026-kz'
 );
+
+ALTER TABLE appeals ADD COLUMN IF NOT EXISTS consent_version VARCHAR(32) DEFAULT 'v1.0-2026-kz';
 
 CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
 CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);

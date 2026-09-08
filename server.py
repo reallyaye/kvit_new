@@ -65,6 +65,8 @@ from templates.appeals_views import (
 from templates.portal_views import DOCUMENTS_REGISTRY, PORTAL_PAGES
 from templates.portal_views import render_document as render_portal_document
 from templates.portal_views import render_page as render_portal_page
+from templates.privacy_views import render_privacy_page
+from templates.terms_views import render_terms_page
 
 START_TIME = time.time()
 SW_JS_PATH = '/sw.js'
@@ -536,10 +538,14 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(layout(body, 'search', is_admin=is_admin), 429, {'Retry-After': str(retry_after)})
                     return
 
-            # Учет посещения страницы в подсистеме веб-аналитики
+            # Учет посещения страницы в подсистеме веб-аналитики (с учетом согласия пользователя)
             if not path.startswith(('/api/', '/admin', '/login', '/logout', '/static/')):
-                ua_hdr = self.headers.get('User-Agent', '')
-                stats_service.record_visit(path, client_ip, ua_hdr)
+                dnt = self.headers.get('DNT') == '1'
+                cookie_hdr = self.headers.get('Cookie', '')
+                analytics_disabled = dnt or ('krec_analytics=0' in cookie_hdr) or ('krec_consent=declined' in cookie_hdr)
+                if not analytics_disabled:
+                    ua_hdr = self.headers.get('User-Agent', '')
+                    stats_service.record_visit(path, client_ip, ua_hdr)
 
             # ── 4. Роутинг API и сервиса квитанций ───────────────────────────
             if path in ('/api/metrics', '/metrics'):
@@ -909,8 +915,16 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self.send_html(render_portal_page('home', is_admin=is_admin))
             elif path == '/appeals':
                 self.send_html(render_appeals_page(is_admin=is_admin))
+            elif path in ('/privacy', '/privacy-policy', '/privacy.php'):
+                self.send_html(render_privacy_page(is_admin=is_admin))
+            elif path in ('/terms', '/terms-of-use', '/terms.php'):
+                self.send_html(render_terms_page(is_admin=is_admin))
             else:
                 PAGE_ALIASES = {
+                    'privacy': 'privacy',
+                    'privacy-policy': 'privacy',
+                    'terms': 'terms',
+                    'terms-of-use': 'terms',
                     'potreb': 'consumers',
                     'potrebitelyam': 'consumers',
                     'potrebitel': 'consumers',
