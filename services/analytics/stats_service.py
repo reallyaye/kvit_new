@@ -290,7 +290,7 @@ class StatsService:
                     SELECT path, COUNT(*) as views_cnt, COUNT(DISTINCT ip_hash) as visitors_cnt
                     FROM page_visits
                     WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
-                      AND path NOT LIKE '/api/%' AND path NOT LIKE '/ws%'
+                      AND SUBSTR(path, 1, 5) != '/api/' AND SUBSTR(path, 1, 4) != '/ws'
                     GROUP BY path
                     ORDER BY views_cnt DESC
                     LIMIT 10
@@ -354,7 +354,7 @@ class StatsService:
                     """
                     SELECT visited_at, path, ip_hash, device_type, browser, os, is_bot
                     FROM page_visits
-                    WHERE path NOT LIKE '/api/%' AND path NOT LIKE '/ws%'
+                    WHERE SUBSTR(path, 1, 5) != '/api/' AND SUBSTR(path, 1, 4) != '/ws'
                     ORDER BY visited_at DESC
                     LIMIT 15
                     """
