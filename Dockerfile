@@ -29,8 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Создаём непривилегированного пользователя appuser для безопасности
 RUN useradd -m -u 1000 appuser && \
-    mkdir -p /app/receipts /app/logs /app/data /app/data/spool /app/data/processing /app/data/failed && \
-    chown -R appuser:appuser /app/receipts /app/logs /app/data
+    mkdir -p /app/receipts /app/logs /app/data /app/data/spool /app/data/processing /app/data/failed /app/static/images/uploads && \
+    chown -R appuser:appuser /app/receipts /app/logs /app/data /app/static
 
 # Копируем установленные пакеты из builder
 COPY --from=builder /root/.local /home/appuser/.local
