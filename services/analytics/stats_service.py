@@ -193,62 +193,62 @@ class StatsService:
                 # 1. KPI метрики (реальные люди, NOT is_bot)
                 row_today = con.execute(
                     """
-                    SELECT COUNT(DISTINCT ip_hash), COUNT(*)
+                    SELECT COUNT(DISTINCT ip_hash) AS unique_count, COUNT(*) AS total_views
                     FROM page_visits
                     WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (today_start,)
                 ).fetchone()
                 if row_today:
-                    summary['unique_today'] = int(row_today[0] or 0)
-                    summary['views_today'] = int(row_today[1] or 0)
+                    summary['unique_today'] = int(row_today['unique_count'] if 'unique_count' in row_today.keys() else row_today[0] or 0)
+                    summary['views_today'] = int(row_today['total_views'] if 'total_views' in row_today.keys() else row_today[1] or 0)
 
                 row_bot_today = con.execute(
                     """
-                    SELECT COUNT(*)
+                    SELECT COUNT(*) AS bot_count
                     FROM page_visits
                     WHERE visited_at >= ? AND is_bot
                     """,
                     (today_start,)
                 ).fetchone()
                 if row_bot_today:
-                    summary['bot_views_today'] = int(row_bot_today[0] or 0)
+                    summary['bot_views_today'] = int(row_bot_today['bot_count'] if 'bot_count' in row_bot_today.keys() else row_bot_today[0] or 0)
 
                 row_yesterday = con.execute(
                     """
-                    SELECT COUNT(DISTINCT ip_hash), COUNT(*)
+                    SELECT COUNT(DISTINCT ip_hash) AS unique_count, COUNT(*) AS total_views
                     FROM page_visits
                     WHERE visited_at >= ? AND visited_at < ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (yesterday_start, today_start)
                 ).fetchone()
                 if row_yesterday:
-                    summary['unique_yesterday'] = int(row_yesterday[0] or 0)
-                    summary['views_yesterday'] = int(row_yesterday[1] or 0)
+                    summary['unique_yesterday'] = int(row_yesterday['unique_count'] if 'unique_count' in row_yesterday.keys() else row_yesterday[0] or 0)
+                    summary['views_yesterday'] = int(row_yesterday['total_views'] if 'total_views' in row_yesterday.keys() else row_yesterday[1] or 0)
 
                 row_week = con.execute(
                     """
-                    SELECT COUNT(DISTINCT ip_hash), COUNT(*)
+                    SELECT COUNT(DISTINCT ip_hash) AS unique_count, COUNT(*) AS total_views
                     FROM page_visits
                     WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (week_start,)
                 ).fetchone()
                 if row_week:
-                    summary['unique_week'] = int(row_week[0] or 0)
-                    summary['views_week'] = int(row_week[1] or 0)
+                    summary['unique_week'] = int(row_week['unique_count'] if 'unique_count' in row_week.keys() else row_week[0] or 0)
+                    summary['views_week'] = int(row_week['total_views'] if 'total_views' in row_week.keys() else row_week[1] or 0)
 
                 row_month = con.execute(
                     """
-                    SELECT COUNT(DISTINCT ip_hash), COUNT(*)
+                    SELECT COUNT(DISTINCT ip_hash) AS unique_count, COUNT(*) AS total_views
                     FROM page_visits
                     WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
                     """,
                     (month_start,)
                 ).fetchone()
                 if row_month:
-                    summary['unique_month'] = int(row_month[0] or 0)
-                    summary['views_month'] = int(row_month[1] or 0)
+                    summary['unique_month'] = int(row_month['unique_count'] if 'unique_count' in row_month.keys() else row_month[0] or 0)
+                    summary['views_month'] = int(row_month['total_views'] if 'total_views' in row_month.keys() else row_month[1] or 0)
 
                 # 2. Динамика по дням за последние N дней (по умолчанию 14 дней для компактного графика)
                 trend_days = min(days, 30)
@@ -262,15 +262,19 @@ class StatsService:
 
                     d_row = con.execute(
                         """
-                        SELECT COUNT(DISTINCT ip_hash), COUNT(*)
+                        SELECT COUNT(DISTINCT ip_hash) AS unique_count, COUNT(*) AS total_views
                         FROM page_visits
                         WHERE visited_at >= ? AND visited_at < ? AND (NOT is_bot OR is_bot IS NULL)
                         """,
                         (d_start, d_end)
                     ).fetchone()
 
-                    u_count = int(d_row[0] or 0) if d_row else 0
-                    v_count = int(d_row[1] or 0) if d_row else 0
+                    if d_row:
+                        u_count = int(d_row['unique_count'] if 'unique_count' in d_row.keys() else d_row[0] or 0)
+                        v_count = int(d_row['total_views'] if 'total_views' in d_row.keys() else d_row[1] or 0)
+                    else:
+                        u_count = 0
+                        v_count = 0
 
                     daily_trend.append({
                         'date': day_dt.strftime('%Y-%m-%d'),
