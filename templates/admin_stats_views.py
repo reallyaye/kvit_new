@@ -71,7 +71,7 @@ _STATS_CHART_CSS = """
         font-size: 12px;
         line-height: 1.4;
         box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.2);
-        z-index: 50;
+        z-index: 100;
         white-space: nowrap;
         min-width: 175px;
         border: 1px solid rgba(255,255,255,0.14);
@@ -82,7 +82,7 @@ _STATS_CHART_CSS = """
         content: '';
         position: absolute;
         bottom: -6px;
-        left: 50%;
+        left: calc(50% + var(--arrow-shift, 0px));
         transform: translateX(-50%);
         border-width: 6px 6px 0;
         border-style: solid;
@@ -93,7 +93,7 @@ _STATS_CHART_CSS = """
         content: '';
         position: absolute;
         top: -6px;
-        left: 50%;
+        left: calc(50% + var(--arrow-shift, 0px));
         transform: translateX(-50%);
         border-width: 0 6px 6px;
         border-style: solid;
@@ -106,9 +106,9 @@ _STATS_TOOLTIP_SCRIPT = """
 <script>
 (function() {
     var tooltip = document.getElementById('statsChartTooltip');
-    var wrapper = document.getElementById('statsChartWrapper');
+    var card = document.getElementById('statsChartCard');
     var svg = document.getElementById('statsChartSvg');
-    if (!tooltip || !wrapper || !svg) return;
+    if (!tooltip || !card || !svg) return;
 
     var groups = svg.querySelectorAll('.chart-group');
     function showTooltip(group) {
@@ -128,23 +128,30 @@ _STATS_TOOLTIP_SCRIPT = """
                 '<span style="font-weight:700;color:#38bdf8;font-size:13px;font-family:Consolas,monospace;">' + visitors + '</span>' +
             '</div>';
 
+        var cardRect = card.getBoundingClientRect();
         var svgRect = svg.getBoundingClientRect();
-        var wrapRect = wrapper.getBoundingClientRect();
         var scaleX = svgRect.width / 860.0;
         var scaleY = svgRect.height / 195.0;
 
-        var left = (svgRect.left - wrapRect.left + wrapper.scrollLeft) + (cx * scaleX);
-        var barTop = (svgRect.top - wrapRect.top) + (cy * scaleY);
+        var colX = (svgRect.left - cardRect.left) + (cx * scaleX);
+        var colY = (svgRect.top - cardRect.top) + (cy * scaleY);
 
-        if (barTop < 75) {
-            tooltip.style.left = left + 'px';
-            tooltip.style.top = (barTop + 28) + 'px';
+        var tooltipHalfWidth = 90;
+        var clampLeft = Math.max(tooltipHalfWidth + 10, Math.min(colX, cardRect.width - tooltipHalfWidth - 10));
+        var arrowShift = colX - clampLeft;
+
+        // Tooltip height is ~75px. If colY < 95px from top of card, flip below the bar
+        if (colY < 95) {
+            tooltip.style.left = clampLeft + 'px';
+            tooltip.style.top = (colY + 28) + 'px';
             tooltip.className = 'chart-tooltip tooltip-bottom visible';
         } else {
-            tooltip.style.left = left + 'px';
-            tooltip.style.top = (barTop - 10) + 'px';
+            tooltip.style.left = clampLeft + 'px';
+            tooltip.style.top = (colY - 10) + 'px';
             tooltip.className = 'chart-tooltip tooltip-top visible';
         }
+        tooltip.style.setProperty('--arrow-shift', arrowShift + 'px');
+
         groups.forEach(function(g) { g.classList.remove('active'); });
         group.classList.add('active');
     }
@@ -166,7 +173,7 @@ _STATS_TOOLTIP_SCRIPT = """
     });
 
     document.addEventListener('click', function(e) {
-        if (!wrapper.contains(e.target)) hideTooltip();
+        if (!card.contains(e.target)) hideTooltip();
     });
 })();
 </script>
@@ -295,7 +302,6 @@ def render_admin_stats_dashboard(
     chart_svg = f'''
     {_STATS_CHART_CSS}
     <div class="stats-chart-wrapper" id="statsChartWrapper">
-        <div id="statsChartTooltip" class="chart-tooltip"></div>
         <svg id="statsChartSvg" viewBox="0 0 {chart_width} {chart_height}" width="100%" height="{chart_height}" style="min-width:650px;display:block;">
             <defs>
                 <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -513,7 +519,8 @@ def render_admin_stats_dashboard(
         </div>
 
         <!-- ГРАФИК ДИНАМИКИ ПО ДНЯМ -->
-        <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:22px;margin-bottom:24px;box-shadow:0 1px 4px rgba(0,0,0,0.03);">
+        <div id="statsChartCard" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:22px;margin-bottom:24px;box-shadow:0 1px 4px rgba(0,0,0,0.03);position:relative;">
+            <div id="statsChartTooltip" class="chart-tooltip"></div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
                 <div>
                     <h3 style="margin:0 0 4px;font-size:16px;color:#1e293b;">Динамика визитов по дням</h3>
