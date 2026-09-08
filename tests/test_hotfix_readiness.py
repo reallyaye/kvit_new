@@ -149,6 +149,15 @@ def test_receipt_search_verification_lifecycle():
         assert len(h3.sent_json['receipts']) == 1
         assert h3.sent_json['receipts'][0]['access_token'] == 'tok999111_secret_token_value'
 
+    # 4. По умолчанию верификация отключена: человек просто вводит лицевой счёт и сразу получает квитанцию
+    with patch.object(config, 'REQUIRE_RECEIPT_VERIFICATION', False):
+        h4 = MockHandler()
+        h4._handle_api_search({'account': ['999111']})
+        assert h4.status_code == 200
+        assert h4.sent_json['status'] == 'EXACT_MATCH'
+        assert len(h4.sent_json['receipts']) == 1
+        assert h4.sent_json['receipts'][0]['access_token'] == 'tok999111_secret_token_value'
+
 
 def test_address_search_protection_and_verification():
     """Проверка, что поиск по адресу нельзя использовать для обхода верификации квитанций."""

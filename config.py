@@ -96,7 +96,7 @@ MAINTENANCE_FLAG_FILE = os.environ.get('MAINTENANCE_FLAG_FILE', os.path.join(BAS
 # ────────────────────── Защита ПДн при поиске квитанций ──────────────────────
 REQUIRE_RECEIPT_VERIFICATION = os.environ.get(
     'REQUIRE_RECEIPT_VERIFICATION',
-    'false' if APP_ENV == 'testing' else 'true'
+    'false'
 ).lower() in ('true', '1', 'yes')
 
 ENABLE_ADDRESS_SEARCH = os.environ.get(

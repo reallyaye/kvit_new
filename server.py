@@ -627,7 +627,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     if clean_digits and len(clean_digits) >= 5:
                         account_row = receipt_service.get_account(clean_digits)
                         if account_row:
-                            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False)
                             is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
                             receipts = receipt_service.get_receipts(clean_digits, period_filter) if is_verified else []
                             body = render_search_result(
@@ -648,7 +648,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 if account:
                     account_row = receipt_service.get_account(account)
                     if account_row:
-                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False)
                         is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
                         receipts = receipt_service.get_receipts(account, period_filter) if is_verified else []
                         body = render_search_result(
@@ -681,7 +681,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     if status == 'EXACT_MATCH' and acc_data:
                         acc_num = str(acc_data['account_number'])
                         account_row = receipt_service.get_account(acc_num)
-                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False)
                         is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
                         receipts = receipt_service.get_receipts(acc_num, period_filter) if is_verified and account_row else []
                         body = render_search_result(
@@ -712,7 +712,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     if status == 'EXACT_MATCH' and acc_data:
                         acc_num = str(acc_data['account_number'])
                         account_row = receipt_service.get_account(acc_num)
-                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+                        require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False)
                         is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
                         receipts = receipt_service.get_receipts(acc_num, period_filter) if is_verified and account_row else []
                         body = render_search_result(
@@ -1903,7 +1903,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 }, 200, extra_headers={'Cache-Control': 'no-store'})
                 return
 
-            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False)
             is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
 
             if require_verification and not is_verified:
@@ -1964,7 +1964,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         if status == 'EXACT_MATCH' and acc_data:
             acc_num = str(acc_data['account_number'])
             account_row = receipt_service.get_account(acc_num)
-            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False) or config.IS_PRODUCTION
+            require_verification = getattr(config, 'REQUIRE_RECEIPT_VERIFICATION', False)
             is_verified = not require_verification or is_admin or bool(verify_code and receipt_service.verify_account_ownership(account_row, verify_code))
             if not is_verified and account_row:
                 msg = 'Неверный проверочный код для данного лицевого счета.' if verify_code else 'Для доступа к квитанции введите номер дома или квартиры.'

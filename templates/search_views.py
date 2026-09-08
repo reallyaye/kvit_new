@@ -29,7 +29,6 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
     ico_dl_sm = icon('download', 13)
     ico_file = icon('file_text', 16, '#3b82f6')
     ico_err = icon('x_circle', 22, '#dc2626')
-    ico_shield = icon('shield', 14)
 
     subtitle_text = "Найдите квитанцию по номеру лицевого счёта или по адресу объекта." if enable_address else "Введите номер лицевого счёта для получения квитанции."
 
@@ -234,12 +233,17 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         }} else if (data.status === 'NOT_FOUND') {{
             resBox.innerHTML = '<div class="card receipt-card-anim">' +
                 '<h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{ico_err} Квитанция не найдена</span></h1>' +
-                '<div class="err"><b>' + escapeHtml(data.message || 'Квитанция не найдена.') + '</b><br><br>Проверьте правильность написания улицы, номера дома и квартиры.</div>' +
+                '<div class="err"><b>' + escapeHtml(data.message || 'Квитанция не найдена.') + '</b><br><br>Проверьте правильность написания номера лицевого счета или адреса.</div>' +
+            '</div>';
+        }} else if (data.status === 'NEED_HOUSE' || data.status === 'CLARIFY_ADDRESS') {{
+            resBox.innerHTML = '<div class="card receipt-card-anim">' +
+                '<h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{ico_warn} Требуется уточнить адрес</span></h1>' +
+                '<div class="warn"><b>' + escapeHtml(data.message || 'Пожалуйста, укажите точный номер дома и квартиры.') + '</b></div>' +
             '</div>';
         }} else {{
             resBox.innerHTML = '<div class="card receipt-card-anim">' +
-                '<h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{ico_warn} Требуется уточнить адрес</span></h1>' +
-                '<div class="warn"><b>' + escapeHtml(data.message || 'Требуется уточнить адрес.') + '</b><br><br><span style="display:inline-flex;align-items:center;gap:5px">{ico_shield} <b>Конфиденциальность:</b></span> поиск открывает квитанцию только при указании конкретного номера дома и квартиры.</div>' +
+                '<h1><span style="color:#d97706;display:inline-flex;align-items:center;gap:6px">{ico_warn} ' + escapeHtml(data.status === 'EMPTY' ? 'Введите данные для поиска' : 'Внимание') + '</span></h1>' +
+                '<div class="warn"><b>' + escapeHtml(data.message || 'Пожалуйста, проверьте введённые данные.') + '</b></div>' +
             '</div>';
         }}
 
