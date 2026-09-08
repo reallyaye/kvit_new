@@ -265,9 +265,9 @@ class PDFProcessor:
         # ─── Индексированный Batch Lookup счетов ───
         # Если known_accounts не передан (None), запрашиваем из БД только счета текущего файла
         if known_accounts is not None:
-            pass
+            known_accounts = {str(a).strip() for a in known_accounts}
         else:
-            doc_accounts = [d.account for d in documents if d.account]
+            doc_accounts = [str(d.account).strip() for d in documents if d.account]
             if doc_accounts:
                 from database.connection import get_db
                 con_acc = get_db()
@@ -277,9 +277,11 @@ class PDFProcessor:
                         f"SELECT account_number FROM accounts WHERE account_number IN ({placeholders})",  # nosec B608
                         doc_accounts
                     ).fetchall()
-                    {row[0] for row in rows}
+                    known_accounts = {str(row[0]).strip() for row in rows}
                 finally:
                     con_acc.close()
+            else:
+                known_accounts = set()
 
         for doc in documents:
             account = doc.account
@@ -390,7 +392,7 @@ class PDFProcessor:
             existing_hashes.add(content_hash)
 
             # Создаем подготовленную квитанцию (StagedReceipt) без прямой записи на диск
-            is_orphan = (known_accounts is not None and account not in known_accounts)
+            is_orphan = (str(account).strip() not in known_accounts)
             staged_item = AtomicReceiptImporter.stage_receipt(
                 account=account,
                 period=period,

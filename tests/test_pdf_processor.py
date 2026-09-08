@@ -485,6 +485,74 @@ def test_pdf_processor_account_period_conflict_and_no_orphan_files(tmp_path):
     assert rows[0]["pdf_file"] == original_pdf_file
 
 
+def test_pdf_processor_orphan_when_known_accounts_is_none(tmp_path):
+    """
+    Проверяет, что при known_accounts=None:
+    1. Несуществующий в базе лицевой счёт получает orphan=1, added=0.
+    2. Квитанция-сирота не регистрируется в таблице accounts, но сохраняется в receipts.
+    3. Существующий лицевой счёт получает added=1, orphan=0.
+    """
+    from database.connection import get_db
+    from services.reconciliation.reconcile_service import reconcile_service
+
+    con = get_db()
+    # Регистрируем только валидный счёт 800555
+    con.execute("DELETE FROM receipts WHERE account_number IN ('800555', '999777')")
+    con.execute("DELETE FROM accounts WHERE account_number IN ('800555', '999777')")
+    con.execute("INSERT INTO accounts(account_number, customer_name, address) VALUES ('800555', 'Тестовый Клиент', 'ул. Тестовая 1')")
+    con.commit()
+    con.close()
+
+    # 1. Тестируем неизвестный лицевой счёт (999777) при known_accounts=None
+    orphan_pdf_path = str(tmp_path / "orphan_test.pdf")
+    pages_orphan = [
+        "Жеке шот / Лицевой счёт 999777\nСчёт-извещение за Сентябрь 2026 г.\nСумма: 4500",
+    ]
+    create_sample_pdf(orphan_pdf_path, pages_orphan)
+
+    added, orphan, skipped, dups, details, receipts = pdf_processor.process_single_pdf(
+        orphan_pdf_path, "orphan_test.pdf", known_accounts=None, existing_hashes=set()
+    )
+
+    assert added == 0, f"Ожидалось added=0 для несуществующего счёта, получено {added}"
+    assert orphan == 1, f"Ожидалось orphan=1 для несуществующего счёта, получено {orphan}"
+    assert skipped == 0
+    assert dups == 0
+    assert len(receipts) == 1
+    assert any("счёта нет в базе" in d for d in details)
+
+    # Проверяем, что несуществующий счёт НЕ был добавлен в accounts
+    con = get_db()
+    acc_row = con.execute("SELECT id FROM accounts WHERE account_number = '999777'").fetchone()
+    assert acc_row is None, "Квитанция-сирота не должна создавать запись в таблице accounts!"
+
+    # Проверяем, что квитанция сохранена в receipts и видима в сверке как сирота
+    rec_row = con.execute("SELECT id, status, pdf_file FROM receipts WHERE account_number = '999777'").fetchone()
+    assert rec_row is not None, "Квитанция должна быть записана в receipts со статусом READY"
+    con.close()
+
+    reconcile_data = reconcile_service.get_reconciliation_data(filt='orphans', period_filter='Сентябрь 2026')
+    assert reconcile_data['orphans'] >= 1
+
+    # 2. Тестируем существующий лицевой счёт (800555) при known_accounts=None
+    valid_pdf_path = str(tmp_path / "valid_test.pdf")
+    pages_valid = [
+        "Жеке шот / Лицевой счёт 800555\nСчёт-извещение за Сентябрь 2026 г.\nСумма: 3500",
+    ]
+    create_sample_pdf(valid_pdf_path, pages_valid)
+
+    added_v, orphan_v, skipped_v, dups_v, details_v, receipts_v = pdf_processor.process_single_pdf(
+        valid_pdf_path, "valid_test.pdf", known_accounts=None, existing_hashes=set()
+    )
+
+    assert added_v == 1, f"Ожидалось added=1 для существующего счёта, получено {added_v}"
+    assert orphan_v == 0, f"Ожидалось orphan=0 для существующего счёта, получено {orphan_v}"
+    assert skipped_v == 0
+    assert dups_v == 0
+    assert any("привязан" in d for d in details_v)
+
+
+
 
 
 

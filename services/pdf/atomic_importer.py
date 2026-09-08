@@ -101,9 +101,9 @@ class AtomicReceiptImporter:
 
             # Фаза 2: Транзакция БД + Атомарное перемещение
             with write_transaction() as con:
-                # 1. Автоматическая регистрация/обновление лицевых счетов в таблице accounts
+                # 1. Автоматическая регистрация/обновление лицевых счетов в таблице accounts (только для не-сирот)
                 for r in staged_receipts:
-                    if r.account:
+                    if r.account and not r.is_orphan:
                         con.execute('''
                             INSERT INTO accounts(account_number, customer_name, address)
                             VALUES (?, '', ?)
