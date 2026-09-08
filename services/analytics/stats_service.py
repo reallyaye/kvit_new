@@ -128,7 +128,7 @@ class StatsService:
         # Игнорируем технические эндпоинты
         if norm_path in ('/health', '/ready', '/api/health', '/api/ready', '/favicon.ico', '/robots.txt', '/sw.js', '/manifest.json'):
             return False
-        if norm_path.startswith(('/css/', '/images/', '/files/', '/static/')):
+        if norm_path.startswith(('/css/', '/images/', '/files/', '/static/', '/api/', '/ws')):
             return False
 
         ts = visited_at if visited_at is not None else time.time()
@@ -284,12 +284,13 @@ class StatsService:
                     })
                 summary['daily_trend'] = daily_trend
 
-                # 3. Топ-10 страниц за последние 30 дней
+                # 3. Топ-10 страниц за последние 30 дней (только человеческие страницы контента)
                 top_rows = con.execute(
                     """
                     SELECT path, COUNT(*) as views_cnt, COUNT(DISTINCT ip_hash) as visitors_cnt
                     FROM page_visits
                     WHERE visited_at >= ? AND (NOT is_bot OR is_bot IS NULL)
+                      AND path NOT LIKE '/api/%' AND path NOT LIKE '/ws%'
                     GROUP BY path
                     ORDER BY views_cnt DESC
                     LIMIT 10
@@ -297,7 +298,7 @@ class StatsService:
                     (month_start,)
                 ).fetchall()
 
-                total_human_views = summary['views_month'] or 1
+                total_human_views = sum(int(r[1]) for r in top_rows) or 1
                 top_pages = []
                 for r in top_rows:
                     p_path = r[0]
@@ -353,6 +354,7 @@ class StatsService:
                     """
                     SELECT visited_at, path, ip_hash, device_type, browser, os, is_bot
                     FROM page_visits
+                    WHERE path NOT LIKE '/api/%' AND path NOT LIKE '/ws%'
                     ORDER BY visited_at DESC
                     LIMIT 15
                     """
@@ -422,10 +424,10 @@ class StatsService:
                     ua = match.group('ua')
                     time_raw = match.group('time')
 
-                    # Фильтруем статику и неуспешные ответы
+                    # Фильтруем статику, служебные API и неуспешные ответы
                     if status not in (200, 301, 302, 304):
                         continue
-                    if url.startswith(('/css/', '/images/', '/files/', '/static/')) or url in ('/sw.js', '/favicon.ico', '/robots.txt', '/manifest.json'):
+                    if url.startswith(('/css/', '/images/', '/files/', '/static/', '/api/', '/ws')) or url in ('/sw.js', '/favicon.ico', '/robots.txt', '/manifest.json'):
                         continue
 
                     # Парсим время
