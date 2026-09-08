@@ -3,7 +3,7 @@
    Стандарт: UI/UX Pro Max • Шрифты: Inter / Segoe UI • Тема: Slate & Electric Blue
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('/css/inter.css');
 
 /* --- CSS Переменные (Design Tokens) --- */
 :root {

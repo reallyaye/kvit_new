@@ -218,8 +218,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
         self.send_header('X-XSS-Protection', '1; mode=block')
         self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-        backend_instance = os.environ.get('HOSTNAME') or f"pid-{os.getpid()}"
-        self.send_header('X-Backend-Instance', backend_instance)
+        if not getattr(config, 'IS_PRODUCTION', False):
+            backend_instance = os.environ.get('HOSTNAME') or f"pid-{os.getpid()}"
+            self.send_header('X-Backend-Instance', backend_instance)
 
 
     def send_html(self, text: str, code: int = 200, extra_headers: dict = None):
@@ -482,8 +483,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self._handle_websocket()
             return
 
-        # Статические файлы (CSS, JS, изображения, PDF, favicon, robots, sitemap, PWA)
-        if path.startswith(('/css/', '/images/', '/files/', '/static/')) or path in ('/favicon.ico', '/robots.txt', '/sitemap.xml', '/sw.js', '/manifest.json', '/offline.html', '/maintenance.html'):
+        # Статические файлы (CSS, Fonts, JS, изображения, PDF, favicon, robots, sitemap, PWA)
+        if path.startswith(('/css/', '/fonts/', '/images/', '/files/', '/static/')) or path in ('/favicon.ico', '/robots.txt', '/sitemap.xml', '/sw.js', '/manifest.json', '/offline.html', '/maintenance.html'):
             self._serve_static(path)
             return
 
@@ -538,12 +539,12 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_html(layout(body, 'search', is_admin=is_admin), 429, {'Retry-After': str(retry_after)})
                     return
 
-            # Учет посещения страницы в подсистеме веб-аналитики (с учетом согласия пользователя)
+            # Учет посещения страницы в подсистеме веб-аналитики (строгая модель Opt-In согласно Закону РК № 94-V)
             if not path.startswith(('/api/', '/admin', '/login', '/logout', '/static/')):
                 dnt = self.headers.get('DNT') == '1'
                 cookie_hdr = self.headers.get('Cookie', '')
-                analytics_disabled = dnt or ('krec_analytics=0' in cookie_hdr) or ('krec_consent=declined' in cookie_hdr)
-                if not analytics_disabled:
+                analytics_allowed = (not dnt) and ('krec_analytics=1' in cookie_hdr)
+                if analytics_allowed:
                     ua_hdr = self.headers.get('User-Agent', '')
                     stats_service.record_visit(path, client_ip, ua_hdr)
 

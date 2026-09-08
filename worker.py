@@ -50,6 +50,9 @@ def main():
     manager = TaskQueueManager(backend=backend, max_workers=args.workers)
     manager.start()
 
+    from services.retention_scheduler import start_retention_scheduler
+    start_retention_scheduler(interval_seconds=86400, initial_delay=60)
+
     stop_requested = False
 
     def handle_shutdown(signum, frame):

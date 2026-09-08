@@ -187,7 +187,7 @@ def migrate_db():
             # 2. Проверка и динамическое добавление недостающих колонок
             appeal_cols = [row[1] for row in con.execute('PRAGMA table_info(appeals)').fetchall()]
             if 'consent_version' not in appeal_cols:
-                con.execute("ALTER TABLE appeals ADD COLUMN consent_version TEXT DEFAULT 'v1.0-2026-kz'")
+                con.execute("ALTER TABLE appeals ADD COLUMN consent_version TEXT DEFAULT 'legacy-unversioned'")
 
             sess_cols = [row[1] for row in con.execute('PRAGMA table_info(app_sessions)').fetchall()]
             if 'username' not in sess_cols:

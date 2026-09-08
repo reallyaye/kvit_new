@@ -184,6 +184,9 @@ def main():
     else:
         logger.info("Воркер задач:        ВЫКЛЮЧЕН в веб-сервере (обработка через отдельный worker-контейнер)")
 
+    from services.retention_scheduler import start_retention_scheduler
+    start_retention_scheduler(interval_seconds=86400, initial_delay=30)
+
     try:
         run_http_loop(http_server)
     except KeyboardInterrupt:

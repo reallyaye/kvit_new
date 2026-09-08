@@ -107,7 +107,6 @@ def portal_layout(
   "telephone": "+7-7212-90-03-58",
   "email": "info@krec.kz",
   "taxID": "031140001297",
-  "leiCode": "031140001297",
   "address": {{
     "@type": "PostalAddress",
     "streetAddress": "108 уч. квартал, строение 7",
@@ -862,6 +861,67 @@ document.addEventListener('DOMContentLoaded', function() {{
         return null;
     }}
 
+    function purgeTrackingData() {{
+        var host = window.location.hostname;
+        var domains = ['', '.' + host, host];
+        var parts = host.split('.');
+        if (parts.length >= 2) {{
+            domains.push('.' + parts.slice(-2).join('.'));
+        }}
+        try {{
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {{
+                var c = cookies[i].trim();
+                var eq = c.indexOf('=');
+                var name = eq > -1 ? c.substring(0, eq).trim() : c;
+                if (name.indexOf('_ym') === 0 || name.indexOf('yabs') === 0 || name === 'krec_analytics') {{
+                    for (var d = 0; d < domains.length; d++) {{
+                        var dom = domains[d];
+                        var domAttr = dom ? '; domain=' + dom : '';
+                        document.cookie = name + '=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT' + domAttr;
+                    }}
+                }}
+            }}
+            document.cookie = 'krec_analytics=0; path=/; max-age=31536000; SameSite=Lax';
+        }} catch(e) {{}}
+
+        try {{
+            var removeKeys = [];
+            for (var k = 0; k < localStorage.length; k++) {{
+                var key = localStorage.key(k);
+                if (key && (key.indexOf('_ym') === 0 || key.indexOf('yabs') === 0 || key.indexOf('metrika') !== -1)) {{
+                    removeKeys.push(key);
+                }}
+            }}
+            for (var j = 0; j < removeKeys.length; j++) {{
+                localStorage.removeItem(removeKeys[j]);
+            }}
+        }} catch(e) {{}}
+
+        try {{
+            var sRemoveKeys = [];
+            for (var sk = 0; sk < sessionStorage.length; sk++) {{
+                var sKey = sessionStorage.key(sk);
+                if (sKey && (sKey.indexOf('_ym') === 0 || sKey.indexOf('yabs') === 0 || sKey.indexOf('metrika') !== -1)) {{
+                    sRemoveKeys.push(sKey);
+                }}
+            }}
+            for (var sj = 0; sj < sRemoveKeys.length; sj++) {{
+                sessionStorage.removeItem(sRemoveKeys[sj]);
+            }}
+        }} catch(e) {{}}
+
+        if (window.yaCounter51197381) {{
+            try {{
+                if (typeof window.yaCounter51197381.destructor === 'function') {{
+                    window.yaCounter51197381.destructor();
+                }}
+            }} catch(e) {{}}
+            window.yaCounter51197381 = null;
+        }}
+        window._krecMetrikaInitialized = false;
+    }}
+
     function storeConsent(allowAnalytics) {{
         var val = {{
             analytics: !!allowAnalytics,
@@ -871,7 +931,11 @@ document.addEventListener('DOMContentLoaded', function() {{
         }};
         try {{
             localStorage.setItem('krec_cookie_consent', JSON.stringify(val));
-            document.cookie = 'krec_analytics=' + (allowAnalytics ? '1' : '0') + '; path=/; max-age=31536000; SameSite=Lax';
+            if (allowAnalytics) {{
+                document.cookie = 'krec_analytics=1; path=/; max-age=31536000; SameSite=Lax';
+            }} else {{
+                purgeTrackingData();
+            }}
         }} catch(e) {{}}
         return val;
     }}

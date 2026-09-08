@@ -55,6 +55,9 @@ def _clean(value, max_length):
     return str(value or '').strip()[:max_length]
 
 
+ACTIVE_CONSENT_VERSION = 'v1.0-2026-kz'
+
+
 class AppealService:
     def validate(self, payload):
         category = _clean(payload.get('category'), 32)
@@ -65,7 +68,8 @@ class AppealService:
         service_address = _clean(payload.get('service_address'), 500)
         message = _clean(payload.get('message'), 5000)
         consent = str(payload.get('consent', '')).lower() in ('1', 'true', 'yes', 'on')
-        consent_version = _clean(payload.get('consent_version'), 32) or 'v1.0-2026-kz'
+        # Версия согласия жестко контролируется сервером для предотвращения фальсификации
+        consent_version = ACTIVE_CONSENT_VERSION
 
         if category not in APPEAL_CATEGORIES:
             raise AppealValidationError('Выберите категорию обращения.')
@@ -307,8 +311,10 @@ class AppealService:
 
     def purge_expired_appeals(self, retention_days: int = 1095) -> int:
         """
-        Обезличивает персональные данные обращений, срок хранения которых истёк (по умолчанию 3 года).
-        Оставляет только агрегированные статистические метаданные (номер, дата, категория, статус).
+        Обезличивает персональные данные всех обращений, срок хранения которых истёк (по умолчанию 3 года).
+        Очищает ВСЕ персональные и идентифицирующие поля (ФИО, телефон, email, лицевой счет, адрес,
+        текст, IP, User-Agent, комментарии оператора, назначенного сотрудника).
+        Оставляет только деперсонализированные метаданные (номер, дата, категория, статус CLOSED).
         """
         cutoff = time.time() - (max(1, retention_days) * 86400.0)
         try:
@@ -318,12 +324,16 @@ class AppealService:
                        SET applicant_name = 'Обезличено (истёк срок хранения)',
                            phone = 'Обезличено',
                            email = '',
+                           account_number = NULL,
                            service_address = 'Обезличено',
                            message = 'Текст обращения удален по истечении срока хранения персональных данных',
                            client_ip = '',
-                           user_agent = ''
-                       WHERE status IN ('CLOSED', 'REJECTED', 'ANSWERED')
-                         AND submitted_at < ?''',
+                           user_agent = '',
+                           admin_comment = 'Обезличено по истечении срока хранения',
+                           assigned_to = NULL,
+                           status = 'CLOSED'
+                       WHERE submitted_at < ?
+                         AND (applicant_name != 'Обезличено (истёк срок хранения)' OR account_number IS NOT NULL)''',
                     (cutoff,),
                 )
                 affected = cur.rowcount if hasattr(cur, 'rowcount') and cur.rowcount != -1 else 0
