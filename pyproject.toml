@@ -5,7 +5,7 @@ exclude = [
     ".git",
     "__pycache__",
     "tmp",
-    "receipts",
+    "/receipts",
     "logs",
     ".pytest_cache",
 ]

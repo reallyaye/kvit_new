@@ -4,6 +4,8 @@
 АППК РК, блокировки Метрики до согласия и минимизации данных.
 """
 
+import time
+
 from database.connection import get_db
 from services.analytics.stats_service import stats_service
 from services.appeals.appeal_service import appeal_service
@@ -20,7 +22,7 @@ def test_schema_and_cookie_consent_in_portal_layout():
     assert '"@type": "Organization"' in html
     assert '"GovernmentService"' not in html
     assert '"taxID": "031140001297"' in html
-    assert '"leiCode": "031140001297"' in html
+    assert '"leiCode"' not in html
 
     # 2. Яндекс.Метрика не запускается безусловно в теле страницы
     assert '<script type="text/javascript" >\n    (function (d, w, c) {\n        (w[c] = w[c] || []).push' not in html
@@ -111,8 +113,78 @@ def test_privacy_and_terms_pages():
     assert '031140001297' in privacy_html
     assert 'Законом Республики Казахстан от 21 мая 2013 года № 94-V' in privacy_html
     assert 'dpo@krec.kz' in privacy_html
+    assert '8 сентября 2026 года' in privacy_html
 
     terms_html = render_terms_page()
     assert 'Условия использования веб-портала krec.kz' in terms_html
     assert '031140001297' in terms_html
     assert 'не является интернет-магазином' in terms_html
+
+
+def test_font_localization():
+    with open('static/css/style.css', 'r', encoding='utf-8') as f:
+        style_css = f.read()
+    assert 'fonts.googleapis.com' not in style_css
+    assert 'fonts.gstatic.com' not in style_css
+    assert '/css/inter.css' in style_css
+
+    with open('static/css/heroui.css', 'r', encoding='utf-8') as f:
+        heroui_css = f.read()
+    assert 'fonts.googleapis.com' not in heroui_css
+    assert 'fonts.gstatic.com' not in heroui_css
+    assert '/css/inter.css' in heroui_css
+
+
+def test_kvit_layout_unification():
+    from templates.layout import layout
+    html = layout('<h1>Квитанция</h1>', active='search')
+    assert 'krecCookieBanner' in html
+    assert 'krecCookieModal' in html
+    assert 'krecOpenCookieModal' in html
+    assert '031140001297' in html
+    assert '/privacy' in html
+    assert '/terms' in html
+    assert 'purgeTrackingData' in html
+
+
+def test_deep_anonymization_appeals():
+    from database import get_db
+    from services.appeals import appeal_service
+    payload = {
+        'category': 'meter',
+        'applicant_name': 'Петров Петр Петрович',
+        'phone': '+7 (777) 123-45-67',
+        'email': 'petrov@example.kz',
+        'account_number': '9876543210',
+        'service_address': 'г. Караганда, ул. Ленина, 5, кв. 10',
+        'message': 'Заявление на проверку прибора учета электроэнергии.',
+        'consent': '1',
+    }
+    appeal = appeal_service.create(payload, client_ip="10.0.0.1")
+    appeal_id = appeal['id']
+
+    # Имитируем возраст обращения более 3 лет (например, 1150 дней назад)
+    old_timestamp = time.time() - (1150 * 86400)
+    with get_db() as db:
+        db.execute(
+            "UPDATE appeals SET submitted_at = ?, admin_comment = ?, assigned_to = ? WHERE id = ?",
+            (old_timestamp, "Служебный комментарий инженера", "engineer_ivanov", appeal_id)
+        )
+        db.commit()
+
+    # Запуск очистки
+    purged_count = appeal_service.purge_expired_appeals(retention_days=1095)
+    assert purged_count >= 1
+
+    # Проверка глубокого обезличивания
+    anonymized = appeal_service.get_by_id(appeal_id)
+    assert anonymized is not None
+    assert 'Обезличено' in anonymized['applicant_name']
+    assert anonymized['phone'] == 'Обезличено'
+    assert anonymized['email'] == ''
+    assert anonymized['account_number'] is None
+    assert anonymized['service_address'] == 'Обезличено'
+    assert anonymized['admin_comment'] == 'Обезличено по истечении срока хранения'
+    assert anonymized['assigned_to'] is None
+    assert anonymized['status'] == 'CLOSED'
+

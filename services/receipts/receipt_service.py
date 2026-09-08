@@ -1,10 +1,10 @@
+import difflib
 import os
 import re
+
 import config
 from config import get_receipt_shard_parts
 from database import get_db
-
-import difflib
 
 KZ_RU_CHAR_MAP = str.maketrans({
     'ә': 'а', 'і': 'и', 'ң': 'н', 'ғ': 'г', 'ү': 'у', 'ұ': 'у', 'қ': 'к', 'ө': 'о', 'һ': 'х',
@@ -249,7 +249,6 @@ class ReceiptService:
         if not rows:
             return None, 0
 
-        query_str_norm = normalize_text_chars(" ".join(query_tokens))
         best_token = None
         best_ratio = 0.0
 
