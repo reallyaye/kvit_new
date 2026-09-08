@@ -579,9 +579,8 @@ class BackupManager:
                             ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                             with gzip.open(sql_gz_file, 'rb') as f_gz:
-                                shutil.copyfileobj(f_gz, p_restore.stdin)
-                            p_restore.stdin.close()
-                            _, r_err = p_restore.communicate()
+                                sql_data = f_gz.read()
+                            _, r_err = p_restore.communicate(input=sql_data)
 
                             # Сверка количества записей
                             c_check = subprocess.run([
