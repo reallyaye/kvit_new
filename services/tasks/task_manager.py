@@ -481,15 +481,26 @@ class TaskQueueManager:
                 except Exception:
                     pass
 
-            task.status = TaskStatus.COMPLETED
+            if task.total_files > 0 and task.added == 0:
+                task.status = TaskStatus.FAILED
+                if not task.error_message:
+                    task.error_message = (
+                        f"Ни одна квитанция не добавлена (всего: {task.total_files}, "
+                        f"отклонено: {task.orphan}, пропущено: {task.skipped}, дубликатов: {task.duplicates})"
+                    )
+                logger.warning(
+                    f"[TaskManager] Задача {task.job_id} завершена без добавления квитанций: {task.error_message}"
+                )
+            else:
+                task.status = TaskStatus.COMPLETED
+                logger.info(
+                    f"[TaskManager] Задача {task.job_id} успешно завершена "
+                    f"(+{task.added}, сирот: {task.orphan}, дублей: {task.duplicates}, пропущено: {task.skipped})."
+                )
+
             task.finished_at = time.time()
             task.updated_at = time.time()
             self._sync_task_state(task)
-
-            logger.info(
-                f"[TaskManager] Задача {task.job_id} успешно завершена "
-                f"(+{task.added}, сирот: {task.orphan}, дублей: {task.duplicates}, пропущено: {task.skipped})."
-            )
 
         except Exception as unhandled_err:
             logger.error(f"[TaskManager] Критический сбой задачи {task.job_id}: {unhandled_err}", exc_info=True)
@@ -562,7 +573,9 @@ class TaskQueueManager:
             client_ip = meta.get('client_ip') or '127.0.0.1'
             elapsed = round((task.finished_at or time.time()) - (task.started_at or task.created_at), 1)
 
-            if task.status == TaskStatus.COMPLETED:
+            is_success = (task.status == TaskStatus.COMPLETED) and (task.added > 0 or task.total_files == 0)
+
+            if is_success:
                 action = 'UPLOAD_SUCCESS'
                 details_parts = [
                     f"Обработка квитанций успешно завершена. Задача: {task.job_id}.",
@@ -571,7 +584,8 @@ class TaskQueueManager:
                     f"Отклонено (без счёта): {task.orphan}.",
                     f"Пропущено: {task.skipped}.",
                     f"Дубликатов: {task.duplicates}.",
-                    f"Время обработки: {elapsed} с."
+                    f"Время обработки: {elapsed} с.",
+                    f"Скорость обработки: {task.speed_files_per_sec} ф/с."
                 ]
                 if task.error_message:
                     details_parts.append(f"Замечания: {task.error_message}.")
@@ -580,10 +594,15 @@ class TaskQueueManager:
                 details = " ".join(details_parts)
             else:
                 action = 'UPLOAD_FAILED'
-                err_msg = task.error_message or 'Неизвестная ошибка фоновой обработки'
+                err_msg = task.error_message or (
+                    f"Ни одна квитанция не добавлена (всего {task.total_files}, отклонено: {task.orphan}, пропущено: {task.skipped}, дубликатов: {task.duplicates})"
+                    if task.total_files > 0 and task.added == 0 else 'Неизвестная ошибка фоновой обработки'
+                )
                 details = (
                     f"Обработка квитанций завершилась сбоем. Задача: {task.job_id}. "
-                    f"Всего файлов: {task.total_files}. Ошибка: {err_msg}. Время: {elapsed} с."
+                    f"Всего файлов: {task.total_files}. Добавлено: {task.added}. "
+                    f"Ошибка: {err_msg}. Время обработки: {elapsed} с. "
+                    f"Скорость обработки: {task.speed_files_per_sec} ф/с."
                 )
 
             auth_service.log_audit(username, client_ip, action, details)

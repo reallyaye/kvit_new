@@ -23,6 +23,7 @@ import sqlite3
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 from typing import Any, Dict, List, Optional
 
@@ -370,7 +371,11 @@ class BackupManager:
     def _backup_receipts(self, bundle_dir: str, ts_str: str) -> tuple[str, int]:
         """Упаковывает каталог PDF-квитанций в tar.gz."""
         target_file = os.path.join(bundle_dir, f"receipts_{ts_str}.tar.gz")
-        receipts_dir = getattr(config, 'RECEIPTS_DIR', os.path.join(self.base_dir, 'data', 'receipts'))
+        receipts_dir = os.path.join(self.base_dir, 'data', 'receipts')
+        if not os.path.exists(receipts_dir):
+            receipts_dir = os.path.join(self.base_dir, 'receipts')
+        if not os.path.exists(receipts_dir) and hasattr(config, 'RECEIPTS_DIR'):
+            receipts_dir = config.RECEIPTS_DIR
 
         if not os.path.exists(receipts_dir):
             os.makedirs(receipts_dir, exist_ok=True)
@@ -445,11 +450,31 @@ class BackupManager:
                 res['error'] = f"Несовпадение SHA-256 для {meta['filename']}: ожидалось {meta['sha256']}, получено {calc_hash}"
                 return res
 
-            # Проверка gzip / tar integrity
+            # Проверка gzip / tar integrity с РЕАЛЬНОЙ распаковкой
             if fpath.endswith('.tar.gz'):
                 try:
                     with tarfile.open(fpath, 'r:gz') as tar:
-                        _ = tar.getmembers()
+                        members = tar.getmembers()
+                        with tempfile.TemporaryDirectory() as tmp_extract_dir:
+                            if hasattr(tarfile, 'data_filter'):
+                                tar.extractall(path=tmp_extract_dir, filter='data')
+                            else:
+                                tar.extractall(path=tmp_extract_dir)
+
+                            for m in members:
+                                if m.isfile():
+                                    extracted_file = os.path.join(tmp_extract_dir, m.name)
+                                    if not os.path.exists(extracted_file):
+                                        res['error'] = f"Файл {m.name} не найден после распаковки архива {meta['filename']}"
+                                        return res
+                                    if os.path.getsize(extracted_file) != m.size:
+                                        res['error'] = (
+                                            f"Размер распакованного файла {m.name} ({os.path.getsize(extracted_file)}) "
+                                            f"не совпадает с размером в tar ({m.size})"
+                                        )
+                                        return res
+                                    with open(extracted_file, 'rb') as ef:
+                                        _ = ef.read(min(4096, m.size))
                     res['archive_integrity'][component] = 'OK'
                 except Exception as tar_err:
                     res['error'] = f"Повреждение tar архива {meta['filename']}: {tar_err}"
@@ -478,7 +503,7 @@ class BackupManager:
             return res
         res['database_verified'] = True
 
-        # 3. Проверка сэмплов файлов квитанций
+        # 3. Проверка ВСЕХ сэмплов файлов квитанций
         receipts_meta = files_meta.get('receipts', {})
         receipts_file = os.path.join(bundle_dir, receipts_meta['filename'])
         sample_files = manifest.get('initial_metrics', {}).get('sample_receipt_files', [])
@@ -486,20 +511,54 @@ class BackupManager:
         if sample_files:
             try:
                 with tarfile.open(receipts_file, 'r:gz') as tar:
-                    tar_names = set(tar.getnames())
-                    found_samples = 0
-                    for sf in sample_files:
-                        base_sf = os.path.basename(sf)
-                        # Ищем имя файла в архиве
-                        if any(tn.endswith(base_sf) for tn in tar_names):
-                            found_samples += 1
+                    missing_samples = []
+                    with tempfile.TemporaryDirectory() as tmp_samples_dir:
+                        for sf in sample_files:
+                            base_sf = os.path.basename(sf)
+                            matching_member = next(
+                                (
+                                    m for m in tar.getmembers()
+                                    if m.name.endswith(base_sf) or os.path.basename(m.name) == base_sf
+                                ),
+                                None
+                            )
+                            if not matching_member:
+                                missing_samples.append(base_sf)
+                            else:
+                                if hasattr(tarfile, 'data_filter'):
+                                    tar.extract(matching_member, path=tmp_samples_dir, filter='data')
+                                else:
+                                    tar.extract(matching_member, path=tmp_samples_dir)
+                                extracted_sample = os.path.join(tmp_samples_dir, matching_member.name)
+                                with open(extracted_sample, 'rb') as sf_fp:
+                                    header = sf_fp.read(5)
+                                    if header != b'%PDF-':
+                                        res['error'] = f"Файл квитанции {base_sf} в архиве поврежден (некорректный заголовок: {header!r})"
+                                        res['receipts_sample_verified'] = False
+                                        res['success'] = False
+                                        return res
 
-                    res['receipts_sample_verified'] = (found_samples > 0 or len(tar_names) == 0)
+                    if missing_samples:
+                        res['error'] = f"Не все сэмплы квитанций найдены в архиве! Отсутствуют: {', '.join(missing_samples)}"
+                        res['receipts_sample_verified'] = False
+                        res['success'] = False
+                        return res
+
+                    res['receipts_sample_verified'] = True
             except Exception as e:
-                logger.warning(f"Ошибка проверки сэмплов квитанций: {e}")
+                logger.error(f"Ошибка проверки сэмплов квитанций: {e}")
+                res['error'] = f"Сбой проверки сэмплов квитанций: {e}"
                 res['receipts_sample_verified'] = False
+                res['success'] = False
+                return res
         else:
             res['receipts_sample_verified'] = True
+
+        if not res['database_verified'] or not res['receipts_sample_verified']:
+            res['success'] = False
+            if not res.get('error'):
+                res['error'] = "Комплексная проверка компонентов бэкапа не пройдена"
+            return res
 
         res['success'] = True
         return res
@@ -508,8 +567,8 @@ class BackupManager:
         """Тестовая распаковка и валидация SQLite во временной БД."""
         temp_dir = os.path.join(self.backup_root, '.tmp_verify')
         os.makedirs(temp_dir, exist_ok=True)
-        temp_db = os.path.join(temp_dir, f"test_restore_{int(time.time())}.db")
-
+        temp_db = os.path.join(temp_dir, f"test_restore_{int(time.time())}_{os.getpid()}.db")
+        con = None
         try:
             with gzip.open(db_gz_file, 'rb') as f_in, open(temp_db, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
@@ -518,7 +577,6 @@ class BackupManager:
             con.row_factory = sqlite3.Row
             row_acc = con.execute("SELECT COUNT(*) FROM accounts").fetchone()
             row_rec = con.execute("SELECT COUNT(*) FROM receipts").fetchone()
-            con.close()
 
             acc_cnt = row_acc[0] if row_acc else 0
             rec_cnt = row_rec[0] if row_rec else 0
@@ -531,11 +589,19 @@ class BackupManager:
             logger.error(f"Сбой валидации SQLite: {err}")
             return False
         finally:
+            if con:
+                try:
+                    con.close()
+                except Exception:
+                    pass
             if os.path.exists(temp_db):
-                os.remove(temp_db)
+                try:
+                    os.remove(temp_db)
+                except Exception:
+                    pass
 
     def _verify_postgres_restore(self, sql_gz_file: str, expected_metrics: Dict[str, Any]) -> bool:
-        """Валидация SQL-дампа PostgreSQL (синтаксис, таблицы, тестовая накатка)."""
+        """Валидация SQL-дампа PostgreSQL (синтаксис, таблицы, тестовая изолированная накатка)."""
         logger.info("Валидация дампа PostgreSQL...")
         try:
             table_markers = {'accounts': False, 'receipts': False, 'audit_logs': False}
@@ -545,7 +611,12 @@ class BackupManager:
                 for line in f:
                     total_lines += 1
                     for tbl in table_markers:
-                        if f'CREATE TABLE public.{tbl}' in line or f'CREATE TABLE {tbl}' in line or f'COPY public.{tbl}' in line or f'COPY {tbl}' in line:
+                        if (
+                            f'CREATE TABLE public.{tbl}' in line
+                            or f'CREATE TABLE {tbl}' in line
+                            or f'COPY public.{tbl}' in line
+                            or f'COPY {tbl}' in line
+                        ):
                             table_markers[tbl] = True
 
             logger.info(f"Дамп содержит {total_lines} строк. Найдены таблицы: {table_markers}")
@@ -553,60 +624,87 @@ class BackupManager:
                 logger.error("В дампе отсутствуют критически важные таблицы accounts/receipts!")
                 return False
 
-            # Если доступен docker exec kvit-postgres, проводим накатку в тестовую изолированную базу
+            # Проверяем доступность docker контейнера kvit-postgres
+            check_docker = subprocess.run(
+                ['docker', 'ps', '--filter', 'name=kvit-postgres', '--format', '{{.Names}}'],
+                capture_output=True, text=True, check=False
+            )
+            if check_docker.returncode != 0 or 'kvit-postgres' not in check_docker.stdout:
+                logger.error("Контейнер kvit-postgres не найден или не запущен. Невозможно провести верификацию восстановления!")
+                return False
+
+            pg_user = os.getenv('POSTGRES_USER', 'user')
+            tmp_db_name = f"kvit_restore_drill_{int(time.time())}"
+            logger.info(f"Создание временной тестовой базы {tmp_db_name} для drill-теста...")
+
+            # 1. CREATE DATABASE с флагом ON_ERROR_STOP=1
+            c_create = subprocess.run([
+                'docker', 'exec', '-i', 'kvit-postgres',
+                'psql', '-U', pg_user, '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', f"CREATE DATABASE {tmp_db_name};"
+            ], capture_output=True, text=True, check=False)
+
+            if c_create.returncode != 0:
+                logger.error(f"Не удалось создать временную тестовую базу {tmp_db_name} (код {c_create.returncode}): {c_create.stderr}")
+                return False
+
             try:
-                check_docker = subprocess.run(
-                    ['docker', 'ps', '--filter', 'name=kvit-postgres', '--format', '{{.Names}}'],
-                    capture_output=True, text=True, check=False
-                )
-                if check_docker.returncode == 0 and 'kvit-postgres' in check_docker.stdout:
-                    pg_user = os.getenv('POSTGRES_USER', 'user')
-                    tmp_db_name = f"kvit_restore_drill_{int(time.time())}"
-                    logger.info(f"Создание временной тестовой базы {tmp_db_name} для drill-теста...")
+                # 2. Восстановление дампа во временную базу с флагом ON_ERROR_STOP=1
+                p_restore = subprocess.Popen([
+                    'docker', 'exec', '-i', 'kvit-postgres',
+                    'psql', '-U', pg_user, '-d', tmp_db_name, '-v', 'ON_ERROR_STOP=1', '-q'
+                ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-                    # CREATE DATABASE
-                    c_create = subprocess.run([
-                        'docker', 'exec', '-i', 'kvit-postgres',
-                        'psql', '-U', pg_user, '-d', 'postgres', '-c', f"CREATE DATABASE {tmp_db_name};"
-                    ], capture_output=True, text=True, check=False)
+                with gzip.open(sql_gz_file, 'rb') as f_gz:
+                    sql_data = f_gz.read()
+                _, r_err = p_restore.communicate(input=sql_data)
 
-                    if c_create.returncode == 0:
-                        try:
-                            # Восстановление дампа во временную базу
-                            p_restore = subprocess.Popen([
-                                'docker', 'exec', '-i', 'kvit-postgres',
-                                'psql', '-U', pg_user, '-d', tmp_db_name, '-q'
-                            ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if p_restore.returncode != 0:
+                    err_msg = r_err.decode('utf-8', errors='replace') if isinstance(r_err, bytes) else str(r_err)
+                    logger.error(f"Сбой восстановления дампа psql (код возврата {p_restore.returncode}): {err_msg}")
+                    return False
 
-                            with gzip.open(sql_gz_file, 'rb') as f_gz:
-                                sql_data = f_gz.read()
-                            _, r_err = p_restore.communicate(input=sql_data)
+                # 3. Сверка количества записей через psql с ON_ERROR_STOP=1
+                c_check = subprocess.run([
+                    'docker', 'exec', '-i', 'kvit-postgres',
+                    'psql', '-U', pg_user, '-d', tmp_db_name, '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c',
+                    "SELECT (SELECT COUNT(*) FROM accounts), (SELECT COUNT(*) FROM receipts);"
+                ], capture_output=True, text=True, check=False)
 
-                            # Сверка количества записей
-                            c_check = subprocess.run([
-                                'docker', 'exec', '-i', 'kvit-postgres',
-                                'psql', '-U', pg_user, '-d', tmp_db_name, '-t', '-A', '-c',
-                                "SELECT (SELECT COUNT(*) FROM accounts), (SELECT COUNT(*) FROM receipts);"
-                            ], capture_output=True, text=True, check=False)
+                if c_check.returncode != 0:
+                    logger.error(f"Ошибка запроса проверки записей в тестовой БД (код {c_check.returncode}): {c_check.stderr}")
+                    return False
 
-                            if c_check.returncode == 0 and '|' in c_check.stdout:
-                                parts = c_check.stdout.strip().split('|')
-                                r_acc, r_rec = int(parts[0]), int(parts[1])
-                                assert r_acc == expected_metrics['accounts_count'], f"Accounts mismatch: {r_acc} vs {expected_metrics['accounts_count']}"
-                                assert r_rec == expected_metrics['receipts_count'], f"Receipts mismatch: {r_rec} vs {expected_metrics['receipts_count']}"
-                                logger.info(f"Disaster Recovery Drill в PostgreSQL завершен успешно! Счетов: {r_acc}, Квитанций: {r_rec}")
-                        finally:
-                            # Очистка: удаление временной БД
-                            subprocess.run([
-                                'docker', 'exec', '-i', 'kvit-postgres',
-                                'psql', '-U', pg_user, '-d', 'postgres', '-c', f"DROP DATABASE IF EXISTS {tmp_db_name} WITH (FORCE);"
-                            ], capture_output=True, text=True, check=False)
-            except Exception as drill_err:
-                logger.warning(f"Изолированный drill-тест в PostgreSQL пропущен или завершился с предупреждением: {drill_err}")
+                out_str = c_check.stdout.strip()
+                if '|' not in out_str:
+                    logger.error(f"Неожиданный формат ответа сверки метрик: {out_str}")
+                    return False
 
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка проверки дампа PostgreSQL: {e}")
+                parts = out_str.split('|')
+                r_acc, r_rec = int(parts[0]), int(parts[1])
+                exp_acc = expected_metrics.get('accounts_count', 0)
+                exp_rec = expected_metrics.get('receipts_count', 0)
+
+                if r_acc != exp_acc:
+                    logger.error(f"Несовпадение количества счетов: в дампе {r_acc} != ожидалось {exp_acc}")
+                    return False
+                if r_rec != exp_rec:
+                    logger.error(f"Несовпадение количества квитанций: в дампе {r_rec} != ожидалось {exp_rec}")
+                    return False
+
+                logger.info(f"Disaster Recovery Drill в PostgreSQL завершен успешно! Счетов: {r_acc}, Квитанций: {r_rec}")
+                return True
+
+            finally:
+                # Очистка: удаление временной БД с FORCE
+                c_drop = subprocess.run([
+                    'docker', 'exec', '-i', 'kvit-postgres',
+                    'psql', '-U', pg_user, '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', f"DROP DATABASE IF EXISTS {tmp_db_name} WITH (FORCE);"
+                ], capture_output=True, text=True, check=False)
+                if c_drop.returncode != 0:
+                    logger.warning(f"Предупреждение при удалении временной базы {tmp_db_name}: {c_drop.stderr}")
+
+        except Exception as drill_err:
+            logger.error(f"Критический сбой Isolated Drill в PostgreSQL: {drill_err}", exc_info=True)
             return False
 
     # ────────────────────── Репликация и ротация ──────────────────────
@@ -632,9 +730,14 @@ class BackupManager:
             if res.returncode == 0:
                 logger.info("Удаленная синхронизация rsync успешно выполнена.")
             else:
-                logger.warning(f"Ошибка rsync (код {res.returncode}): {res.stderr}")
+                err_msg = res.stderr.strip() or f"код {res.returncode}"
+                logger.error(f"Ошибка rsync при отправке на {remote_target}: {err_msg}")
+                raise RuntimeError(f"Ошибка rsync (код {res.returncode}): {err_msg}")
         except Exception as e:
-            logger.error(f"Сбой при удаленной синхронизации: {e}")
+            logger.error(f"Сбой при удаленной синхронизации на {remote_target}: {e}")
+            if isinstance(e, RuntimeError):
+                raise
+            raise RuntimeError(f"Сбой при удаленной синхронизации на {remote_target}: {e}") from e
 
     def rotate_old_backups(self):
         """Удаляет резервные копии старше указанного retention_days."""
