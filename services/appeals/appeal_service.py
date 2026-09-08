@@ -5,6 +5,7 @@ import ssl
 import time
 from datetime import datetime
 from email.message import EmailMessage
+from email.utils import formataddr
 
 import config
 from database import get_db
@@ -238,19 +239,23 @@ class AppealService:
             return result
 
         messages = []
+        from_name = getattr(config, 'SMTP_FROM_NAME', 'ТОО «КРЭК»')
+        from_header = formataddr((from_name, config.SMTP_FROM_EMAIL)) if from_name else config.SMTP_FROM_EMAIL
+
         if config.APPEALS_NOTIFY_EMAIL:
             office = EmailMessage()
             office['Subject'] = f"Новое обращение {appeal['registration_number']}"
-            office['From'] = config.SMTP_FROM_EMAIL
+            office['From'] = from_header
             office['To'] = config.APPEALS_NOTIFY_EMAIL
-            office['Reply-To'] = appeal['email']
+            if appeal.get('email'):
+                office['Reply-To'] = appeal['email']
             office.set_content(self._office_email_body(appeal))
             messages.append(('office_notified', office))
 
         if appeal.get('email'):
             confirmation = EmailMessage()
             confirmation['Subject'] = f"Обращение зарегистрировано: {appeal['registration_number']}"
-            confirmation['From'] = config.SMTP_FROM_EMAIL
+            confirmation['From'] = from_header
             confirmation['To'] = appeal['email']
             confirmation.set_content(self._confirmation_email_body(appeal))
             messages.append(('confirmation_sent', confirmation))
@@ -336,10 +341,18 @@ class AppealService:
                          AND (applicant_name != 'Обезличено (истёк срок хранения)' OR account_number IS NOT NULL)''',
                     (cutoff,),
                 )
-                affected = cur.rowcount if hasattr(cur, 'rowcount') and cur.rowcount != -1 else 0
-                if affected == 0:
-                    changes = con.execute("SELECT changes()").fetchone() if hasattr(con, 'execute') else None
-                    affected = changes[0] if changes else 0
+                if hasattr(cur, 'rowcount') and cur.rowcount is not None and cur.rowcount >= 0:
+                    affected = cur.rowcount
+                else:
+                    try:
+                        from config import is_postgres
+                        if not is_postgres() and hasattr(con, 'execute'):
+                            changes = con.execute("SELECT changes()").fetchone()
+                            affected = changes[0] if changes else 0
+                        else:
+                            affected = 0
+                    except Exception:
+                        affected = 0
                 logger.info("[Appeals] Обезличено %d архивных обращений старше %d дней", affected, retention_days)
                 return affected
         except Exception as exc:

@@ -28,7 +28,6 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "--basetemp=.pytest_tmp"
 
 [tool.coverage.run]
 source = ["services", "database", "templates", "server", "app", "bot", "worker", "config"]

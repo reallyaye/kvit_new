@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import shutil
 import sqlite3
@@ -15,18 +16,18 @@ os.environ["REDIS_ENABLED"] = "false"
 os.environ["SECRET_KEY"] = "test_secure_secret_key_for_testing"
 os.environ["GRPC_API_KEY"] = "test_secure_grpc_key_for_testing"
 
-import config
-
+import config  # noqa: E402
 
 # Fallback pytest fixture для работы без установленного пакета pytest
-class _MockPytest:
-    @staticmethod
-    def fixture(fn=None, *args, **kwargs):
-        if fn and callable(fn):
-            return fn
-        return lambda f: f
+if not importlib.util.find_spec('pytest'):
+    class _MockPytest:
+        @staticmethod
+        def fixture(fn=None, *args, **kwargs):
+            if fn and callable(fn):
+                return fn
+            return lambda f: f
 
-sys.modules['pytest'] = _MockPytest()
+    sys.modules['pytest'] = _MockPytest()
 
 
 def run_all():
@@ -307,4 +308,28 @@ def run_all():
 
 
 if __name__ == '__main__':
+    use_manual = '--manual' in sys.argv
+    if not use_manual:
+        try:
+            import pytest as _real_pytest
+            if hasattr(_real_pytest, 'main') and callable(_real_pytest.main):
+                test_args = [a for a in sys.argv[1:] if a != '--manual']
+                if not test_args:
+                    test_args = [
+                        '-ra', '-q',
+                        'tests/test_analytics_stats.py',
+                        'tests/test_appeals.py',
+                        'tests/test_compliance_privacy.py',
+                        'tests/test_mail_delivery.py',
+                        'tests/test_security.py',
+                        'tests/test_receipt_service.py',
+                        'tests/test_portal.py',
+                        'tests/test_portal_cms.py',
+                        'tests/test_reconcile_service.py',
+                        'tests/test_rbac.py',
+                        'tests/test_tasks.py',
+                    ]
+                sys.exit(_real_pytest.main(test_args))
+        except (ImportError, AttributeError):
+            pass
     run_all()

@@ -274,6 +274,7 @@ SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'true').lower() in ('true', '1', '
 SMTP_USE_SSL = os.environ.get('SMTP_USE_SSL', 'false').lower() in ('true', '1', 'yes')
 SMTP_TIMEOUT = float(os.environ.get('SMTP_TIMEOUT', '8'))
 SMTP_FROM_EMAIL = os.environ.get('SMTP_FROM_EMAIL', SMTP_USERNAME).strip()
+SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'ТОО «КРЭК»').strip()
 APPEALS_NOTIFY_EMAIL = os.environ.get('APPEALS_NOTIFY_EMAIL', '').strip()
 APPEALS_EMAIL_ENABLED = os.environ.get(
     'APPEALS_EMAIL_ENABLED',
