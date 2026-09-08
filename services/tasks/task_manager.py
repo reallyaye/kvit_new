@@ -554,7 +554,43 @@ class TaskQueueManager:
         except Exception as ws_err:
             logger.debug(f"[TaskManager] Ошибка WS broadcast завершения: {ws_err}")
 
-        # 2. Вызов зарегистрированных колбэков
+        # 2. Фиксация результата в журнале аудита безопасности и операций
+        try:
+            from services.security.auth_service import auth_service
+            meta = task.meta or {}
+            username = meta.get('username') or 'система'
+            client_ip = meta.get('client_ip') or '127.0.0.1'
+            elapsed = round((task.finished_at or time.time()) - (task.started_at or task.created_at), 1)
+
+            if task.status == TaskStatus.COMPLETED:
+                action = 'UPLOAD_SUCCESS'
+                details_parts = [
+                    f"Обработка квитанций успешно завершена. Задача: {task.job_id}.",
+                    f"Всего файлов: {task.total_files}.",
+                    f"Добавлено: {task.added}.",
+                    f"Отклонено (без счёта): {task.orphan}.",
+                    f"Пропущено: {task.skipped}.",
+                    f"Дубликатов: {task.duplicates}.",
+                    f"Время обработки: {elapsed} с."
+                ]
+                if task.error_message:
+                    details_parts.append(f"Замечания: {task.error_message}.")
+                if task.details:
+                    details_parts.append(f"Причины/детали: {'; '.join(task.details[:3])}.")
+                details = " ".join(details_parts)
+            else:
+                action = 'UPLOAD_FAILED'
+                err_msg = task.error_message or 'Неизвестная ошибка фоновой обработки'
+                details = (
+                    f"Обработка квитанций завершилась сбоем. Задача: {task.job_id}. "
+                    f"Всего файлов: {task.total_files}. Ошибка: {err_msg}. Время: {elapsed} с."
+                )
+
+            auth_service.log_audit(username, client_ip, action, details)
+        except Exception as audit_err:
+            logger.error(f"[TaskManager] Ошибка записи аудита завершения задачи {task.job_id}: {audit_err}")
+
+        # 3. Вызов зарегистрированных колбэков
         callback_called = False
         for cb in task.callbacks:
             try:
@@ -563,11 +599,11 @@ class TaskQueueManager:
             except Exception as cb_err:
                 logger.error(f"[TaskManager] Ошибка в callback задачи {task.job_id}: {cb_err}", exc_info=True)
 
-        # 3. Кросс-процессная отправка отчёта в Telegram (для Docker воркеров)
+        # 4. Кросс-процессная отправка отчёта в Telegram (для Docker воркеров)
         if not callback_called and task.meta and task.meta.get('chat_id'):
             self._notify_telegram_completion(task)
 
-        # 4. Очистка временных спул-директорий
+        # 5. Очистка временных спул-директорий
         storage_pipeline.cleanup_job(task.job_id)
         if task.spool_dir and os.path.exists(task.spool_dir):
             try:

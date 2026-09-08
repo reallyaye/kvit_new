@@ -233,7 +233,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         }} else if (data.status === 'NOT_FOUND') {{
             resBox.innerHTML = '<div class="card receipt-card-anim">' +
                 '<h1><span style="color:#dc2626;display:inline-flex;align-items:center;gap:6px">{ico_err} Квитанция не найдена</span></h1>' +
-                '<div class="err"><b>' + escapeHtml(data.message || 'Квитанция не найдена.') + '</b><br><br>Проверьте правильность написания номера лицевого счета или адреса.</div>' +
+                '<div class="err"><b>' + escapeHtml(data.message || 'Квитанция не найдена.') + '</b><br><br>Проверьте правильность написания номера лицевого счёта.</div>' +
             '</div>';
         }} else if (data.status === 'NEED_HOUSE' || data.status === 'CLARIFY_ADDRESS') {{
             resBox.innerHTML = '<div class="card receipt-card-anim">' +

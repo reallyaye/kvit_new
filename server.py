@@ -1592,10 +1592,16 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         task = task_manager.submit_pdf_job(
             files=pdf_files,
             source='api_batch',
-            spool_dir=tmp_dir
+            spool_dir=tmp_dir,
+            meta={'username': username, 'client_ip': client_ip}
         )
 
-        auth_service.log_audit(username, client_ip, 'UPLOAD_RECEIPTS', f"Загружено {len(pdf_files)} файлов квитанций (задача: {task.job_id})")
+        auth_service.log_audit(
+            username,
+            client_ip,
+            'UPLOAD_START',
+            f"Запущена пакетная API-загрузка {len(pdf_files)} файлов квитанций (задача: {task.job_id})"
+        )
 
         self.send_json({
             'success': True,
@@ -2093,11 +2099,23 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
             return
 
+        cur_user = self._get_current_user() if hasattr(self, '_get_current_user') else {}
+        cur_user = cur_user or {}
+        username = cur_user.get('username', 'operator')
+        client_ip = self._get_client_ip() if hasattr(self, '_get_client_ip') else '127.0.0.1'
+
         files = [(os.path.basename(p), p) for p in pdf_paths]
         task = task_manager.submit_pdf_job(
             files=files,
             source='folder_import',
-            meta={'folder_path': folder_path}
+            meta={'username': username, 'client_ip': client_ip, 'folder_path': folder_path}
+        )
+
+        auth_service.log_audit(
+            username,
+            client_ip,
+            'UPLOAD_START',
+            f"Запущен импорт из папки {len(pdf_paths)} файлов квитанций (задача: {task.job_id}, путь: {folder_path})"
         )
 
         msg = f'''<div class="ok">
@@ -2131,10 +2149,23 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_html(layout(body, 'upload', is_admin=True, csrf_token=csrf_tok))
             return
 
+        cur_user = self._get_current_user() if hasattr(self, '_get_current_user') else {}
+        cur_user = cur_user or {}
+        username = cur_user.get('username', 'operator')
+        client_ip = self._get_client_ip() if hasattr(self, '_get_client_ip') else '127.0.0.1'
+
         task = task_manager.submit_pdf_job(
             files=pdf_files,
             source='web_upload',
-            spool_dir=tmp_dir
+            spool_dir=tmp_dir,
+            meta={'username': username, 'client_ip': client_ip}
+        )
+
+        auth_service.log_audit(
+            username,
+            client_ip,
+            'UPLOAD_START',
+            f"Запущена веб-загрузка {len(pdf_files)} файлов квитанций (задача: {task.job_id})"
         )
 
         total_files = len(pdf_files)

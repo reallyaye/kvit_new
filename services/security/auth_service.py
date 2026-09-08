@@ -330,7 +330,7 @@ class AuthService:
             total = con.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0] or 0
             logins = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGIN'").fetchone()[0] or 0
             failed_logins = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGIN_FAILED'").fetchone()[0] or 0
-            uploads = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'UPLOAD_RECEIPTS'").fetchone()[0] or 0
+            uploads = con.execute("SELECT COUNT(*) FROM audit_logs WHERE action IN ('UPLOAD_RECEIPTS', 'UPLOAD_START', 'UPLOAD_SUCCESS')").fetchone()[0] or 0
 
             # Уникальные пользователи и действия для выпадающих списков фильтра
             user_rows = con.execute("SELECT DISTINCT username FROM audit_logs WHERE username IS NOT NULL AND username != '' ORDER BY username").fetchall()
