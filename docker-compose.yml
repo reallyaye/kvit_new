@@ -227,7 +227,10 @@ services:
 
   # ────────────────────── Nginx HTTPS ──────────────────────
   nginx:
-    image: nginx:1.25-alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    image: kvit-nginx:latest
     container_name: kvit-nginx
     restart: unless-stopped
 
@@ -254,7 +257,7 @@ services:
       # Сертификаты, созданные Certbot.
       - /etc/letsencrypt:/etc/letsencrypt:ro
 
-    # Периодически перечитывает обновлённый сертификат и очищает архивные логи старше 90 дней.
+    # Периодически перечитывает обновлённый сертификат и ежедневно ротирует журналы
     command:
       - /bin/sh
       - -c
@@ -263,7 +266,7 @@ services:
           nginx -t && nginx -s reload;
         done) &
         (while sleep 24h; do
-          find /var/log/nginx -type f \( -name "*.gz" -o -name "*.old" -o -name "*.[0-9]*" \) -mtime +90 -delete 2>/dev/null || true;
+          /usr/local/bin/rotate-logs.sh || true;
         done) &
         exec nginx -g 'daemon off;'
 

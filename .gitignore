@@ -35,7 +35,16 @@ ENV/
 
 # Receipts & Storage files
 /receipts/
-/data/
+/data/receipts/
+/data/api-logs/
+/data/worker-logs/
+/data/nginx-logs/
+/data/spool/
+/data/processing/
+/data/failed/
+/data/certbot/
+/data/uploads/*
+!/data/uploads/.gitkeep
 /logs/
 *.log
 
