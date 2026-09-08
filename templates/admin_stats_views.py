@@ -12,6 +12,38 @@ from templates.admin_cms_views import _admin_nav_bar
 from templates.icons import icon
 
 
+def _get_labeled_indices(daily_trend: list, target_count: int = 8) -> set:
+    """Вычисляет гармоничный набор индексов для отображения подписей дат на оси X без наложения."""
+    num_days = len(daily_trend)
+    if num_days <= 14:
+        return set(range(num_days))
+
+    ideal_step = max(3, round(num_days / target_count))
+    anchors = {0, num_days - 1}
+    for idx, item in enumerate(daily_trend):
+        d_str = str(item.get('date', ''))
+        if d_str.endswith('-01'):
+            anchors.add(idx)
+
+    sorted_anchors = sorted(anchors)
+    selected = set(anchors)
+
+    for a_idx in range(len(sorted_anchors) - 1):
+        left = sorted_anchors[a_idx]
+        right = sorted_anchors[a_idx + 1]
+        dist = right - left
+        if dist >= 6:
+            n_sub = round(dist / ideal_step)
+            for k in range(1, n_sub):
+                sub_pos = left + round((k * dist) / n_sub)
+                if (right - sub_pos >= 2) and (sub_pos - left >= 2):
+                    selected.add(sub_pos)
+        elif dist >= 4:
+            selected.add(left + dist // 2)
+
+    return selected
+
+
 def render_admin_stats_dashboard(
     stats: Dict[str, Any],
     csrf_token: str = '',
@@ -41,44 +73,86 @@ def render_admin_stats_dashboard(
     max_views = max([d.get('views', 0) for d in daily_trend] + [1])
 
     chart_width = 860
-    chart_height = 180
+    chart_height = 195
+    baseline = chart_height - 34
     num_days = len(daily_trend)
     if num_days > 0:
-        bar_gap = 10
-        total_gaps = (num_days + 1) * bar_gap
-        bar_width = max(16, int((chart_width - total_gaps) / num_days))
+        pad_x = 16
+        available_w = chart_width - pad_x * 2
+        bar_gap = 6 if num_days > 14 else 10
+        total_gaps = (num_days - 1) * bar_gap
+        bar_width = max(14, int((available_w - total_gaps) / num_days))
+
+        labeled_indices = _get_labeled_indices(daily_trend)
 
         for idx, item in enumerate(daily_trend):
             v_val = item.get('views', 0)
             u_val = item.get('visitors', 0)
             lbl = html.escape(item.get('label', ''))
-            bar_h = max(4, int((v_val / max_views) * (chart_height - 40))) if max_views > 0 else 4
-            x = bar_gap + idx * (bar_width + bar_gap)
-            y = (chart_height - 30) - bar_h
+            bar_h = max(4, int((v_val / max_views) * (baseline - 32))) if max_views > 0 else 4
+            x = pad_x + idx * (bar_width + bar_gap)
+            y = baseline - bar_h
 
             # Высота для уникальных посетителей
-            u_bar_h = max(2, int((u_val / max_views) * (chart_height - 40))) if max_views > 0 else 2
-            u_y = (chart_height - 30) - u_bar_h
+            u_bar_h = max(2, int((u_val / max_views) * (baseline - 32))) if max_views > 0 else 2
+            u_y = baseline - u_bar_h
+
+            cx = x + bar_width / 2.0
+            is_labeled = idx in labeled_indices
+            d_str = str(item.get('date', ''))
+            is_first_of_month = d_str.endswith('-01')
+            is_last_day = (idx == num_days - 1)
+
+            if is_first_of_month:
+                lbl_color = '#2563eb'
+                lbl_weight = '700'
+                tick_stroke = '#3b82f6'
+                tick_width = '1.5'
+            elif is_last_day:
+                lbl_color = '#0f172a'
+                lbl_weight = '600'
+                tick_stroke = '#94a3b8'
+                tick_width = '1.5'
+            else:
+                lbl_color = '#64748b'
+                lbl_weight = '500'
+                tick_stroke = '#cbd5e1'
+                tick_width = '1'
+
+            if is_labeled:
+                tick_and_label_svg = f'''
+                <line x1="{cx}" y1="{baseline}" x2="{cx}" y2="{baseline + 4}" stroke="{tick_stroke}" stroke-width="{tick_width}" />
+                <text x="{cx}" y="{baseline + 18}" text-anchor="middle" font-size="11" font-weight="{lbl_weight}" fill="{lbl_color}" font-family="'Inter',sans-serif">{lbl}</text>
+                '''
+            else:
+                tick_and_label_svg = f'''
+                <circle cx="{cx}" cy="{baseline + 2}" r="1" fill="#cbd5e1" />
+                '''
 
             chart_bars_html.append(f'''
-            <g class="chart-group" tabindex="0">
-                <title>{item.get("date")}: {u_val} уникальных посетителей, {v_val} просмотров</title>
+            <g class="chart-group" tabindex="0" style="cursor:pointer;">
+                <title>{d_str}: {u_val} уникальных посетителей, {v_val} просмотров</title>
                 <!-- Общие просмотры -->
-                <rect x="{x}" y="{y}" width="{bar_width}" height="{bar_h}" rx="4" fill="url(#blueGrad)" opacity="0.85">
-                    <animate attributeName="height" from="0" to="{bar_h}" dur="0.5s" fill="freeze" />
+                <rect class="view-bar" x="{x}" y="{y}" width="{bar_width}" height="{bar_h}" rx="3.5" fill="url(#blueGrad)" opacity="0.85">
+                    <animate attributeName="height" from="0" to="{bar_h}" dur="0.4s" fill="freeze" />
                 </rect>
                 <!-- Уникальные посетители -->
-                <rect x="{x + 2}" y="{u_y}" width="{max(4, bar_width - 4)}" height="{u_bar_h}" rx="3" fill="#38bdf8">
-                    <animate attributeName="height" from="0" to="{u_bar_h}" dur="0.6s" fill="freeze" />
+                <rect class="user-bar" x="{x + 1.5}" y="{u_y}" width="{max(3, bar_width - 3)}" height="{u_bar_h}" rx="2.5" fill="#38bdf8">
+                    <animate attributeName="height" from="0" to="{u_bar_h}" dur="0.5s" fill="freeze" />
                 </rect>
-                <!-- Подпись дня -->
-                <text x="{x + bar_width/2}" y="{chart_height - 10}" text-anchor="middle" font-size="11" fill="#64748b" font-family="'Inter',sans-serif">{lbl}</text>
+                <!-- Засечка и подпись даты -->
+                {tick_and_label_svg}
                 <!-- Число над столбцом -->
-                <text x="{x + bar_width/2}" y="{max(14, y - 6)}" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b" font-family="'Inter',sans-serif">{v_val if v_val > 0 else ''}</text>
+                <text class="bar-val" x="{cx}" y="{max(14, y - 6)}" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b" font-family="'Inter',sans-serif">{v_val if v_val > 0 else ''}</text>
             </g>
             ''')
 
     chart_svg = f'''
+    <style>
+        .chart-group:hover rect.view-bar {{ fill: #1d4ed8 !important; opacity: 1 !important; filter: drop-shadow(0 2px 4px rgba(37,99,235,0.25)); }}
+        .chart-group:hover rect.user-bar {{ fill: #0284c7 !important; }}
+        .chart-group:hover text.bar-val {{ font-weight: 700 !important; fill: #0f172a !important; }}
+    </style>
     <div style="width:100%;overflow-x:auto;padding-bottom:8px;">
         <svg viewBox="0 0 {chart_width} {chart_height}" width="100%" height="{chart_height}" style="min-width:650px;display:block;">
             <defs>
@@ -88,8 +162,8 @@ def render_admin_stats_dashboard(
                 </linearGradient>
             </defs>
             <!-- Фоновая сетка -->
-            <line x1="0" y1="{chart_height - 30}" x2="{chart_width}" y2="{chart_height - 30}" stroke="#e2e8f0" stroke-width="1.5" />
-            <line x1="0" y1="{(chart_height - 30) // 2}" x2="{chart_width}" y2="{(chart_height - 30) // 2}" stroke="#f1f5f9" stroke-dasharray="4 4" />
+            <line x1="0" y1="{baseline}" x2="{chart_width}" y2="{baseline}" stroke="#e2e8f0" stroke-width="1.5" />
+            <line x1="0" y1="{baseline // 2}" x2="{chart_width}" y2="{baseline // 2}" stroke="#f1f5f9" stroke-dasharray="4 4" />
             {''.join(chart_bars_html)}
         </svg>
     </div>
