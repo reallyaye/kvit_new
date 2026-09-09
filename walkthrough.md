@@ -133,3 +133,40 @@ python -m bandit -r services database templates server.py app.py worker.py -ll
 - **Статус на боевом сервере:**
   - Изменения запушены в `main` ([7df3708](https://github.com/reallyaye/kvit_new/commit/7df3708)) и подтянуты на сервер через `git pull`.
   - Контейнеры `kvit-api` and `kvit-worker` перезапущены и находятся в статусе `healthy`.
+
+---
+
+## 6. Удаление квитанций оператором (карантин 30 дней, аудит и защита)
+
+### 6.1. Архитектура решения
+1. **Двухфазное удаление и карантин ([receipt_service.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/services/receipts/receipt_service.py)):**
+   - Выполняется поиск и блокировка записи в транзакции (`FOR UPDATE` для PostgreSQL / эксклюзивная блокировка SQLite).
+   - PDF-файл перемещается в закрытую директорию карантина `DELETED_RECEIPTS_DIR` (`data/deleted_receipts/`) с меткой времени, ID записи и хэш-префиксом токена.
+   - Запись удаляется из таблицы `receipts`, исключая квитанцию из публичной выдачи и сверки.
+   - **Compensating rollback:** при сбое транзакции БД файл автоматически возвращается из карантина на исходное место в хранилище.
+   - Повторная загрузка квитанции разблокирована: после удаления записи и файла дубликат по хэшу/периоду не детектируется.
+
+2. **Безопасность и ролевой доступ ([server.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/server.py)):**
+   - Новый эндпоинт `POST /api/receipts/delete` защищён авторизацией (`operator` и `admin`) и обязательной валидацией CSRF-токена (`X-CSRF-Token`).
+   - Каждое удаление логируется в `audit_logs` с указанием пользователя (`username`), IP-клиента, лицевого счёта, периода и признака перемещения в карантин.
+   - Через WebSocket рассылается событие `receipt_deleted` для живого обновления интерфейсов.
+
+3. **Интерфейс оператора ([reconcile_views.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/templates/reconcile_views.py)):**
+   - Во вкладках сверки добавлена кнопка «Удалить» с подтверждением действия.
+   - Массовые административные кнопки («Синхронизировать с диском», «Очистить отсутствующие») скрыты от оператора (`role == 'admin'`).
+
+4. **Очистка карантина ([retention_scheduler.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/services/retention_scheduler.py)):**
+   - Регулярный фоновый процесс вызывает `purge_deleted_receipt_files(days=30)` и удаляет файлы из карантина старше 30 дней.
+   - Каталог `data/deleted_receipts` сохраняется на постоянном томе хоста (`./data:/app/data` в `docker-compose.yml`).
+
+### 6.2. Результаты тестов и проверок
+- **Автоматические тесты:** `python run_tests.py` — **`118 passed in 91.55s`** (включая специализированный набор `tests/test_receipt_delete.py`).
+- **Линтер:** `ruff check .` — без ошибок (`All checks passed!`).
+- **Анализ безопасности:** `bandit -r services/ server.py -ll` — замечаний Medium/High нет (`No issues identified`).
+- **YAML конфигурация:** `docker-compose.yml` валиден.
+
+### 6.3. Деплой на боевой сервер `172.30.0.2`
+- Коммит [`d6f93da`](https://github.com/reallyaye/kvit_new/commit/d6f93da) отправлен в `origin/main`.
+- На сервере выполнен `git pull` и перезапущены контейнеры `kvit_new-kvit-api-1` и `kvit_new-kvit-worker-1`.
+- Оба контейнера успешно поднялись и находятся в статусе `Up (healthy)`.
+
