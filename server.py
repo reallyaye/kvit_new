@@ -1333,6 +1333,36 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             })
         else:
             auth_service.log_audit(username, client_ip, 'LOGIN_FAILED', 'Неверный логин или пароль')
+            failed_count = auth_service.count_recent_failed_logins(
+                client_ip,
+                config.LOGIN_FAILURE_WINDOW_SECONDS,
+            )
+            if failed_count >= config.LOGIN_FAILURE_BAN_THRESHOLD:
+                ip_throttler.ban_ip(
+                    client_ip,
+                    duration_seconds=config.LOGIN_FAILURE_BAN_SECONDS,
+                    reason=(
+                        f'Login brute force: {failed_count} failed attempts '
+                        f'in {config.LOGIN_FAILURE_WINDOW_SECONDS}s'
+                    ),
+                )
+                auth_service.log_audit(
+                    username,
+                    client_ip,
+                    'IP_BLOCKED',
+                    f'Автоблокировка на {config.LOGIN_FAILURE_BAN_SECONDS} сек. '
+                    f'после {failed_count} неудачных попыток входа',
+                )
+                body = render_login_form(
+                    'Слишком много неудачных попыток. '
+                    'Доступ временно заблокирован.'
+                )
+                self.send_html(
+                    layout(body, 'login', is_admin=False),
+                    429,
+                    {'Retry-After': str(config.LOGIN_FAILURE_BAN_SECONDS)},
+                )
+                return
             body = render_login_form('Неверный логин или пароль. Попробуйте ещё раз.')
             self.send_html(layout(body, 'login', is_admin=False))
 

@@ -275,6 +275,22 @@ class AuthService:
         except Exception as e:
             logger.error(f"[Audit] Ошибка записи в журнал аудита: {e}")
 
+    def count_recent_failed_logins(self, ip: str, window_seconds: int, now: float = None) -> int:
+        """Считает неудачные входы с IP за заданное окно времени."""
+        if not ip or window_seconds <= 0:
+            return 0
+        cutoff = (time.time() if now is None else now) - window_seconds
+        con = get_db()
+        try:
+            row = con.execute(
+                "SELECT COUNT(*) FROM audit_logs "
+                "WHERE action = 'LOGIN_FAILED' AND ip = ? AND created_at >= ?",
+                (ip, cutoff),
+            ).fetchone()
+            return int(row[0] or 0)
+        finally:
+            con.close()
+
     def list_audit_logs(
         self,
         limit: int = 50,
@@ -349,4 +365,3 @@ class AuthService:
 
 
 auth_service = AuthService()
-

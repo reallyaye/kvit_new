@@ -229,7 +229,10 @@ WS_SOCKET_TIMEOUT = float(os.environ.get('WS_SOCKET_TIMEOUT', '60.0'))  # 60 с�
 
 # ────────────────────── Лимиты безопасности ──────────────────────
 RATE_LIMIT_API = int(os.environ.get('RATE_LIMIT_API', '60'))        # 60 запросов в минуту для API
-RATE_LIMIT_LOGIN = int(os.environ.get('RATE_LIMIT_LOGIN', '10'))    # 10 попыток в минуту для логина
+RATE_LIMIT_LOGIN = int(os.environ.get('RATE_LIMIT_LOGIN', '5'))     # 5 попыток в минуту для логина
+LOGIN_FAILURE_BAN_THRESHOLD = int(os.environ.get('LOGIN_FAILURE_BAN_THRESHOLD', '5'))
+LOGIN_FAILURE_WINDOW_SECONDS = int(os.environ.get('LOGIN_FAILURE_WINDOW_SECONDS', '900'))
+LOGIN_FAILURE_BAN_SECONDS = int(os.environ.get('LOGIN_FAILURE_BAN_SECONDS', '3600'))
 RATE_LIMIT_SEARCH = int(os.environ.get('RATE_LIMIT_SEARCH', '60'))  # 60 запросов в минуту для поиска/квитанций
 RATE_LIMIT_UPLOAD = int(os.environ.get('RATE_LIMIT_UPLOAD', '10'))  # 10 загрузок в минуту для админ-панели
 RATE_LIMIT_APPEALS = int(os.environ.get('RATE_LIMIT_APPEALS', '5'))  # 5 обращений в час с одного IP
