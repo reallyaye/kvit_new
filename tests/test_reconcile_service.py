@@ -55,6 +55,31 @@ def test_reconcile_with_period_filter(seed_reconcile_data):
     assert data['rows'][0]['access_token'] == 'tok1' * 8
 
 
+def test_reconcile_exact_account_search_returns_all_its_receipts(seed_reconcile_data):
+    con = get_db()
+    con.execute(
+        'INSERT INTO receipts(account_number, period, pdf_file, content_hash, access_token) '
+        'VALUES (?, ?, ?, ?, ?)',
+        ('800001', 'Февраль 2026', '800001_feb.pdf', 'hash-feb', 'abcd' * 8),
+    )
+    con.commit()
+    con.close()
+
+    data = reconcile_service.get_reconciliation_data(
+        filt='all', period_filter='', account_query=' 800001 '
+    )
+    assert data['account_query'] == '800001'
+    assert data['list_count'] == 2
+    assert {row['period'] for row in data['rows']} == {'Январь 2026', 'Февраль 2026'}
+    assert all(row['account_number'] == '800001' for row in data['rows'])
+
+    missing = reconcile_service.get_reconciliation_data(
+        filt='all', period_filter='', account_query='999999'
+    )
+    assert missing['list_count'] == 0
+    assert missing['rows'] == []
+
+
 def test_reconcile_operator_has_single_delete_action_but_no_admin_bulk_tools(seed_reconcile_data):
     from templates.reconcile_views import render_reconcile_page
 
@@ -69,6 +94,10 @@ def test_reconcile_operator_has_single_delete_action_but_no_admin_bulk_tools(see
 
     data['role'] = 'admin'
     admin_page = render_reconcile_page(data)
+    assert '/api/receipts/delete' in admin_page
+    assert 'data-token="tok1tok1tok1tok1tok1tok1tok1tok1"' in admin_page
+    assert 'id="account-search"' in admin_page
+    assert 'name="account"' in admin_page
     assert 'id="btnSyncFs"' in admin_page
     assert 'id="btnPurgeMissing"' in admin_page
 

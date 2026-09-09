@@ -777,8 +777,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                         if filt not in ('all', 'with', 'without', 'orphans'):
                             filt = 'without'
                         period_filter = q.get('period', [''])[0].strip()
+                        account_query = q.get('account', [''])[0].strip()
                         page_num = max(1, int(q.get('page', ['1'])[0]))
-                        data = reconcile_service.get_reconciliation_data(filt, period_filter, page_num)
+                        data = reconcile_service.get_reconciliation_data(
+                            filt, period_filter, page_num, account_query=account_query
+                        )
                         data['role'] = 'operator'
                         data['username'] = u_name
                         body = render_reconcile_page(data)
@@ -911,8 +914,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     if filt not in ('all', 'with', 'without', 'orphans'):
                         filt = 'without'
                     period_filter = q.get('period', [''])[0].strip()
+                    account_query = q.get('account', [''])[0].strip()
                     page_num = max(1, int(q.get('page', ['1'])[0]))
-                    data = reconcile_service.get_reconciliation_data(filt, period_filter, page_num)
+                    data = reconcile_service.get_reconciliation_data(
+                        filt, period_filter, page_num, account_query=account_query
+                    )
                     data['role'] = 'admin'
                     data['username'] = u_name
                     body = render_reconcile_page(data)

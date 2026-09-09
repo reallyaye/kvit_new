@@ -1,4 +1,5 @@
 import html
+from urllib.parse import quote
 
 from templates.admin_cms_views import _admin_nav_bar
 from templates.icons import icon
@@ -17,8 +18,10 @@ def render_reconcile_page(data: dict):
     rows = data['rows']
     page_num = data['page_num']
     per_page = data['per_page']
+    account_query = data.get('account_query', '')
 
-    period_param = f'&period={html.escape(period_filter)}' if period_filter else ''
+    period_param = f'&period={quote(period_filter, safe="")}' if period_filter else ''
+    account_param = f'&account={quote(account_query, safe="")}' if account_query else ''
     is_orphan_tab = (filt == 'orphans')
     role = data.get('role', 'admin')
     username = data.get('username', 'admin')
@@ -27,7 +30,7 @@ def render_reconcile_page(data: dict):
     total_pages = max(1, (list_count + per_page - 1) // per_page)
     pag = '<div class="pagination">'
     if page_num > 1:
-        pag += f'<a href="/reconcile?filter={filt}{period_param}&page={page_num-1}">← Назад</a>'
+        pag += f'<a href="/reconcile?filter={filt}{period_param}{account_param}&page={page_num-1}">← Назад</a>'
 
     half_window = 5
     start_page = max(1, page_num - half_window)
@@ -39,7 +42,7 @@ def render_reconcile_page(data: dict):
             start_page = max(1, end_page - 9)
 
     if start_page > 1:
-        pag += f'<a href="/reconcile?filter={filt}{period_param}&page=1">1</a>'
+        pag += f'<a href="/reconcile?filter={filt}{period_param}{account_param}&page=1">1</a>'
         if start_page > 2:
             pag += '<span style="padding:8px 4px;color:#94a3b8">…</span>'
 
@@ -47,15 +50,15 @@ def render_reconcile_page(data: dict):
         if p == page_num:
             pag += f'<span class="current">{p}</span>'
         else:
-            pag += f'<a href="/reconcile?filter={filt}{period_param}&page={p}">{p}</a>'
+            pag += f'<a href="/reconcile?filter={filt}{period_param}{account_param}&page={p}">{p}</a>'
 
     if end_page < total_pages:
         if end_page < total_pages - 1:
             pag += '<span style="padding:8px 4px;color:#94a3b8">…</span>'
-        pag += f'<a href="/reconcile?filter={filt}{period_param}&page={total_pages}">{total_pages}</a>'
+        pag += f'<a href="/reconcile?filter={filt}{period_param}{account_param}&page={total_pages}">{total_pages}</a>'
 
     if page_num < total_pages:
-        pag += f'<a href="/reconcile?filter={filt}{period_param}&page={page_num+1}">Далее →</a>'
+        pag += f'<a href="/reconcile?filter={filt}{period_param}{account_param}&page={page_num+1}">Далее →</a>'
     pag += '</div>'
 
     pct = round(matched / total_accounts * 100, 1) if total_accounts else 0
@@ -76,12 +79,33 @@ def render_reconcile_page(data: dict):
             </button>
         </div>'''
 
-    period_select_html = f'''<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px">
-        <div class="period-filter" style="margin-bottom:0">
-            <label for="period-select"><b>Период:</b></label>
-            <select id="period-select" onchange="window.location.href='/reconcile?filter={filt}&period='+encodeURIComponent(this.value)">
-                {period_options}
-            </select>
+    reset_search_html = ''
+    if account_query:
+        reset_search_html = (
+            f'<a class="btn btn-outline" href="/reconcile?filter=all{period_param}" '
+            'style="padding:8px 12px;font-size:13px">Сбросить</a>'
+        )
+
+    period_select_html = f'''<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+            <form method="get" action="/reconcile" class="period-filter" style="margin-bottom:0">
+                <input type="hidden" name="filter" value="{html.escape(filt, quote=True)}">
+                <input type="hidden" name="account" value="{html.escape(account_query, quote=True)}">
+                <label for="period-select"><b>Период:</b></label>
+                <select id="period-select" name="period" onchange="this.form.submit()">
+                    {period_options}
+                </select>
+            </form>
+            <form method="get" action="/reconcile" style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
+                <input type="hidden" name="filter" value="all">
+                <input type="hidden" name="period" value="{html.escape(period_filter, quote=True)}">
+                <label for="account-search" style="display:flex;flex-direction:column;gap:5px">
+                    <b>Лицевой счёт:</b>
+                    <input id="account-search" name="account" value="{html.escape(account_query, quote=True)}" maxlength="64" autocomplete="off" placeholder="Например: 100241" style="min-width:210px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px">
+                </label>
+                <button type="submit" class="btn btn-primary" style="padding:9px 15px">{icon('search', 14)} Найти</button>
+                {reset_search_html}
+            </form>
         </div>
         {admin_tools_html}
     </div>'''
@@ -90,14 +114,14 @@ def render_reconcile_page(data: dict):
         return ' active' if filt == key else ''
     orphan_tab_style = 'background:#f59e0b;color:#fff;border-color:#f59e0b' if filt == 'orphans' else 'border-color:#f59e0b'
     tabs_html = f'''<div style="display:flex;gap:8px;margin:20px 0;flex-wrap:wrap">
-        <a href="/reconcile?filter=all{period_param}" class="filter-tab{tab_cls('all')}">Все (<span id="tabCountAll">{total_accounts}</span>)</a>
-        <a href="/reconcile?filter=with{period_param}" class="filter-tab{tab_cls('with')}">С квитанцией (<span id="tabCountWith">{matched}</span>)</a>
-        <a href="/reconcile?filter=without{period_param}" class="filter-tab{tab_cls('without')}">Без квитанции (<span id="tabCountWithout">{unmatched_count}</span>)</a>
-        <a href="/reconcile?filter=orphans{period_param}" class="filter-tab{tab_cls('orphans')}" style="{orphan_tab_style}">Без лицевого счёта (<span id="tabCountOrphans">{orphans}</span>)</a>
+        <a href="/reconcile?filter=all{period_param}{account_param}" class="filter-tab{tab_cls('all')}">Все (<span id="tabCountAll">{total_accounts}</span>)</a>
+        <a href="/reconcile?filter=with{period_param}{account_param}" class="filter-tab{tab_cls('with')}">С квитанцией (<span id="tabCountWith">{matched}</span>)</a>
+        <a href="/reconcile?filter=without{period_param}{account_param}" class="filter-tab{tab_cls('without')}">Без квитанции (<span id="tabCountWithout">{unmatched_count}</span>)</a>
+        <a href="/reconcile?filter=orphans{period_param}{account_param}" class="filter-tab{tab_cls('orphans')}" style="{orphan_tab_style}">Без лицевого счёта (<span id="tabCountOrphans">{orphans}</span>)</a>
     </div>'''
 
     def delete_button(row):
-        token = str(row['access_token'] or '')
+        token = str(row['access_token'] or '') if 'access_token' in row.keys() else ''
         if not token:
             return '—'
         account = html.escape(str(row['account_number'] or ''), quote=True)
@@ -140,14 +164,15 @@ def render_reconcile_page(data: dict):
         </table>{pag}''' if rows else '<p style="color:#64748b">Нет записей для отображения.</p>'
 
     period_label = f' за {html.escape(period_filter)}' if period_filter else ''
+    account_label = f' — лицевой счёт {html.escape(account_query)}' if account_query else ''
     if filt == 'with':
-        list_title = f'Список лицевых счетов с квитанцией{period_label}'
+        list_title = f'Список лицевых счетов с квитанцией{period_label}{account_label}'
     elif filt == 'without':
-        list_title = f'Список лицевых счетов без квитанции{period_label}'
+        list_title = f'Список лицевых счетов без квитанции{period_label}{account_label}'
     elif filt == 'orphans':
-        list_title = f'Квитанции без лицевого счёта в базе{period_label}'
+        list_title = f'Квитанции без лицевого счёта в базе{period_label}{account_label}'
     else:
-        list_title = f'Все лицевые счета{period_label}'
+        list_title = f'Все лицевые счета{period_label}{account_label}'
 
     return f'''
     {_admin_nav_bar('reconcile', role=role, username=username)}

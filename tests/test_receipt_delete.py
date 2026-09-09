@@ -65,6 +65,17 @@ def test_delete_receipt_requires_operator_or_admin(monkeypatch):
     assert handler.sent['code'] == 401
 
 
+def test_delete_receipt_permission_accepts_admin_and_operator(monkeypatch):
+    handler = _handler()
+
+    for role in ('admin', 'operator'):
+        monkeypatch.setattr(handler, '_get_current_user', lambda current_role=role: {
+            'username': 'test-user',
+            'role': current_role,
+        })
+        assert handler._is_operator_or_admin() is True
+
+
 def test_delete_receipt_requires_valid_csrf(monkeypatch):
     handler = _handler()
     monkeypatch.setattr(handler, '_is_operator_or_admin', lambda: True)
