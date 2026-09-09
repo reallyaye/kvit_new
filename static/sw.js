@@ -1,4 +1,4 @@
-const CACHE_NAME = 'krek-portal-v28';
+const CACHE_NAME = 'krek-portal-v29';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE_ASSETS = [
     '/offline.html',
@@ -79,7 +79,7 @@ self.addEventListener('fetch', event => {
                     caches.open(CACHE_NAME).then(cache => cache.put(req, resClone));
                 }
                 return networkRes;
-            }).catch(() => caches.match(req))
+            }).catch(() => caches.match(req, { ignoreSearch: true }))
         );
         return;
     }

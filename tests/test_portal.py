@@ -119,6 +119,13 @@ def test_pwa_and_offline_support():
     assert 'автономном режиме' in offline_content
     assert 'КРЭК' in offline_content
     assert '+7 (7212) 90-03-58' in offline_content
+    assert 'src="/images/logo.png"' in offline_content
+    assert 'src="/images/logo.png?v=8"' not in offline_content
+
+    with open(os.path.join(config.STATIC_DIR, 'sw.js'), 'r', encoding='utf-8') as f:
+        service_worker = f.read()
+    assert "krek-portal-v29" in service_worker
+    assert "caches.match(req, { ignoreSearch: true })" in service_worker
 
     # 3. Тестируем отдачу /sw.js сервером
     handler = AppRequestHandler.__new__(AppRequestHandler)
@@ -167,5 +174,4 @@ def test_global_portal_search():
     assert '<!DOCTYPE html>' in html
     assert 'Результаты поиска' in html
     assert 'mark' in html
-
 
