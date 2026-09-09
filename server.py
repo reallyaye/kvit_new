@@ -1145,6 +1145,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self._handle_api_upload_batch()
             elif u.path == '/api/upload-accounts':
                 self._handle_api_upload_accounts()
+            elif u.path == '/api/receipts/delete':
+                self._handle_api_delete_receipt()
             elif u.path == '/api/sync-receipts':
                 self._handle_api_sync_receipts()
             elif u.path == '/api/purge-missing-receipts':
@@ -2013,6 +2015,64 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 'is_corrected': False,
                 'receipts': []
             }, 200, extra_headers={'Cache-Control': 'no-store'})
+
+    def _handle_api_delete_receipt(self):
+        if not self._is_operator_or_admin():
+            self.send_json({'error': 'Unauthorized'}, 401)
+            return
+
+        if not self._verify_csrf():
+            self.send_json({
+                'error': 'Forbidden',
+                'message': 'Недействительный или отсутствующий CSRF-токен (X-CSRF-Token)',
+            }, 403)
+            return
+
+        body_bytes = self._read_bounded_body(config.MAX_LOGIN_BODY_BYTES)
+        if body_bytes is None:
+            return
+        params = parse_qs(body_bytes.decode('utf-8', errors='replace'))
+        token = params.get('token', [''])[0].strip().lower()
+
+        try:
+            deleted = receipt_service.delete_receipt_by_token(token)
+        except ValueError as exc:
+            self.send_json({'error': 'Bad Request', 'message': str(exc)}, 400)
+            return
+        except LookupError as exc:
+            self.send_json({'error': 'Not Found', 'message': str(exc)}, 404)
+            return
+        except Exception:
+            logger.exception('[Receipts] Ошибка удаления квитанции оператором')
+            self.send_json({
+                'error': 'Internal Server Error',
+                'message': 'Не удалось удалить квитанцию. Запись и файл оставлены без изменений.',
+            }, 500)
+            return
+
+        current_user = self._get_current_user() or {}
+        username = current_user.get('username', 'unknown')
+        quarantine_text = 'да' if deleted['file_quarantined'] else 'файл отсутствовал на диске'
+        auth_service.log_audit(
+            username,
+            self._get_client_ip(),
+            'DELETE_RECEIPT',
+            f"Лицевой счёт {deleted['account_number']}; период {deleted['period']}; PDF в карантине: {quarantine_text}",
+        )
+        ws_manager.broadcast('receipt_deleted', {
+            'account_number': deleted['account_number'],
+            'period': deleted['period'],
+        })
+        self.send_json({
+            'success': True,
+            'account_number': deleted['account_number'],
+            'period': deleted['period'],
+            'file_quarantined': deleted['file_quarantined'],
+            'message': (
+                f"Квитанция лицевого счёта {deleted['account_number']} "
+                f"за период {deleted['period']} удалена."
+            ),
+        })
 
     def _handle_api_sync_receipts(self):
         if not self._is_admin():

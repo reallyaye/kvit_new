@@ -600,7 +600,12 @@ def test_all_admin_endpoints_auth_and_csrf_matrix():
             assert '/login' in redirects, f"GET {path} без авторизации должен редиректить на /login"
 
         # 2. Проверка JSON API POST эндпоинтов (401 без авторизации, 403 с кривым CSRF)
-        api_post_routes = ['/api/upload-batch', '/api/sync-receipts', '/api/purge-missing-receipts']
+        api_post_routes = [
+            '/api/upload-batch',
+            '/api/sync-receipts',
+            '/api/purge-missing-receipts',
+            '/api/receipts/delete',
+        ]
         for path in api_post_routes:
             # а) Без сессии -> 401
             h_unauth = AppRequestHandler.__new__(AppRequestHandler)
@@ -727,7 +732,6 @@ def test_validate_safe_path_canonicalization_and_traversal():
         shutil.rmtree(base_dir, ignore_errors=True)
         shutil.rmtree(partial_trap_dir, ignore_errors=True)
         shutil.rmtree(outside_dir, ignore_errors=True)
-
 
 
 

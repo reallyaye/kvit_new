@@ -50,7 +50,7 @@ class ReconcileService:
                         WHERE r.period = ?
                     ''', (period_filter,)).fetchone()[0]
                     query = '''
-                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file
+                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file, r.access_token
                         FROM accounts a
                         JOIN receipts r ON r.account_number = a.account_number
                         WHERE r.period = ?
@@ -64,7 +64,7 @@ class ReconcileService:
                         JOIN receipts r ON r.account_number = a.account_number
                     ''').fetchone()[0]
                     query = '''
-                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file
+                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file, r.access_token
                         FROM accounts a
                         JOIN receipts r ON r.account_number = a.account_number
                         ORDER BY a.account_number, r.period DESC
@@ -75,7 +75,7 @@ class ReconcileService:
                 list_count = unmatched_count
                 if period_filter:
                     query = '''
-                        SELECT a.account_number, a.customer_name, a.address, NULL as period, NULL as pdf_file
+                        SELECT a.account_number, a.customer_name, a.address, NULL as period, NULL as pdf_file, NULL as access_token
                         FROM accounts a
                         WHERE a.account_number NOT IN (
                             SELECT r.account_number FROM receipts r WHERE r.period = ?
@@ -86,7 +86,7 @@ class ReconcileService:
                     params = (period_filter, per_page, offset)
                 else:
                     query = '''
-                        SELECT a.account_number, a.customer_name, a.address, NULL as period, NULL as pdf_file
+                        SELECT a.account_number, a.customer_name, a.address, NULL as period, NULL as pdf_file, NULL as access_token
                         FROM accounts a
                         LEFT JOIN receipts r ON r.account_number = a.account_number
                         WHERE r.id IS NULL
@@ -98,7 +98,7 @@ class ReconcileService:
                 list_count = orphans
                 if period_filter:
                     query = '''
-                        SELECT r.account_number, NULL as customer_name, NULL as address, r.period, r.pdf_file
+                        SELECT r.account_number, NULL as customer_name, NULL as address, r.period, r.pdf_file, r.access_token
                         FROM receipts r
                         LEFT JOIN accounts a ON a.account_number = r.account_number
                         WHERE a.id IS NULL AND r.period = ?
@@ -108,7 +108,7 @@ class ReconcileService:
                     params = (period_filter, per_page, offset)
                 else:
                     query = '''
-                        SELECT r.account_number, NULL as customer_name, NULL as address, r.period, r.pdf_file
+                        SELECT r.account_number, NULL as customer_name, NULL as address, r.period, r.pdf_file, r.access_token
                         FROM receipts r
                         LEFT JOIN accounts a ON a.account_number = r.account_number
                         WHERE a.id IS NULL
@@ -120,7 +120,7 @@ class ReconcileService:
                 if period_filter:
                     list_count = total_accounts
                     query = '''
-                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file
+                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file, r.access_token
                         FROM accounts a
                         LEFT JOIN receipts r ON r.account_number = a.account_number AND r.period = ?
                         ORDER BY a.account_number, r.period DESC
@@ -133,7 +133,7 @@ class ReconcileService:
                         LEFT JOIN receipts r ON r.account_number = a.account_number
                     ''').fetchone()[0]
                     query = '''
-                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file
+                        SELECT a.account_number, a.customer_name, a.address, r.period, r.pdf_file, r.access_token
                         FROM accounts a
                         LEFT JOIN receipts r ON r.account_number = a.account_number
                         ORDER BY a.account_number, r.period DESC

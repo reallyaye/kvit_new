@@ -64,6 +64,13 @@ def test_task_manager_submit_and_completion(tmp_path):
     assert task.processed_files == 1
     assert task.progress_pct == 100
     assert task.added >= 1 or task.duplicates >= 1
+
+    # Терминальный статус сохраняется перед аудитом и callback-уведомлениями,
+    # поэтому ждём завершения callback отдельно, без гонки с фоновым потоком.
+    for _ in range(30):
+        if callbacks_fired:
+            break
+        time.sleep(0.05)
     assert len(callbacks_fired) == 1
     assert callbacks_fired[0] == task.job_id
 

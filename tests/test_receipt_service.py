@@ -60,6 +60,55 @@ def test_get_pdf_by_token_invalid_or_traversal(seed_receipt_data):
     assert receipt_service.get_pdf_by_token('../../../etc/passwd') is None
     assert receipt_service.get_pdf_by_token('00000000000000000000000000000000') is None
 
+
+def test_delete_receipt_moves_pdf_to_quarantine(seed_receipt_data, tmp_path, monkeypatch):
+    import config
+
+    valid_token, real_path = seed_receipt_data
+    quarantine_dir = tmp_path / 'deleted_receipts'
+    monkeypatch.setattr(config, 'DELETED_RECEIPTS_DIR', str(quarantine_dir))
+
+    deleted = receipt_service.delete_receipt_by_token(valid_token)
+
+    assert deleted['account_number'] == '800100'
+    assert deleted['period'] == 'Март 2026'
+    assert deleted['file_quarantined'] is True
+    assert not os.path.exists(real_path)
+    quarantined_files = list(quarantine_dir.iterdir())
+    assert len(quarantined_files) == 1
+    assert quarantined_files[0].read_bytes().startswith(b'%PDF-')
+    assert receipt_service.get_pdf_by_token(valid_token) is None
+
+    con = get_db()
+    row = con.execute('SELECT id FROM receipts WHERE access_token = ?', (valid_token,)).fetchone()
+    con.close()
+    assert row is None
+
+
+def test_delete_receipt_rejects_invalid_or_missing_token(seed_receipt_data):
+    with pytest.raises(ValueError, match='Некорректный идентификатор'):
+        receipt_service.delete_receipt_by_token('short')
+    with pytest.raises(LookupError, match='не найдена'):
+        receipt_service.delete_receipt_by_token('0' * 32)
+
+
+def test_purge_deleted_receipt_files_removes_only_expired(tmp_path, monkeypatch):
+    import config
+
+    quarantine_dir = tmp_path / 'deleted_receipts'
+    quarantine_dir.mkdir()
+    old_file = quarantine_dir / 'old.pdf'
+    fresh_file = quarantine_dir / 'fresh.pdf'
+    old_file.write_bytes(b'%PDF-old')
+    fresh_file.write_bytes(b'%PDF-fresh')
+    old_time = __import__('time').time() - 40 * 86400
+    os.utime(old_file, (old_time, old_time))
+    monkeypatch.setattr(config, 'DELETED_RECEIPTS_DIR', str(quarantine_dir))
+
+    assert receipt_service.purge_deleted_receipt_files(days=30) == 1
+    assert not old_file.exists()
+    assert fresh_file.exists()
+
 def test_get_pdf_by_token_sharded():
     from config import RECEIPTS_DIR
     con = get_db()
@@ -304,6 +353,5 @@ def test_api_search_endpoint():
     assert h4.status_code == 200
     assert h4.sent_json['status'] == 'EXACT_MATCH'
     assert h4.sent_json['is_corrected'] is True
-
 
 

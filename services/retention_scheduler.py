@@ -11,6 +11,7 @@ import time
 from logger import logger
 from services.analytics import stats_service
 from services.appeals import appeal_service
+from services.receipts import receipt_service
 
 _scheduler_started = False
 _scheduler_lock = threading.Lock()
@@ -19,7 +20,11 @@ _scheduler_lock = threading.Lock()
 ADVISORY_LOCK_ID = 949494
 
 
-def run_retention_cycle(visits_days: int = 90, appeals_days: int = 1095) -> dict:
+def run_retention_cycle(
+    visits_days: int = 90,
+    appeals_days: int = 1095,
+    deleted_receipts_days: int | None = None,
+) -> dict:
     """Выполняет один цикл автоматической очистки данных с защитой от параллельного запуска."""
     from database.connection import get_db, is_postgres_configured
 
@@ -33,13 +38,13 @@ def run_retention_cycle(visits_days: int = 90, appeals_days: int = 1095) -> dict
             lock_acquired = bool(row[0]) if row else False
             if not lock_acquired:
                 logger.info("[Retention] Цикл очистки уже выполняется другим процессом/воркером. Пропуск.")
-                return {'purged_visits': 0, 'anonymized_appeals': 0}
+                return {'purged_visits': 0, 'anonymized_appeals': 0, 'purged_deleted_receipts': 0}
         except Exception as exc:
             logger.warning("[Retention] Не удалось проверить advisory lock PostgreSQL: %s", exc)
 
     try:
         logger.info("[Retention] Запуск планового цикла очистки устаревших персональных данных...")
-        results = {'purged_visits': 0, 'anonymized_appeals': 0}
+        results = {'purged_visits': 0, 'anonymized_appeals': 0, 'purged_deleted_receipts': 0}
         try:
             results['purged_visits'] = stats_service.purge_old_visits(days=visits_days)
         except Exception as exc:
@@ -49,6 +54,19 @@ def run_retention_cycle(visits_days: int = 90, appeals_days: int = 1095) -> dict
             results['anonymized_appeals'] = appeal_service.purge_expired_appeals(retention_days=appeals_days)
         except Exception as exc:
             logger.warning("[Retention] Сбой обезличивания обращений: %s", exc)
+
+        try:
+            import config
+            quarantine_days = (
+                deleted_receipts_days
+                if deleted_receipts_days is not None
+                else config.DELETED_RECEIPTS_RETENTION_DAYS
+            )
+            results['purged_deleted_receipts'] = receipt_service.purge_deleted_receipt_files(
+                days=quarantine_days
+            )
+        except Exception as exc:
+            logger.warning("[Retention] Сбой очистки карантина удалённых квитанций: %s", exc)
 
         try:
             import os
@@ -71,11 +89,12 @@ def run_retention_cycle(visits_days: int = 90, appeals_days: int = 1095) -> dict
             logger.debug("[Retention] Очистка файлов логов завершилась: %s", exc)
 
         logger.info(
-            "[Retention] Плановый цикл завершен: удалено %d сетевых визитов (>%d дн.), обезличено %d архивных обращений (>%d дн.)",
+            "[Retention] Плановый цикл завершен: удалено %d сетевых визитов (>%d дн.), обезличено %d архивных обращений (>%d дн.), очищено %d PDF из карантина",
             results['purged_visits'],
             visits_days,
             results['anonymized_appeals'],
             appeals_days,
+            results['purged_deleted_receipts'],
         )
         return results
     finally:

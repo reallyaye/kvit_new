@@ -1,10 +1,13 @@
 import difflib
 import os
 import re
+import shutil
+import time
 
 import config
 from config import get_receipt_shard_parts
-from database import get_db
+from database import get_db, write_transaction
+from database.connection import is_postgres_configured
 
 KZ_RU_CHAR_MAP = str.maketrans({
     'ә': 'а', 'і': 'и', 'ң': 'н', 'ғ': 'г', 'ү': 'у', 'ұ': 'у', 'қ': 'к', 'ө': 'о', 'һ': 'х',
@@ -476,46 +479,136 @@ class ReceiptService:
     @staticmethod
     def get_pdf_by_token(token: str):
         """Возвращает абсолютный путь к файлу PDF по токену доступа (IDOR & Path Traversal safe)."""
-        if not token or len(token) != 32 or not all(c in '0123456789abcdef' for c in token):
+        if not ReceiptService._is_valid_access_token(token):
             return None
         con = get_db()
         try:
             r = con.execute("SELECT pdf_file, account_number FROM receipts WHERE access_token=? AND (UPPER(status) = 'READY' OR status IS NULL OR status = '')", (token,)).fetchone()
             if not r:
                 return None
-
-            raw_file = r['pdf_file']
-            receipts_abs = os.path.abspath(config.RECEIPTS_DIR)
-            fp = os.path.abspath(os.path.join(config.RECEIPTS_DIR, raw_file))
-
-            # Защита от Path Traversal: путь обязан находиться строго внутри RECEIPTS_DIR
-            try:
-                if os.path.commonpath([receipts_abs, fp]) != receipts_abs:
-                    return None
-            except ValueError:
-                return None
-
-            if os.path.isfile(fp):
-                return fp
-
-            # Обратная совместимость при миграции структуры:
-            # 1. Если в БД записан плоский файл '800146_hash.pdf', но на диске он уже шардирован
-            acc = r['account_number'] if 'account_number' in r.keys() else None
-            base_filename = os.path.basename(raw_file)
-            if acc:
-                s1, s2 = get_receipt_shard_parts(acc)
-                sharded_fp = os.path.abspath(os.path.join(config.RECEIPTS_DIR, s1, s2, base_filename))
-                if os.path.isfile(sharded_fp):
-                    return sharded_fp
-
-            # 2. Если в БД записан шардированный путь '80/01/800146_hash.pdf', но файл лежит в корне
-            flat_fp = os.path.abspath(os.path.join(config.RECEIPTS_DIR, base_filename))
-            if os.path.isfile(flat_fp):
-                return flat_fp
-
-            return None
+            return ReceiptService._resolve_existing_receipt_path(r['pdf_file'], r['account_number'])
         finally:
             con.close()
+
+    @staticmethod
+    def _is_valid_access_token(token: str) -> bool:
+        return bool(token) and len(token) == 32 and all(c in '0123456789abcdef' for c in token)
+
+    @staticmethod
+    def _resolve_existing_receipt_path(raw_file: str, account_number: str):
+        """Находит PDF только внутри RECEIPTS_DIR, включая старую плоскую структуру."""
+        if not raw_file:
+            return None
+
+        receipts_abs = os.path.abspath(config.RECEIPTS_DIR)
+        base_filename = os.path.basename(raw_file)
+        candidates = [os.path.abspath(os.path.join(receipts_abs, raw_file))]
+        if account_number:
+            s1, s2 = get_receipt_shard_parts(account_number)
+            candidates.append(os.path.abspath(os.path.join(receipts_abs, s1, s2, base_filename)))
+        candidates.append(os.path.abspath(os.path.join(receipts_abs, base_filename)))
+
+        for candidate in dict.fromkeys(candidates):
+            try:
+                if os.path.commonpath([receipts_abs, candidate]) != receipts_abs:
+                    continue
+            except ValueError:
+                continue
+            if os.path.isfile(candidate):
+                return candidate
+        return None
+
+    @staticmethod
+    def delete_receipt_by_token(token: str) -> dict:
+        """
+        Удаляет ровно одну квитанцию из БД и перемещает PDF в закрытый карантин.
+
+        При ошибке транзакции файл возвращается на исходное место. Карантин позволяет
+        администратору вручную восстановить ошибочно удалённый PDF до его плановой очистки.
+        """
+        clean_token = str(token or '').strip().lower()
+        if not ReceiptService._is_valid_access_token(clean_token):
+            raise ValueError('Некорректный идентификатор квитанции.')
+
+        moved_from = None
+        moved_to = None
+        receipt_data = None
+        try:
+            with write_transaction() as con:
+                if is_postgres_configured():
+                    row = con.execute(
+                        'SELECT id, account_number, period, pdf_file, status '
+                        'FROM receipts WHERE access_token = ? FOR UPDATE',
+                        (clean_token,),
+                    ).fetchone()
+                else:
+                    row = con.execute(
+                        'SELECT id, account_number, period, pdf_file, status '
+                        'FROM receipts WHERE access_token = ?',
+                        (clean_token,),
+                    ).fetchone()
+                if not row:
+                    raise LookupError('Квитанция не найдена или уже удалена.')
+
+                receipt_data = {
+                    'id': row['id'],
+                    'account_number': str(row['account_number']),
+                    'period': str(row['period']),
+                    'pdf_file': str(row['pdf_file']),
+                    'status': str(row['status'] or ''),
+                }
+                source_path = ReceiptService._resolve_existing_receipt_path(
+                    receipt_data['pdf_file'], receipt_data['account_number']
+                )
+                if source_path:
+                    quarantine_dir = os.path.abspath(config.DELETED_RECEIPTS_DIR)
+                    os.makedirs(quarantine_dir, exist_ok=True)
+                    safe_name = os.path.basename(source_path)
+                    quarantine_name = (
+                        f"{int(time.time() * 1000)}_{receipt_data['id']}_{clean_token[:8]}_{safe_name}"
+                    )
+                    target_path = os.path.abspath(os.path.join(quarantine_dir, quarantine_name))
+                    if os.path.commonpath([quarantine_dir, target_path]) != quarantine_dir:
+                        raise ValueError('Некорректный путь квитанции.')
+                    shutil.move(source_path, target_path)
+                    moved_from, moved_to = source_path, target_path
+
+                cur = con.execute(
+                    'DELETE FROM receipts WHERE id = ? AND access_token = ?',
+                    (receipt_data['id'], clean_token),
+                )
+                if getattr(cur, 'rowcount', 0) != 1:
+                    raise RuntimeError('Запись квитанции не была удалена из базы данных.')
+        except Exception:
+            if moved_from and moved_to and os.path.isfile(moved_to):
+                os.makedirs(os.path.dirname(moved_from), exist_ok=True)
+                try:
+                    shutil.move(moved_to, moved_from)
+                except OSError:
+                    pass
+            raise
+
+        receipt_data['file_quarantined'] = bool(moved_to)
+        return receipt_data
+
+    @staticmethod
+    def purge_deleted_receipt_files(days: int = 30) -> int:
+        """Безвозвратно очищает файлы карантина старше заданного срока."""
+        quarantine_dir = os.path.abspath(config.DELETED_RECEIPTS_DIR)
+        if not os.path.isdir(quarantine_dir):
+            return 0
+        cutoff = time.time() - (max(1, int(days)) * 86400.0)
+        deleted = 0
+        for root, _, files in os.walk(quarantine_dir):
+            for filename in files:
+                path = os.path.join(root, filename)
+                try:
+                    if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                        os.remove(path)
+                        deleted += 1
+                except OSError:
+                    continue
+        return deleted
 
     @staticmethod
     def get_stats():

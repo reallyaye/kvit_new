@@ -96,6 +96,8 @@ services:
       X_ACCEL_PREFIX: /internal_receipts/
 
       RECEIPTS_DIR: /app/receipts
+      DELETED_RECEIPTS_DIR: /app/data/deleted_receipts
+      DELETED_RECEIPTS_RETENTION_DAYS: ${DELETED_RECEIPTS_RETENTION_DAYS:-30}
 
       LOG_FILE: /app/logs/api.log
       LOG_LEVEL: INFO
@@ -198,6 +200,8 @@ services:
       REDIS_ENABLED: "true"
 
       RECEIPTS_DIR: /app/receipts
+      DELETED_RECEIPTS_DIR: /app/data/deleted_receipts
+      DELETED_RECEIPTS_RETENTION_DAYS: ${DELETED_RECEIPTS_RETENTION_DAYS:-30}
 
       LOG_FILE: /app/logs/worker.log
       LOG_LEVEL: INFO

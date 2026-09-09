@@ -20,6 +20,8 @@ def render_reconcile_page(data: dict):
 
     period_param = f'&period={html.escape(period_filter)}' if period_filter else ''
     is_orphan_tab = (filt == 'orphans')
+    role = data.get('role', 'admin')
+    username = data.get('username', 'admin')
 
     # Пагинация
     total_pages = max(1, (list_count + per_page - 1) // per_page)
@@ -63,6 +65,17 @@ def render_reconcile_page(data: dict):
         sel = ' selected' if p['period'] == period_filter else ''
         period_options += f'<option value="{html.escape(p["period"])}"{sel}>{html.escape(p["period"])}</option>'
 
+    admin_tools_html = ''
+    if role == 'admin':
+        admin_tools_html = f'''<div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="btn btn-outline" id="btnSyncFs" onclick="syncWithFilesystem()" style="padding:7px 14px;font-size:13px;display:flex;align-items:center;gap:6px">
+                {icon('refresh', 14)} Синхронизировать с диском
+            </button>
+            <button type="button" class="btn btn-outline" id="btnPurgeMissing" onclick="purgeMissingReceipts()" style="padding:7px 14px;font-size:13px;display:flex;align-items:center;gap:6px;color:#ef4444;border-color:#fca5a5">
+                {icon('trash', 14)} Очистить отсутствующие
+            </button>
+        </div>'''
+
     period_select_html = f'''<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px">
         <div class="period-filter" style="margin-bottom:0">
             <label for="period-select"><b>Период:</b></label>
@@ -70,14 +83,7 @@ def render_reconcile_page(data: dict):
                 {period_options}
             </select>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-            <button type="button" class="btn btn-outline" id="btnSyncFs" onclick="syncWithFilesystem()" style="padding:7px 14px;font-size:13px;display:flex;align-items:center;gap:6px">
-                {icon('refresh', 14)} Синхронизировать с диском
-            </button>
-            <button type="button" class="btn btn-outline" id="btnPurgeMissing" onclick="purgeMissingReceipts()" style="padding:7px 14px;font-size:13px;display:flex;align-items:center;gap:6px;color:#ef4444;border-color:#fca5a5">
-                {icon('trash', 14)} Очистить отсутствующие
-            </button>
-        </div>
+        {admin_tools_html}
     </div>'''
 
     def tab_cls(key):
@@ -90,6 +96,17 @@ def render_reconcile_page(data: dict):
         <a href="/reconcile?filter=orphans{period_param}" class="filter-tab{tab_cls('orphans')}" style="{orphan_tab_style}">Без лицевого счёта (<span id="tabCountOrphans">{orphans}</span>)</a>
     </div>'''
 
+    def delete_button(row):
+        token = str(row['access_token'] or '')
+        if not token:
+            return '—'
+        account = html.escape(str(row['account_number'] or ''), quote=True)
+        period = html.escape(str(row['period'] or ''), quote=True)
+        safe_token = html.escape(token, quote=True)
+        return f'''<button type="button" class="btn btn-outline" data-token="{safe_token}" data-account="{account}" data-period="{period}" onclick="deleteReceipt(this)" style="padding:6px 10px;font-size:12px;color:#dc2626;border-color:#fecaca;white-space:nowrap">
+            {icon('trash', 13)} Удалить
+        </button>'''
+
     table_rows = ''
     if is_orphan_tab:
         for r in rows:
@@ -98,9 +115,10 @@ def render_reconcile_page(data: dict):
                 <td>{html.escape(r["period"] or "—")}</td>
                 <td>{html.escape(r["pdf_file"] or "—")}</td>
                 <td><span class="tag tag-warn">Нет в базе</span></td>
+                <td>{delete_button(r)}</td>
             </tr>'''
         table_html = f'''<table>
-            <tr><th>Лицевой счёт</th><th>Период</th><th>Файл</th><th>Статус</th></tr>
+            <tr><th>Лицевой счёт</th><th>Период</th><th>Файл</th><th>Статус</th><th>Действие</th></tr>
             {table_rows}
         </table>{pag}''' if rows else '<p style="color:#64748b">Нет квитанций-сирот. Все квитанции привязаны к лицевым счетам.</p>'
     else:
@@ -114,9 +132,10 @@ def render_reconcile_page(data: dict):
                 <td>{html.escape(r["address"] or "—")}</td>
                 <td>{period_text}</td>
                 <td>{status}</td>
+                <td>{delete_button(r) if has_receipt else '—'}</td>
             </tr>'''
         table_html = f'''<table>
-            <tr><th>Лицевой счёт</th><th>Контрагент</th><th>Адрес</th><th>Период</th><th>Квитанция</th></tr>
+            <tr><th>Лицевой счёт</th><th>Контрагент</th><th>Адрес</th><th>Период</th><th>Квитанция</th><th>Действие</th></tr>
             {table_rows}
         </table>{pag}''' if rows else '<p style="color:#64748b">Нет записей для отображения.</p>'
 
@@ -129,9 +148,6 @@ def render_reconcile_page(data: dict):
         list_title = f'Квитанции без лицевого счёта в базе{period_label}'
     else:
         list_title = f'Все лицевые счета{period_label}'
-
-    role = data.get('role', 'admin')
-    username = data.get('username', 'admin')
 
     return f'''
     {_admin_nav_bar('reconcile', role=role, username=username)}
@@ -168,6 +184,42 @@ def render_reconcile_page(data: dict):
         {table_html}
     </div>
     <script>
+    async function deleteReceipt(btn) {{
+        if (!btn) return;
+        const account = btn.dataset.account || '';
+        const period = btn.dataset.period || '';
+        const token = btn.dataset.token || '';
+        if (!confirm(`Удалить квитанцию?\n\nЛицевой счёт: ${{account}}\nПериод: ${{period}}\n\nPDF будет убран из выдачи и перемещён в закрытый карантин на 30 дней.`)) {{
+            return;
+        }}
+
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '{icon('clock', 13)} Удаление...';
+        try {{
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfVal = csrfMeta ? csrfMeta.content : '';
+            const res = await fetch('/api/receipts/delete', {{
+                method: 'POST',
+                headers: {{
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    'X-CSRF-Token': csrfVal
+                }},
+                body: new URLSearchParams({{ token: token }}).toString()
+            }});
+            const data = await res.json();
+            if (!res.ok || !data.success) {{
+                throw new Error(data.message || data.error || 'Не удалось удалить квитанцию');
+            }}
+            alert(data.message);
+            window.location.reload();
+        }} catch (e) {{
+            alert('Ошибка: ' + e.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }}
+    }}
+
     async function syncWithFilesystem() {{
         const btn = document.getElementById('btnSyncFs');
         if (!btn) return;

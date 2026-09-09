@@ -45,12 +45,32 @@ def test_reconcile_filter_orphans(seed_reconcile_data):
     data = reconcile_service.get_reconciliation_data(filt='orphans', period_filter='')
     assert data['list_count'] == 1
     assert data['rows'][0]['account_number'] == '800004'
+    assert data['rows'][0]['access_token'] == 'tok2' * 8
 
 def test_reconcile_with_period_filter(seed_reconcile_data):
     data = reconcile_service.get_reconciliation_data(filt='with', period_filter='Январь 2026')
     assert data['matched'] == 1
     assert len(data['rows']) == 1
     assert data['rows'][0]['account_number'] == '800001'
+    assert data['rows'][0]['access_token'] == 'tok1' * 8
+
+
+def test_reconcile_operator_has_single_delete_action_but_no_admin_bulk_tools(seed_reconcile_data):
+    from templates.reconcile_views import render_reconcile_page
+
+    data = reconcile_service.get_reconciliation_data(filt='with', period_filter='Январь 2026')
+    data.update({'role': 'operator', 'username': 'shtabel'})
+    page = render_reconcile_page(data)
+
+    assert '/api/receipts/delete' in page
+    assert 'data-token="tok1tok1tok1tok1tok1tok1tok1tok1"' in page
+    assert 'id="btnSyncFs"' not in page
+    assert 'id="btnPurgeMissing"' not in page
+
+    data['role'] = 'admin'
+    admin_page = render_reconcile_page(data)
+    assert 'id="btnSyncFs"' in admin_page
+    assert 'id="btnPurgeMissing"' in admin_page
 
 def test_safe_sync_and_purge_lifecycle(tmp_path, monkeypatch):
     """
@@ -122,4 +142,3 @@ def test_safe_sync_and_purge_lifecycle(tmp_path, monkeypatch):
     con.close()
     assert len(remaining) == 1
     assert remaining[0]['account_number'] == '800001'
-

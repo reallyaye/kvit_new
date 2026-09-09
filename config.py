@@ -72,6 +72,16 @@ DB = DB_PATH if os.path.isabs(DB_PATH) else os.path.join(BASE, DB_PATH)
 RECEIPTS_PATH = os.environ.get('RECEIPTS_DIR', 'receipts')
 RECEIPTS_DIR = RECEIPTS_PATH if os.path.isabs(RECEIPTS_PATH) else os.path.join(BASE, RECEIPTS_PATH)
 
+# Удалённые оператором квитанции не уничтожаются сразу: PDF временно
+# перемещается в закрытый карантин и затем очищается политикой хранения.
+DELETED_RECEIPTS_PATH = os.environ.get('DELETED_RECEIPTS_DIR', os.path.join('data', 'deleted_receipts'))
+DELETED_RECEIPTS_DIR = (
+    DELETED_RECEIPTS_PATH
+    if os.path.isabs(DELETED_RECEIPTS_PATH)
+    else os.path.join(BASE, DELETED_RECEIPTS_PATH)
+)
+DELETED_RECEIPTS_RETENTION_DAYS = int(os.environ.get('DELETED_RECEIPTS_RETENTION_DAYS', '30'))
+
 # Pipeline каталоги для безопасной staged-обработки PDF
 SPOOL_PATH = os.environ.get('SPOOL_DIR', os.path.join('data', 'spool'))
 SPOOL_DIR = SPOOL_PATH if os.path.isabs(SPOOL_PATH) else os.path.join(BASE, SPOOL_PATH)
@@ -86,7 +96,7 @@ STATIC_PATH = os.environ.get('STATIC_DIR', 'static')
 STATIC_DIR = STATIC_PATH if os.path.isabs(STATIC_PATH) else os.path.join(BASE, STATIC_PATH)
 
 # Создаем базовые каталоги pipeline
-for _d in (RECEIPTS_DIR, SPOOL_DIR, PROCESSING_DIR, FAILED_DIR):
+for _d in (RECEIPTS_DIR, DELETED_RECEIPTS_DIR, SPOOL_DIR, PROCESSING_DIR, FAILED_DIR):
     os.makedirs(_d, exist_ok=True)
 
 # ────────────────────── Режим технических работ (Maintenance Mode) ─────────
@@ -196,7 +206,7 @@ COOKIE_SECURE = os.environ.get('COOKIE_SECURE', 'auto').strip().lower()  # 'true
 CSRF_ENABLED = os.environ.get('CSRF_ENABLED', 'true').strip().lower() in ('true', '1', 'yes')
 
 PROTECTED_PATHS = {
-    '/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/upload-accounts', '/api/sync-receipts', '/api/purge-missing-receipts',
+    '/upload', '/reconcile', '/import-folder', '/api/upload-batch', '/api/upload-accounts', '/api/sync-receipts', '/api/purge-missing-receipts', '/api/receipts/delete',
     '/admin', '/admin/pages', '/admin/pages/edit', '/admin/pages/new', '/admin/pages/save', '/admin/pages/delete',
     '/admin/media', '/admin/media/upload', '/admin/media/delete',
     '/admin/documents', '/admin/documents/edit', '/admin/documents/new', '/admin/documents/save', '/admin/documents/delete',
@@ -204,7 +214,7 @@ PROTECTED_PATHS = {
     '/admin/audit', '/admin/appeals', '/admin/appeals/view', '/admin/appeals/update'
 }
 CSRF_PROTECTED_PATHS = {
-    '/upload', '/import-folder', '/api/upload-batch', '/api/upload-accounts', '/api/sync-receipts', '/api/purge-missing-receipts',
+    '/upload', '/import-folder', '/api/upload-batch', '/api/upload-accounts', '/api/sync-receipts', '/api/purge-missing-receipts', '/api/receipts/delete',
     '/admin/pages/save', '/admin/pages/delete',
     '/admin/media/upload', '/admin/media/delete',
     '/admin/documents/save', '/admin/documents/delete',
@@ -348,4 +358,3 @@ LOG_FILE = os.environ.get('LOG_FILE', 'logs/app.log')
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', str(5 * 1024 * 1024)))  # 5 МБ
 LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))             # 5 ротированных файлов
-
