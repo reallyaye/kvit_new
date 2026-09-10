@@ -2,14 +2,15 @@
 # ==============================================================================
 # KREC Portal - Daily Backup Cron Runner
 # Рекомендуемая запись в crontab (запуск ежедневно в 03:00):
-# 0 3 * * * /home/user/portal/kvit_new/scripts/daily_backup.sh >> /var/log/kvit_backup.log 2>&1
+# 0 3 * * * /home/user/portal/kvit_new/scripts/daily_backup.sh >> /home/user/portal/kvit_new/logs/kvit_backup.log 2>&1
 # ==============================================================================
 
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-LOG_FILE="/var/log/kvit_backup.log"
+LOG_FILE="${BACKUP_LOG_FILE:-$PROJECT_DIR/logs/kvit_backup.log}"
+mkdir -p "$(dirname "$LOG_FILE")"
 BACKUP_DIR="${BACKUP_DIR:-$PROJECT_DIR/backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 REMOTE_TARGET="${BACKUP_REMOTE_TARGET:-}"

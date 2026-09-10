@@ -119,12 +119,12 @@ python -m bandit -r services database templates server.py app.py worker.py -ll
 
 ### 5.3. Деплой и доступ к боевой PostgreSQL
 - **Подключение к серверу:**
-  - SSH: `user@172.30.0.2`, порт **`22022`**, пароль `REDACTED_SSH_PASSWORD`.
+  - SSH: `user@172.30.0.2`, порт **`22022`** (пароль задаётся системным администратором и хранится в защищённом хранилище секретов).
 - **Подключение к боевой PostgreSQL:**
   - Контейнер: `kvit-postgres`.
   - Пользователь: **`kvit_admin`** (не `postgres` и не `kvit_user`).
   - База данных: **`kvit_db`**.
-  - Пароль: `REDACTED_PG_PASSWORD`.
+  - Пароль: определяется переменной `POSTGRES_PASSWORD` в файле `.env` на сервере.
   - Команда для проверки через SSH:
     ```bash
     docker exec -it kvit-postgres psql -U kvit_admin -d kvit_db -c "SELECT count(*) FROM accounts; SELECT count(*) FROM receipts;"

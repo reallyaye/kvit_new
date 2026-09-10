@@ -1,7 +1,14 @@
 #!/bin/bash
 set -e
 
-TOKEN="YOUR_TELEGRAM_BOT_TOKEN_HERE"
+TOKEN="${1:-${TELEGRAM_BOT_TOKEN:-}}"
+
+if [ -z "$TOKEN" ]; then
+    echo "Ошибка: токен Telegram не задан!" >&2
+    echo "Использование: $0 <TELEGRAM_BOT_TOKEN>" >&2
+    echo "Или задайте переменную окружения TELEGRAM_BOT_TOKEN перед запуском." >&2
+    exit 1
+fi
 
 if [ -f .env ]; then
     if grep -q "TELEGRAM_BOT_TOKEN=" .env; then
