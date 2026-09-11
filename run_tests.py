@@ -329,6 +329,7 @@ if __name__ == '__main__':
                         'tests/test_rbac.py',
                         'tests/test_tasks.py',
                         'tests/test_pdf_processor.py',
+                        'tests/test_blacklist_updater.py',
                     ]
                 sys.exit(_real_pytest.main(test_args))
         except (ImportError, AttributeError):

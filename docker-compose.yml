@@ -252,6 +252,7 @@ services:
 
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/lists:/etc/nginx/lists:ro
 
       - ./static:/app/static:ro
       - ./data/uploads:/app/static/images/uploads:ro

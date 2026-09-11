@@ -95,5 +95,6 @@ scripts/setup_*.py
 scripts/sync_*.py
 scripts/tune_*.py
 scripts/update_*.py
+!scripts/update_blacklists.py
 
 

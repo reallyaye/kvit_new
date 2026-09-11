@@ -197,4 +197,33 @@ python -m bandit -r services database templates server.py app.py worker.py -ll
      ```
    - Запущен свежий ручной backup с полной процедурой Disaster Recovery Drill: создание дампа PostgreSQL, архивация квитанций и CMS, проверка 100% PDF-файлов по сигнатуре `%PDF-` и тестовое восстановление базы в изолированную временную БД PostgreSQL.
 
+---
+
+## 8. Защита от фишинга, ботнетов и сетевых сканеров (Threat Intelligence Blacklist)
+
+### 8.1. Архитектура фильтрации в Nginx
+1. **Модуль `geo` в [nginx.conf](file:///C:/Users/zhunis/Desktop/portal/kvit_new/nginx/nginx.conf):**
+   - Переменная `$blocked_client` проверяет IP-клиента (`$remote_addr`) по двоичному дереву подсетей (Radix Tree) в оперативной памяти с нулевой задержкой ($O(1)$).
+   - При обнаружении вредоносного IP Nginx немедленно возвращает **код 444 (No Response)**: соединение закрывается на уровне TCP без передачи HTTP-заголовков и тела ответа (для атакующего сайт выглядит как отключенный сервер).
+   - SSH-порт (`22022`) и другие системные интерфейсы хоста остаются изолированными и не затрагиваются веб-фильтром.
+2. **Белый список ([nginx/lists/whitelist.conf](file:///C:/Users/zhunis/Desktop/portal/kvit_new/nginx/lists/whitelist.conf)):**
+   - Локальные и приватные диапазоны RFC 1918 (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) безусловно разрешены.
+   - Администраторы могут оперативно вносить доверенные IP офиса и мониторинга.
+3. **Ручной чёрный список ([nginx/lists/manual_blocklist.conf](file:///C:/Users/zhunis/Desktop/portal/kvit_new/nginx/lists/manual_blocklist.conf)):**
+   - Постоянный список блокировки (включая выявленный сканер `45.148.10.247 1;`).
+
+### 8.2. Автоматическое обновление баз ([scripts/update_blacklists.py](file:///C:/Users/zhunis/Desktop/portal/kvit_new/scripts/update_blacklists.py))
+1. **Подключенные источники:**
+   - **Spamhaus DROP & EDROP** — международный реестр криминальных подсетей и спам-центров.
+   - **FireHOL Level 1** — агрегатор подтвержденных фишинговых узлов, ботнетов и вредоносных IP.
+   - **Blocklist.de** — активные сетевые сканеры и атакующие IP за последние 48 часов.
+2. **Безопасность применения:**
+   - Строгая валидация формата CIDR через стандартный модуль `ipaddress`.
+   - Исключение приватных сетей и подсетей из белого списка.
+   - Проверка синтаксиса `docker exec kvit-nginx nginx -t` перед перезагрузкой. При ошибке автоматически восстанавливается резервная копия.
+   - Бесшовный reload: `docker exec kvit-nginx nginx -s reload` без разрыва активных сессий пользователей.
+3. **Регулярный запуск:**
+   - Настроен скрипт-обёртка [scripts/update_blacklists.sh](file:///C:/Users/zhunis/Desktop/portal/kvit_new/scripts/update_blacklists.sh) для запуска по cron раз в сутки в 04:00 (лог в `logs/update_blacklists.log`).
+
+
 
