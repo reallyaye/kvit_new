@@ -1,4 +1,5 @@
 from templates.icons import icon
+from templates.locale import get_locale, localized_path
 
 
 def layout(body, active='search', is_admin=False, csrf_token=''):
@@ -21,7 +22,12 @@ def layout(body, active='search', is_admin=False, csrf_token=''):
 
     csrf_meta = f'<meta name="csrf-token" content="{csrf_token}">\n' if csrf_token else ''
 
-    return f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
+    locale = get_locale()
+    html_lang = 'kk' if locale == 'kk' else 'ru'
+    ru_kvit = localized_path('/kvit/', 'ru')
+    kk_kvit = localized_path('/kvit/', 'kk')
+
+    return f'''<!doctype html><html lang="{html_lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f172a">
 <link rel="manifest" href="/manifest.json">
@@ -33,6 +39,8 @@ if ('serviceWorker' in navigator) {{
 }}
 </script>
 <link rel="stylesheet" href="/css/heroui.css?v=20260901">
+<link rel="alternate" hreflang="ru" href="https://krec.kz{ru_kvit}">
+<link rel="alternate" hreflang="kk" href="https://krec.kz{kk_kvit}">
 {csrf_meta}<title>КРЭК | Квитанции</title>
 <style>
 *{{box-sizing:border-box}}
@@ -181,6 +189,11 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
     </a>
     {ws_indicator_html}
     <a class="nav-link nav-back" href="/">{icon('arrow_left', 14)} На главную сайта</a>
+    <span style="display:inline-flex;gap:6px;align-items:center;margin-left:auto;font-size:12px;">
+        <a href="{ru_kvit}" lang="ru" style="color:{'#38bdf8' if locale == 'ru' else '#94a3b8'};font-weight:700;text-decoration:none;">Рус</a>
+        <span style="color:#475569;">/</span>
+        <a href="{kk_kvit}" lang="kk" style="color:{'#38bdf8' if locale == 'kk' else '#94a3b8'};font-weight:700;text-decoration:none;">Қаз</a>
+    </span>
     {nav_html}
 </div>
 <div class="wrap">{body}</div>

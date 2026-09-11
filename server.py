@@ -62,6 +62,7 @@ from templates.appeals_views import (
     render_admin_appeals_list,
     render_appeals_page,
 )
+from templates.locale import set_locale
 from templates.portal_views import DOCUMENTS_REGISTRY, PORTAL_PAGES
 from templates.portal_views import render_document as render_portal_document
 from templates.portal_views import render_page as render_portal_page
@@ -233,6 +234,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             if extra_headers:
                 for k, v in extra_headers.items():
                     self.send_header(k, v)
+            request_locale = getattr(self, 'request_locale', None)
+            if request_locale in ('ru', 'kk'):
+                self.send_header('Set-Cookie', f'krec_lang={request_locale}; Path=/; Max-Age=31536000; SameSite=Lax')
             self.end_headers()
             self.wfile.write(data)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
@@ -467,6 +471,24 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         path = u.path
         q = parse_qs(u.query)
+        self.request_locale = 'ru'
+        prefixed_locale = False
+        for prefix, locale in (('/kk', 'kk'), ('/kz', 'kk'), ('/ru', 'ru')):
+            if path == prefix or path.startswith(prefix + '/'):
+                self.request_locale = locale
+                path = path[len(prefix):] or '/'
+                prefixed_locale = True
+                break
+        if not prefixed_locale:
+            try:
+                cookies = SimpleCookie()
+                cookies.load(self.headers.get('Cookie', ''))
+                saved_locale = cookies.get('krec_lang')
+                if saved_locale and saved_locale.value in ('ru', 'kk'):
+                    self.request_locale = saved_locale.value
+            except Exception:
+                pass
+        set_locale(self.request_locale)
         is_admin = self._is_admin()
         client_ip = self._get_client_ip()
 
@@ -546,7 +568,6 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 analytics_allowed = False
                 if not dnt and cookie_hdr:
                     try:
-                        from http.cookies import SimpleCookie
                         sc = SimpleCookie()
                         sc.load(cookie_hdr)
                         if 'krec_analytics' in sc and sc['krec_analytics'].value == '1':
@@ -636,7 +657,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                                 account_row,
                                 receipts,
                                 is_verified=is_verified,
-                                verification_failed=bool(verify_code and not is_verified)
+                                verification_failed=bool(verify_code and not is_verified),
+                                database_updated_at=receipt_service.get_receipts_database_updated_at()
                             )
                             self.send_html(layout(body, 'search', is_admin=is_admin))
                             return
@@ -657,7 +679,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                             account_row,
                             receipts,
                             is_verified=is_verified,
-                            verification_failed=bool(verify_code and not is_verified)
+                            verification_failed=bool(verify_code and not is_verified),
+                            database_updated_at=receipt_service.get_receipts_database_updated_at()
                         )
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                         return
@@ -690,7 +713,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                             account_row,
                             receipts,
                             is_verified=is_verified,
-                            verification_failed=bool(verify_code and not is_verified)
+                            verification_failed=bool(verify_code and not is_verified),
+                            database_updated_at=receipt_service.get_receipts_database_updated_at()
                         )
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                     elif status == 'NOT_FOUND':
@@ -721,7 +745,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                             account_row,
                             receipts,
                             is_verified=is_verified,
-                            verification_failed=bool(verify_code and not is_verified)
+                            verification_failed=bool(verify_code and not is_verified),
+                            database_updated_at=receipt_service.get_receipts_database_updated_at()
                         )
                         self.send_html(layout(body, 'search', is_admin=is_admin))
                     elif status == 'NOT_FOUND':
@@ -1969,7 +1994,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     'period': r['period'],
                     'access_token': r['access_token'],
                     'receipt_url': f"/receipt?token={r['access_token']}",
-                    'download_url': f"/download?token={r['access_token']}"
+                    'download_url': f"/download?token={r['access_token']}",
+                    'uploaded_at': r.get('uploaded_at')
                 })
 
             self.send_json({
@@ -1979,6 +2005,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 'address': account_row['address'] or '—',
                 'customer_name': '',  # Защита ПДн: ФИО абонента не отдается в публичный поиск
                 'period_filter': period_filter,
+                'database_updated_at': receipt_service.get_receipts_database_updated_at(),
                 'receipts': rec_list
             }, 200, extra_headers={'Cache-Control': 'no-store'})
             return
@@ -2029,7 +2056,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     'period': r['period'],
                     'access_token': r['access_token'],
                     'receipt_url': f"/receipt?token={r['access_token']}",
-                    'download_url': f"/download?token={r['access_token']}"
+                    'download_url': f"/download?token={r['access_token']}",
+                    'uploaded_at': r.get('uploaded_at')
                 })
 
             self.send_json({
@@ -2042,6 +2070,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 'corrected_street': acc_data.get('corrected_street'),
                 'original_query': acc_data.get('original_query', address_query or f"{street} {house} {flat}".strip()),
                 'period_filter': period_filter,
+                'database_updated_at': receipt_service.get_receipts_database_updated_at(),
                 'receipts': rec_list
             }, 200, extra_headers={'Cache-Control': 'no-store'})
         else:

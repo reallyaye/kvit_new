@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
+import datetime
 import html
 
 import config
 from templates.icons import icon
+from templates.locale import localized_path
 
 
 def render_search_form(periods, active_tab='account', default_account='', default_address='', default_period=''):
+    search_path = localized_path('/search')
+    api_search_path = localized_path('/api/search')
+    appeals_path = localized_path('/appeals')
+    download_path = localized_path('/download')
     period_options = '<option value="">Все периоды</option>'
     for p in periods:
         p_val = p['period']
@@ -40,7 +46,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
 
     address_form_html = f'''
         <!-- Поиск по адресу -->
-        <form id="searchAddressForm" action="/search" method="get" style="{form_addr_style}" onsubmit="handleAjaxSearch(event, this, 'address')">
+        <form id="searchAddressForm" action="{search_path}" method="get" style="{form_addr_style}" onsubmit="handleAjaxSearch(event, this, 'address')">
             <label>Точный адрес объекта</label>
             <input name="address" class="ym-disable-keys" type="search" placeholder="Например: ул. Абая 10, кв 5 или Абая 10-5" value="{html.escape(default_address)}" autocomplete="off" required>
             <p style="color:#64748b;font-size:12px;margin:4px 0 12px;display:flex;align-items:center;gap:5px">{icon('shield', 13)} Укажите улицу, номер дома и квартиру (например: <i>ул. Абая 10, кв 5</i> или <i>Абая 10-5</i>).</p>
@@ -56,7 +62,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         <p class="subtitle">{subtitle_text}</p>
         {tabs_html}
         <!-- Поиск по лицевому счёту -->
-        <form id="searchAccountForm" action="/search" method="get" style="{form_acc_style}" onsubmit="handleAjaxSearch(event, this, 'account')">
+        <form id="searchAccountForm" action="{search_path}" method="get" style="{form_acc_style}" onsubmit="handleAjaxSearch(event, this, 'account')">
             <label>Лицевой счёт</label>
             <input name="account" class="ym-disable-keys" type="search" inputmode="numeric" placeholder="Например: 800146" value="{html.escape(default_account)}" autocomplete="off" required>
             <label>Период</label>
@@ -70,6 +76,26 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
 
     <!-- Контейнер для мгновенных AJAX-результатов -->
     <div id="liveSearchResults"></div>
+
+    <section class="receipt-faq" aria-labelledby="receipt-faq-title" style="margin-top:24px;border-top:1px solid #e2e8f0;padding-top:20px">
+        <h2 id="receipt-faq-title" style="font-size:18px;margin:0 0 12px;color:#1e293b">Частые вопросы</h2>
+        <details style="padding:10px 0;border-bottom:1px solid #eef2f7">
+            <summary style="cursor:pointer;font-weight:600">Что вводить в поле поиска?</summary>
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px">Введите только номер лицевого счёта. Адрес для получения квитанции не требуется.</p>
+        </details>
+        <details style="padding:10px 0;border-bottom:1px solid #eef2f7">
+            <summary style="cursor:pointer;font-weight:600">Почему квитанция не найдена?</summary>
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px">Проверьте номер счёта и выбранный период. Если квитанция была загружена недавно, обратитесь в отдел по вопросам оплаты и квитанций.</p>
+        </details>
+        <details style="padding:10px 0;border-bottom:1px solid #eef2f7">
+            <summary style="cursor:pointer;font-weight:600">Может быть доступно несколько квитанций?</summary>
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px">Да. Для одного лицевого счёта могут отображаться разные периоды. Выберите нужный период и скачайте официальный PDF.</p>
+        </details>
+        <details style="padding:10px 0">
+            <summary style="cursor:pointer;font-weight:600">Куда обратиться по ошибке в начислениях?</summary>
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px">Подайте обращение через <a href="{appeals_path}" style="color:#2563eb">электронную приёмную</a> или позвоните по телефону, указанному на странице контактов.</p>
+        </details>
+    </section>
 
     <script>
     function switchSearchTab(tab) {{
@@ -115,7 +141,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
         }}
 
         try {{
-            var resp = await fetch('/api/search?' + params.toString(), {{
+            var resp = await fetch('{api_search_path}?' + params.toString(), {{
                 headers: {{ 'Accept': 'application/json' }},
                 cache: 'no-store'
             }});
@@ -137,6 +163,13 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
     function escapeHtml(str) {{
         if (!str) return '';
         return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }}
+
+    function formatReceiptDate(value) {{
+        if (!value) return 'не определена';
+        try {{
+            return new Date(Number(value) * 1000).toLocaleString('ru-RU', {{ dateStyle: 'short', timeStyle: 'short' }});
+        }} catch (e) {{ return 'не определена'; }}
     }}
 
     function renderAjaxSearchResults(data, periodFilter) {{
@@ -183,6 +216,8 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
                 var r = receipts[0];
                 var token = escapeHtml(r.access_token);
                 var periodEsc = escapeHtml(r.period);
+                var uploadedAt = escapeHtml(formatReceiptDate(r.uploaded_at));
+                var databaseUpdatedAt = escapeHtml(formatReceiptDate(data.database_updated_at));
                 var singleHtml = '<div class="card receipt-card-anim">' +
                     '<h1><span style="display:inline-flex;align-items:center;gap:6px;color:#16a34a">{ico_ok} Квитанция найдена</span></h1>' +
                     typoHtml +
@@ -191,9 +226,10 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
                         '<b>Период:</b> ' + periodEsc + '<br>' +
                         '<b>Адрес:</b> ' + addr +
                     '</div>' +
+                    '<div style="margin-top:10px;color:#64748b;font-size:13px">Дата загрузки: ' + uploadedAt + ' · База обновлена: ' + databaseUpdatedAt + '</div>' +
                     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">' +
                         '<button type="button" class="btn" data-token="' + token + '" data-title="Квитанция: ' + acct + ' (' + periodEsc + ')" onclick="openPdfModal(this.getAttribute(\\'data-token\\'), this.getAttribute(\\'data-title\\'))">{ico_eye_btn} Быстрый просмотр</button>' +
-                        '<a class="btn btn-green" href="/download?token=' + token + '">{ico_dl_btn} Скачать PDF</a>' +
+                        '<a class="btn btn-green" href="{download_path}?token=' + token + '">{ico_dl_btn} Скачать PDF</a>' +
                     '</div>' +
                 '</div>';
                 resBox.innerHTML = singleHtml;
@@ -203,11 +239,12 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
                     var rec = receipts[i];
                     var t = escapeHtml(rec.access_token);
                     var pEsc = escapeHtml(rec.period);
+                    var uploadedAt = escapeHtml(formatReceiptDate(rec.uploaded_at));
                     listHtml += '<div class="period-card">' +
-                        '<span class="period-name" style="display:inline-flex;align-items:center;gap:6px">{ico_file} ' + pEsc + '</span>' +
+                        '<span class="period-name" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">{ico_file} <span>' + pEsc + '</span><small style="display:block;width:100%;font-size:12px;color:#64748b;font-weight:400">Загружена: ' + uploadedAt + '</small></span>' +
                         '<div class="period-actions">' +
                             '<button type="button" class="btn btn-sm" data-token="' + t + '" data-title="Квитанция: ' + acct + ' (' + pEsc + ')" onclick="openPdfModal(this.getAttribute(\\'data-token\\'), this.getAttribute(\\'data-title\\'))">{ico_eye_sm} Просмотр</button>' +
-                            '<a class="btn btn-green btn-sm" href="/download?token=' + t + '">{ico_dl_sm} Скачать</a>' +
+                            '<a class="btn btn-green btn-sm" href="{download_path}?token=' + t + '">{ico_dl_sm} Скачать</a>' +
                         '</div>' +
                     '</div>';
                 }}
@@ -221,6 +258,7 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
                         '<b>Доступно квитанций:</b> ' + receipts.length +
                     '</div>' +
                     '<h2 style="font-size:17px;margin:24px 0 12px;color:#334155">Выберите период:</h2>' +
+                    '<div style="margin-top:10px;color:#64748b;font-size:13px">База обновлена: ' + escapeHtml(formatReceiptDate(data.database_updated_at)) + '</div>' +
                     listHtml +
                 '</div>';
                 resBox.innerHTML = multiHtml;
@@ -251,9 +289,22 @@ def render_search_form(periods, active_tab='account', default_account='', defaul
     }}
     </script>'''
 
-def render_search_result(account: str, period_filter: str, account_row, receipts, is_verified: bool = True, verification_failed: bool = False):
+def _format_receipt_timestamp(value):
+    if not value:
+        return 'не определена'
+    try:
+        return datetime.datetime.fromtimestamp(float(value)).strftime('%d.%m.%Y %H:%M')
+    except (TypeError, ValueError, OSError, OverflowError):
+        return 'не определена'
+
+
+def render_search_result(account: str, period_filter: str, account_row, receipts, is_verified: bool = True, verification_failed: bool = False, database_updated_at=None):
     acct = html.escape(account)
     addr = html.escape(account_row['address']) if account_row and account_row['address'] else '—'
+    search_path = localized_path('/search')
+    kvit_path = localized_path('/kvit/')
+    download_path = localized_path('/download')
+    receipt_path = localized_path('/receipt')
 
     if not is_verified and account_row:
         from services.receipts.receipt_service import mask_address
@@ -269,14 +320,14 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
             <div class="warn" style="margin-bottom:16px">
                 <b>Защита персональных данных:</b> Для просмотра начислений и скачивания PDF подтвердите владение счетом, указав номер дома или квартиры.
             </div>
-            <form method="GET" action="/search" style="display:flex;gap:10px;flex-wrap:wrap">
+            <form method="GET" action="{search_path}" style="display:flex;gap:10px;flex-wrap:wrap">
                 <input type="hidden" name="account" value="{acct}">
                 <input type="hidden" name="period" value="{html.escape(period_filter)}">
                 <input type="text" name="verify" class="input" placeholder="Номер дома или квартиры (например: 15 или 3)" required autofocus style="flex:1;min-width:220px">
                 <button type="submit" class="btn btn-green">{icon('check', 14)} Подтвердить доступ</button>
             </form>
             <br>
-            <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
+            <a class="back-link" href="{kvit_path}" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
         </div>'''
 
     if not receipts:
@@ -291,7 +342,7 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
                     <b>Квитанция за период «{html.escape(period_filter)}» для счёта № {acct} не найдена.</b>
                 </div>
                 <br>
-                <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
+                <a class="back-link" href="{kvit_path}" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
             </div>'''
         else:
             return f'''<div class="card">
@@ -304,38 +355,43 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
                     Для лицевого счёта № {acct} квитанции пока не загружены.
                 </div>
                 <br>
-                <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
+                <a class="back-link" href="{kvit_path}" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Вернуться к поиску</a>
             </div>'''
 
     if len(receipts) == 1:
         r = receipts[0]
         period_esc = html.escape(r['period'])
         token = r['access_token']
+        uploaded_at = _format_receipt_timestamp(r.get('uploaded_at'))
+        database_updated = _format_receipt_timestamp(database_updated_at)
         return f'''<div class="card">
             <h1><span style="display:inline-flex;align-items:center;gap:6px">{icon('check_circle', 22, '#16a34a')} Квитанция найдена</span></h1>
             <div class="ok">
                 <b>Лицевой счёт:</b> {acct}<br>
                 <b>Период:</b> {period_esc}<br>
-                <b>Адрес:</b> {addr}
+                <b>Адрес:</b> {addr}<br>
+                <b>Дата загрузки:</b> {uploaded_at}<br>
+                <b>База обновлена:</b> {database_updated}
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
                 <button type="button" class="btn" onclick="openPdfModal('{token}', 'Квитанция: {acct} ({period_esc})')">{icon('eye', 15)} Быстрый просмотр</button>
-                <a class="btn btn-green" href="/download?token={token}">{icon('upload', 15)} Скачать PDF</a>
+                <a class="btn btn-green" href="{download_path}?token={token}">{icon('upload', 15)} Скачать PDF</a>
             </div>
             <br>
-            <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
+            <a class="back-link" href="{kvit_path}" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
         </div>'''
     else:
         periods_html = ''
         for r in receipts:
             period_esc = html.escape(r['period'])
             token = r['access_token']
+            uploaded_at = _format_receipt_timestamp(r.get('uploaded_at'))
             periods_html += f'''<div class="period-card">
-                <span class="period-name" style="display:inline-flex;align-items:center;gap:6px">{icon('file_text', 16, '#3b82f6')} {period_esc}</span>
+                <span class="period-name" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">{icon('file_text', 16, '#3b82f6')} <span>{period_esc}</span><small style="display:block;width:100%;font-size:12px;color:#64748b;font-weight:400">Загружена: {uploaded_at}</small></span>
                 <div class="period-actions">
                     <button type="button" class="btn btn-sm" onclick="openPdfModal('{token}', 'Квитанция: {acct} ({period_esc})')">{icon('eye', 13)} Просмотр</button>
-                    <a class="btn-outline btn btn-sm" href="/receipt?token={token}" target="_blank">Вкладка</a>
-                    <a class="btn btn-green btn-sm" href="/download?token={token}">Скачать</a>
+                    <a class="btn-outline btn btn-sm" href="{receipt_path}?token={token}" target="_blank">Вкладка</a>
+                    <a class="btn btn-green btn-sm" href="{download_path}?token={token}">Скачать</a>
                 </div>
             </div>'''
 
@@ -345,15 +401,18 @@ def render_search_result(account: str, period_filter: str, account_row, receipts
                 <b>Лицевой счёт:</b> {acct}<br>
                 <b>Адрес:</b> {addr}<br>
                 <b>Доступно квитанций:</b> {len(receipts)}
+                <br><b>База обновлена:</b> {_format_receipt_timestamp(database_updated_at)}
             </div>
             <h2 style="font-size:17px;margin:24px 0 12px;color:#334155">Выберите период:</h2>
             {periods_html}
             <br>
-            <a class="back-link" href="/kvit/" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
+            <a class="back-link" href="{kvit_path}" style="display:inline-flex;align-items:center;gap:4px">{icon('arrow_left', 13)} Новый поиск</a>
         </div>'''
 
 def render_address_clarification_prompt(address_query: str, period_filter: str, message: str, periods=None):
     q_esc = html.escape(address_query)
+    search_path = localized_path('/search')
+    kvit_path = localized_path('/kvit/')
     period_options = '<option value="">Все периоды</option>'
     if periods:
         for p in periods:
@@ -368,7 +427,7 @@ def render_address_clarification_prompt(address_query: str, period_filter: str, 
             <span style="display:inline-flex;align-items:center;gap:5px">{icon('shield', 14)} <b>Конфиденциальность:</b></span> список чужих адресов и лицевых счетов соседей не отображается. Для получения квитанции укажите конкретный номер дома (и квартиру при наличии).
         </div>
 
-        <form action="/search" method="get" style="margin-top:16px">
+        <form action="{search_path}" method="get" style="margin-top:16px">
             <label>Уточните адрес (улица, номер дома, квартира):</label>
             <input name="address" type="search" value="{q_esc}" placeholder="Например: станц. Шокай, ул. Автобаза, дом 1" required autofocus>
             <label>Период</label>
@@ -379,12 +438,14 @@ def render_address_clarification_prompt(address_query: str, period_filter: str, 
         </form>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <a class="btn-outline btn" href="/kvit/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по номеру счёта</a>
+            <a class="btn-outline btn" href="{kvit_path}" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по номеру счёта</a>
         </div>
     </div>'''
 
 def render_address_not_found(address_query: str, period_filter: str, message: str, periods=None):
     q_esc = html.escape(address_query)
+    search_path = localized_path('/search')
+    kvit_path = localized_path('/kvit/')
     period_options = '<option value="">Все периоды</option>'
     if periods:
         for p in periods:
@@ -402,7 +463,7 @@ def render_address_not_found(address_query: str, period_filter: str, message: st
             • Попробуйте выполнить поиск по номеру лицевого счёта
         </div>
 
-        <form action="/search" method="get" style="margin-top:16px">
+        <form action="{search_path}" method="get" style="margin-top:16px">
             <label>Попробуйте ввести адрес ещё раз:</label>
             <input name="address" type="search" value="{q_esc}" placeholder="Например: станц. Шокай, ул. Автобаза, дом 1" required autofocus>
             <label>Период</label>
@@ -413,7 +474,7 @@ def render_address_not_found(address_query: str, period_filter: str, message: st
         </form>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <a class="btn-outline btn" href="/kvit/" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по лицевому счёту</a>
+            <a class="btn-outline btn" href="{kvit_path}" style="border-color:#64748b;color:#64748b">{icon('hash', 14)} Поиск по лицевому счёту</a>
         </div>
     </div>'''
 
@@ -422,4 +483,3 @@ def render_address_search_results(address_query: str, period_filter: str, accoun
     if accounts and len(accounts) == 1:
         return render_address_clarification_prompt(address_query, period_filter, "Найдена 1 запись.")
     return render_address_clarification_prompt(address_query, period_filter, "Пожалуйста, укажите точный номер дома и квартиры.")
-

@@ -2,6 +2,7 @@ import html
 import os
 
 from templates.icons import icon
+from templates.locale import get_locale, localized_path
 
 
 def _asset_v(rel_path: str) -> str:
@@ -27,7 +28,12 @@ def portal_layout(
     style_v = _asset_v('css/style.css')
     heroui_v = _asset_v('css/heroui.css')
     sw_v = _asset_v('sw.js')
-    canonical_path = '/' if current_slug in ('home', '', None) else f'/{current_slug}'
+    locale = get_locale()
+    canonical_source = '/' if current_slug in ('home', '', None) else f'/{current_slug}'
+    canonical_path = localized_path(canonical_source, locale)
+    ru_path = localized_path(canonical_source, 'ru')
+    kk_path = localized_path(canonical_source, 'kk')
+    html_lang = 'kk' if locale == 'kk' else 'ru'
 
     admin_bar_html = ''
     if is_admin:
@@ -74,7 +80,7 @@ def portal_layout(
         </div>'''
 
     return f"""<!DOCTYPE html>
-<html lang="ru">
+<html lang="{html_lang}">
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
@@ -85,6 +91,9 @@ def portal_layout(
 <meta name="description" content="{escaped_desc}" />
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://krec.kz{canonical_path}">
+<link rel="alternate" hreflang="ru" href="https://krec.kz{ru_path}">
+<link rel="alternate" hreflang="kk" href="https://krec.kz{kk_path}">
+<link rel="alternate" hreflang="x-default" href="https://krec.kz{ru_path}">
 <meta property="og:title" content="{escaped_title}">
 <meta property="og:description" content="{escaped_desc}">
 <meta property="og:url" content="https://krec.kz{canonical_path}">
@@ -357,6 +366,11 @@ if ('serviceWorker' in navigator) {{
 
         <!-- Правый блок: Бургер-меню -->
         <div class="krec-header-actions">
+            <div class="krec-lang-switch" aria-label="Язык страницы">
+                <a href="{ru_path}" class="krec-lang-btn {'active' if locale == 'ru' else ''}" lang="ru">Рус</a>
+                <span class="krec-lang-sep">/</span>
+                <a href="{kk_path}" class="krec-lang-btn {'active' if locale == 'kk' else ''}" lang="kk">Қаз</a>
+            </div>
             <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Открыть навигационное меню" aria-expanded="false" onclick="toggleMobileNav(event)">
                 <span class="burger-icon-bars">
                     <span></span><span></span><span></span>

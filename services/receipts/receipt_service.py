@@ -456,15 +456,42 @@ class ReceiptService:
         con = get_db()
         try:
             if period_filter:
-                return con.execute(
+                rows = con.execute(
                     "SELECT period, pdf_file, access_token FROM receipts WHERE account_number = ? AND period = ? AND (UPPER(status) = 'READY' OR status IS NULL OR status = '') ORDER BY period DESC",
                     (acc, period_filter)
                 ).fetchall()
             else:
-                return con.execute(
+                rows = con.execute(
                     "SELECT period, pdf_file, access_token FROM receipts WHERE account_number = ? AND (UPPER(status) = 'READY' OR status IS NULL OR status = '') ORDER BY period DESC",
                     (acc,)
                 ).fetchall()
+            enriched = []
+            for row in rows:
+                item = {key: row[key] for key in ('period', 'pdf_file', 'access_token')}
+                path = ReceiptService._resolve_existing_receipt_path(item['pdf_file'], acc)
+                try:
+                    item['uploaded_at'] = os.path.getmtime(path) if path else None
+                except (OSError, TypeError):
+                    item['uploaded_at'] = None
+                enriched.append(item)
+            return enriched
+        finally:
+            con.close()
+
+    @staticmethod
+    def get_receipts_database_updated_at():
+        """Returns the last audit timestamp that changed the receipt database."""
+        con = get_db()
+        try:
+            row = con.execute(
+                "SELECT MAX(created_at) FROM audit_logs WHERE action IN ('UPLOAD_SUCCESS', 'UPLOAD_RECEIPTS', 'DELETE_RECEIPT')"
+            ).fetchone()
+            if not row:
+                return None
+            value = row[0]
+            return float(value) if value is not None else None
+        except Exception:
+            return None
         finally:
             con.close()
 
