@@ -467,6 +467,7 @@ def test_postgres_backend_wrapper_and_dialect():
     assert row.get("non_existent", "default") == "default"
     assert list(row) == ["800111", "Август 2026", "ул. Мира 5"]
     assert row.keys() == cols
+    assert len(row) == 3
 
     # 2. Тест CursorWrapper: трансляция плейсхолдеров '?' -> '%s'
     mock_raw_cur = mock.MagicMock()

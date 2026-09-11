@@ -47,6 +47,9 @@ class PostgresRowWrapper:
         for col in self._col_names:
             yield self._data[col]
 
+    def __len__(self):
+        return len(self._col_names)
+
     def __repr__(self):
         return f"<PostgresRow {self._data}>"
 

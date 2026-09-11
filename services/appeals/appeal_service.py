@@ -49,7 +49,11 @@ class AppealValidationError(ValueError):
 def _row_to_dict(row):
     if not row:
         return None
-    return {column: row[index] for index, column in enumerate(_APPEAL_COLUMNS[:len(row)])}
+    if hasattr(row, 'keys'):
+        row_keys = set(row.keys())
+        return {column: row[column] for column in _APPEAL_COLUMNS if column in row_keys}
+    row_len = len(row) if hasattr(row, '__len__') else len(_APPEAL_COLUMNS)
+    return {column: row[index] for index, column in enumerate(_APPEAL_COLUMNS[:row_len])}
 
 
 def _clean(value, max_length):
