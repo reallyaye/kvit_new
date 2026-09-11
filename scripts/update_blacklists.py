@@ -188,24 +188,22 @@ def build_blocklist_conf(project_dir: str, dry_run: bool = False, no_reload: boo
             continue
         filtered_nets.add(net)
 
-    logger.info(f"Всего подготовлено {len(filtered_nets)} уникальных вредоносных подсетей")
+    # Исключаем ручные блокировки, так как они подключаются через manual_blocklist.conf
+    dynamic_nets = [net for net in filtered_nets if net not in manual_nets]
+    logger.info(f"Всего подготовлено {len(dynamic_nets)} уникальных динамических подсетей")
 
     # Сортировка по IP-адресу
-    sorted_nets = sorted(filtered_nets, key=lambda n: (n.version, int(n.network_address), n.prefixlen))
+    sorted_nets = sorted(dynamic_nets, key=lambda n: (n.version, int(n.network_address), n.prefixlen))
 
     # 5. Формирование содержимого конфига
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     lines = [
         "# =========================================================================",
         f"# Dynamic Threat Intelligence Blacklist (Auto-generated: {now})",
-        f"# Источники: {', '.join(FEEDS.keys())} + manual_blocklist",
+        f"# Источники: {', '.join(FEEDS.keys())}",
         f"# Всего записей: {len(sorted_nets)}",
         "# =========================================================================",
         "",
-        "# Ручной список",
-        "include /etc/nginx/lists/manual_blocklist.conf;",
-        "",
-        "# Динамические подсети",
     ]
 
     for net in sorted_nets:
