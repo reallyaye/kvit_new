@@ -15,8 +15,8 @@ echo "==========================================================================
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Запуск автообновления черных списков Nginx" >> "${LOG_FILE}"
 echo "==============================================================================" >> "${LOG_FILE}"
 
-# Запуск Python-скрипта
-python3 "${PROJECT_DIR}/scripts/update_blacklists.py" --dir "${PROJECT_DIR}" --log "${LOG_FILE}" >> "${LOG_FILE}" 2>&1
+# Запуск Python-скрипта (логируется напрямую через --log)
+python3 "${PROJECT_DIR}/scripts/update_blacklists.py" --dir "${PROJECT_DIR}" --log "${LOG_FILE}"
 EXIT_CODE=$?
 
 if [ ${EXIT_CODE} -eq 0 ]; then

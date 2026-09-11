@@ -45,17 +45,16 @@ def setup_logger(log_file: str = None) -> logging.Logger:
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S")
 
-    # Консоль
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-
-    # Файл (если указан)
+    # Если лог-файл задан, пишем строго в него, избегая дублирования при перенаправлении в shell
     if log_file:
         os.makedirs(os.path.dirname(os.path.abspath(log_file)), exist_ok=True)
         fh = logging.FileHandler(log_file, encoding="utf-8")
         fh.setFormatter(formatter)
         logger.addHandler(fh)
+    else:
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
 
     return logger
 
@@ -172,11 +171,18 @@ def build_blocklist_conf(project_dir: str, dry_run: bool = False, no_reload: boo
         feed_nets = fetch_feed(name, url, logger)
         all_nets.update(feed_nets)
 
-    # Если вообще все фиды упали, используем fallback
+    # Если вообще все фиды упали (сбой сети/DNS), сохраняем текущую рабочую базу
     if len(all_nets) <= len(manual_nets):
-        logger.warning("Онлайн-фиды не вернули данных. Применяются резервные подсети.")
-        for fb in FALLBACK_SUBNETS:
-            all_nets.add(ipaddress.ip_network(fb, strict=False))
+        if os.path.exists(target_conf) and os.path.getsize(target_conf) > 100:
+            logger.warning(
+                f"Онлайн-фиды временно недоступны. Текущая активная рабочая база ({target_conf}) "
+                "сохранена без изменений для непрерывной защиты."
+            )
+            return True
+        else:
+            logger.warning("Онлайн-фиды недоступны и локальная база пуста. Применяются резервные подсети.")
+            for fb in FALLBACK_SUBNETS:
+                all_nets.add(ipaddress.ip_network(fb, strict=False))
 
     # 4. Фильтрация по белому списку и приватным сетям
     filtered_nets = set()
@@ -215,7 +221,7 @@ def build_blocklist_conf(project_dir: str, dry_run: bool = False, no_reload: boo
         logger.info(f"[DRY-RUN] Сгенерировано {len(sorted_nets)} строк. Запись в файл и перезагрузка Nginx пропущены.")
         return True
 
-    # 6. Атомарная запись во временный файл и валидация
+    # 6. Атомарная запись во временный файл и создание резервной копии
     with tempfile.NamedTemporaryFile("w", dir=lists_dir, delete=False, encoding="utf-8") as tmp_file:
         tmp_file.write(content)
         tmp_path = tmp_file.name
@@ -228,20 +234,35 @@ def build_blocklist_conf(project_dir: str, dry_run: bool = False, no_reload: boo
     shutil.move(tmp_path, target_conf)
     logger.info(f"Файл {target_conf} успешно обновлён.")
 
-    # 7. Проверка конфигурации Nginx
+    # 7. Проверка конфигурации Nginx и reload с гарантированным откатом
     if not no_reload:
+        def do_rollback(reason: str):
+            logger.error(f"ОШИБКА: {reason}")
+            if os.path.exists(backup_path):
+                logger.info("Выполняется откат к предыдущей рабочей версии blocklist.conf...")
+                shutil.copyfile(backup_path, target_conf)
+                try:
+                    subprocess.run(
+                        ["docker", "exec", "kvit-nginx", "nginx", "-t"],
+                        capture_output=True, text=True, timeout=15
+                    )
+                    subprocess.run(
+                        ["docker", "exec", "kvit-nginx", "nginx", "-s", "reload"],
+                        capture_output=True, text=True, timeout=15
+                    )
+                    logger.info("Откат успешно завершен, предыдущая рабочая конфигурация активна.")
+                except Exception as rb_err:
+                    logger.error(f"Сбой при откате Nginx: {rb_err}")
+
         test_cmd = ["docker", "exec", "kvit-nginx", "nginx", "-t"]
         try:
             res = subprocess.run(test_cmd, capture_output=True, text=True, timeout=15)
             if res.returncode != 0:
-                logger.error(f"ОШИБКА: Проверка 'nginx -t' не прошла:\n{res.stderr}")
-                if os.path.exists(backup_path):
-                    logger.info("Выполняется откат к предыдущей рабочей версии blocklist.conf...")
-                    shutil.copyfile(backup_path, target_conf)
+                do_rollback(f"Проверка 'nginx -t' не прошла:\n{res.stderr}")
                 return False
             logger.info("Проверка синтаксиса Nginx (nginx -t) успешно пройдена.")
         except Exception as e:
-            logger.error(f"Не удалось выполнить проверку nginx -t: {e}")
+            do_rollback(f"Исключение при проверке nginx -t: {e}")
             return False
 
         # 8. Мягкая перезагрузка Nginx
@@ -251,10 +272,10 @@ def build_blocklist_conf(project_dir: str, dry_run: bool = False, no_reload: boo
             if res.returncode == 0:
                 logger.info("Nginx успешно перезагружен (nginx -s reload). Новые правила активны!")
             else:
-                logger.error(f"Ошибка reload Nginx:\n{res.stderr}")
+                do_rollback(f"Ошибка reload Nginx:\n{res.stderr}")
                 return False
         except Exception as e:
-            logger.error(f"Исключение при перезагрузке Nginx: {e}")
+            do_rollback(f"Исключение при перезагрузке Nginx: {e}")
             return False
 
     logger.info("=== Обновление баз успешно завершено ===")

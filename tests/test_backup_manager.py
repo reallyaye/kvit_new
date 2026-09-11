@@ -36,6 +36,14 @@ def test_backup_manager_full_cycle(tmp_path):
     sample_upload = test_uploads_dir / "test_doc.pdf"
     sample_upload.write_bytes(b"test upload content")
 
+    # Создаем фиктивный nginx lists каталог
+    test_lists_dir = tmp_path / "nginx" / "lists"
+    test_lists_dir.mkdir(parents=True)
+    sample_blocklist = test_lists_dir / "blocklist.conf"
+    sample_blocklist.write_text("1.2.3.4/32 1;\n", encoding="utf-8")
+    sample_whitelist = test_lists_dir / "whitelist.conf"
+    sample_whitelist.write_text("10.0.0.1/32 0;\n", encoding="utf-8")
+
     backup_dir = tmp_path / "backups"
 
     # 2. Запуск создания резервной копии с верификацией
@@ -66,6 +74,7 @@ def test_backup_manager_full_cycle(tmp_path):
     assert 'database' in files_meta
     assert 'receipts' in files_meta
     assert 'cms' in files_meta
+    assert 'threat_intel' in files_meta
 
     for _comp, meta in files_meta.items():
         comp_file = bundle_path / meta['filename']

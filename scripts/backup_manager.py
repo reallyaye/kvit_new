@@ -240,7 +240,17 @@ class BackupManager:
         }
         logger.info(f"Архив CMS создан: {os.path.basename(cms_file)} ({cms_count} файлов, {manifest['files']['cms']['size_bytes']} байт)")
 
-        # 5. Проверка восстановления (Disaster Recovery Verification Drill)
+        # 5. Бэкап списков Threat Intelligence (nginx/lists/ -> tar.gz)
+        ti_file, ti_count = self._backup_threat_intel(bundle_dir, ts_str)
+        manifest['files']['threat_intel'] = {
+            'filename': os.path.basename(ti_file),
+            'size_bytes': os.path.getsize(ti_file),
+            'sha256': calc_sha256(ti_file),
+            'archived_files_count': ti_count
+        }
+        logger.info(f"Архив Threat Intelligence создан: {os.path.basename(ti_file)} ({ti_count} файлов, {manifest['files']['threat_intel']['size_bytes']} байт)")
+
+        # 6. Проверка восстановления (Disaster Recovery Verification Drill)
         if verify:
             logger.info("Запуск верификации восстановления (Disaster Recovery Drill)...")
             verify_result = self.verify_backup_bundle(bundle_dir, manifest)
@@ -422,6 +432,23 @@ class BackupManager:
             if os.path.exists(pages_json):
                 tar.add(pages_json, arcname='extracted_portal_pages.json')
                 count += 1
+
+        return target_file, count
+
+    def _backup_threat_intel(self, bundle_dir: str, ts_str: str) -> tuple[str, int]:
+        """Упаковывает списки Threat Intelligence (nginx/lists/) в tar.gz."""
+        target_file = os.path.join(bundle_dir, f"threat_intel_{ts_str}.tar.gz")
+        lists_dir = os.path.join(self.base_dir, 'nginx', 'lists')
+        count = 0
+
+        with tarfile.open(target_file, 'w:gz', compresslevel=6) as tar:
+            if os.path.exists(lists_dir):
+                for root, _, files in os.walk(lists_dir):
+                    for f in files:
+                        full_p = os.path.join(root, f)
+                        rel_p = os.path.relpath(full_p, lists_dir)
+                        tar.add(full_p, arcname=rel_p)
+                        count += 1
 
         return target_file, count
 
@@ -789,6 +816,7 @@ def main():
         print(f"📦 База данных: {manifest['files']['database']['filename']} ({manifest['files']['database']['size_bytes']} байт)")
         print(f"📑 Квитанции: {manifest['files']['receipts']['filename']} ({manifest['files']['receipts']['archived_files_count']} файлов)")
         print(f"🌐 CMS-файлы: {manifest['files']['cms']['filename']} ({manifest['files']['cms']['archived_files_count']} файлов)")
+        print(f"🛡️ Списки Threat Intel: {manifest['files']['threat_intel']['filename']} ({manifest['files']['threat_intel']['archived_files_count']} файлов)")
         print("🔍 Верификация: 100% OK, контрольные суммы SHA-256 проверены.")
         sys.exit(0)
     except Exception as e:
