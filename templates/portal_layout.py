@@ -1,6 +1,7 @@
 import html
 import os
 
+from templates.i18n import translate_html
 from templates.icons import icon
 from templates.locale import get_locale, localized_path
 
@@ -79,7 +80,7 @@ def portal_layout(
             </div>
         </div>'''
 
-    return f"""<!DOCTYPE html>
+    return translate_html(f"""<!DOCTYPE html>
 <html lang="{html_lang}">
 <head>
 <meta charset="utf-8" />
@@ -1036,4 +1037,4 @@ document.addEventListener('DOMContentLoaded', function() {{
 }})();
 </script>
 </body>
-</html>"""
+</html>""")

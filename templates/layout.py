@@ -1,3 +1,4 @@
+from templates.i18n import translate_html
 from templates.icons import icon
 from templates.locale import get_locale, localized_path
 
@@ -27,7 +28,7 @@ def layout(body, active='search', is_admin=False, csrf_token=''):
     ru_kvit = localized_path('/kvit/', 'ru')
     kk_kvit = localized_path('/kvit/', 'kk')
 
-    return f'''<!doctype html><html lang="{html_lang}"><head><meta charset="utf-8">
+    return translate_html(f'''<!doctype html><html lang="{html_lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f172a">
 <link rel="manifest" href="/manifest.json">
@@ -834,4 +835,4 @@ document.addEventListener('DOMContentLoaded', function() {{
 }})();
 </script>
 
-</body></html>'''
+</body></html>''')
