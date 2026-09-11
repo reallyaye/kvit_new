@@ -188,9 +188,10 @@ class AuthService:
         return secrets.compare_digest(str(csrf_token).strip(), expected)
 
     # ────────────────────── Управление пользователями (RBAC) ──────────────────────
+    VALID_ROLES = ('admin', 'operator', 'assistant')
 
     def create_user(self, username: str, password: str, full_name: str = '', role: str = 'operator') -> dict:
-        """Создает нового пользователя (оператора сбыта или администратора)."""
+        """Создает нового пользователя (оператора сбыта, административного помощника или администратора)."""
         if not username or not password:
             raise ValueError("Логин и пароль обязательны для заполнения")
         clean_user = username.strip().lower()
@@ -198,6 +199,10 @@ class AuthService:
             raise ValueError("Логин должен содержать не менее 3 символов")
         if len(password) < 6:
             raise ValueError("Пароль должен содержать не менее 6 символов")
+
+        clean_role = (role or 'operator').strip().lower()
+        if clean_role not in self.VALID_ROLES:
+            raise ValueError(f"Недопустимая роль пользователя '{role}'. Разрешенные роли: {', '.join(self.VALID_ROLES)}")
 
         pwd_hash = hash_password(password)
         now = time.time()
@@ -209,9 +214,9 @@ class AuthService:
 
             con.execute(
                 "INSERT INTO users (username, password_hash, full_name, role, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (clean_user, pwd_hash, full_name.strip(), role, True, now)
+                (clean_user, pwd_hash, full_name.strip(), clean_role, True, now)
             )
-        return {'username': clean_user, 'full_name': full_name, 'role': role}
+        return {'username': clean_user, 'full_name': full_name, 'role': clean_role}
 
     def list_users(self) -> list:
         """Возвращает список всех зарегистрированных пользователей."""

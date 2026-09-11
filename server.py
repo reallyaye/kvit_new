@@ -193,6 +193,10 @@ class AppRequestHandler(BaseHTTPRequestHandler):
         user = self._get_current_user()
         return user is not None and user.get('role') in ('admin', 'operator')
 
+    def _is_assistant_or_admin(self) -> bool:
+        user = self._get_current_user()
+        return user is not None and user.get('role') in ('admin', 'assistant')
+
     def _verify_csrf(self, body_csrf: str = None) -> bool:
         """
         Проверяет CSRF-токен для защищенных административных POST запросов.
@@ -592,7 +596,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     self.send_json(metrics_collector.to_dict(), 200, extra_headers={'Cache-Control': 'no-store'})
                 return
             elif path == '/api/admin/alerts':
-                if not self._is_admin():
+                if not self._is_assistant_or_admin():
                     self.send_json({'error': 'Unauthorized'}, 401)
                     return
                 alerts = alert_service.evaluate_all()
@@ -762,7 +766,9 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             elif path == '/login':
                 cur_user = self._get_current_user()
                 if cur_user:
-                    self._redirect('/upload' if cur_user.get('role') == 'operator' else '/admin/pages')
+                    u_r = cur_user.get('role')
+                    target = '/upload' if u_r == 'operator' else ('/admin/appeals' if u_r == 'assistant' else '/admin/pages')
+                    self._redirect(target)
                 else:
                     body = render_login_form()
                     self.send_html(layout(body, 'login', is_admin=False))
@@ -815,6 +821,48 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     else:
                         # Попытка доступа к разделам CMS оператором -> 403 Forbidden
                         body = render_access_denied_page(role='operator', username=u_name)
+                        self.send_html(layout(body, 'forbidden', is_admin=False, csrf_token=csrf_tok), 403)
+                        return
+                elif u_role == 'assistant':
+                    if path == '/admin/appeals':
+                        status_filter = q.get('status', [''])[0].strip().upper()
+                        search_filter = q.get('search', [''])[0].strip()
+                        try:
+                            page_num = max(1, int(q.get('page', ['1'])[0]))
+                        except (ValueError, TypeError):
+                            page_num = 1
+                        appeals = appeal_service.list(status_filter, search_filter, page_num)
+                        stats = appeal_service.get_stats()
+                        active_alerts = alert_service.evaluate_all()
+                        body = render_admin_appeals_list(
+                            appeals,
+                            stats,
+                            {'status': status_filter, 'search': search_filter},
+                            csrf_tok,
+                            message=msg,
+                            error=err,
+                            username=u_name,
+                            alerts_list=active_alerts,
+                            role='assistant',
+                        )
+                        self.send_html(layout(body, 'appeals', is_admin=False, csrf_token=csrf_tok))
+                        return
+                    elif path == '/admin/appeals/view':
+                        try:
+                            appeal_id = int(q.get('id', ['0'])[0])
+                        except (ValueError, TypeError):
+                            appeal_id = 0
+                        appeal = appeal_service.get_by_id(appeal_id) if appeal_id > 0 else None
+                        if not appeal:
+                            self.send_html(layout(render_404_page(), is_admin=False), 404)
+                            return
+                        body = render_admin_appeal_detail(
+                            appeal, csrf_tok, message=msg, error=err, username=u_name, role='assistant'
+                        )
+                        self.send_html(layout(body, 'appeals', is_admin=False, csrf_token=csrf_tok))
+                        return
+                    else:
+                        body = render_access_denied_page(role='assistant', username=u_name)
                         self.send_html(layout(body, 'forbidden', is_admin=False, csrf_token=csrf_tok), 403)
                         return
 
@@ -1262,7 +1310,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             }, 500, {'Cache-Control': 'no-store'})
 
     def _handle_admin_appeal_update(self):
-        if not self._is_admin():
+        if not self._is_assistant_or_admin():
             self._redirect('/login')
             return
         params = self._read_form_params(max_bytes=config.MAX_APPEAL_BODY_BYTES)
@@ -1352,7 +1400,12 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             token = auth_service.create_session(username=u_name, role=u_role)
             auth_service.log_audit(u_name, client_ip, 'LOGIN', f"Успешный вход (роль: {u_role})")
 
-            target_url = '/upload' if u_role == 'operator' else '/admin/pages'
+            if u_role == 'operator':
+                target_url = '/upload'
+            elif u_role == 'assistant':
+                target_url = '/admin/appeals'
+            else:
+                target_url = '/admin/pages'
             self._redirect(target_url, extra_headers={
                 'Set-Cookie': self._get_session_cookie_header(token, max_age=config.SESSION_LIFETIME)
             })

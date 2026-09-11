@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 
 from services.appeals import appeal_service
+from services.security.auth_service import auth_service
 
 
 def _http_request(url, method="GET", data=None, headers=None, follow_redirects=True):
@@ -265,3 +266,130 @@ def test_appeals_full_e2e_lifecycle(e2e_server):
     refreshed_appeal = appeal_service.get_by_id(appeal_id)
     assert refreshed_appeal["status"] == "IN_REVIEW"
     assert refreshed_appeal["admin_comment"] == "Передано главному инженеру для выезда бригады."
+
+
+def test_assistant_role_appeals_access_e2e(e2e_server):
+    """
+    E2E проверка разграничения доступа для новой роли 'assistant' (Административный помощник):
+    1. Авторизация помощника -> редирект в /admin/appeals.
+    2. Успешный доступ к реестру /admin/appeals и просмотру карточки /admin/appeals/view.
+    3. Возможность обновлять статус и комментарий к обращению (/admin/appeals/update).
+    4. Запрет (403 Forbidden) на разделы страниц CMS, пользователей, загрузку квитанций.
+    5. Запрет (403 Forbidden) оператору сбыта на доступ к /admin/appeals.
+    """
+    base_url = e2e_server["base_url"]
+
+    # 1. Создаем пользователя с ролью 'assistant'
+    try:
+        auth_service.create_user(
+            username="asst_e2e",
+            password="AssistantPassword123!",
+            full_name="Помощник Канцелярии",
+            role="assistant"
+        )
+    except ValueError:
+        pass
+
+    # 2. Логинимся помощником
+    login_payload = urllib.parse.urlencode(
+        {"username": "asst_e2e", "password": "AssistantPassword123!"}
+    ).encode("utf-8")
+    res_login = _http_request(
+        f"{base_url}/login",
+        method="POST",
+        data=login_payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+    assert res_login["status"] in (302, 303)
+    assert res_login["headers"].get("Location") == "/admin/appeals"
+    asst_cookie = res_login["headers"]["Set-Cookie"].split(";")[0]
+
+    # 3. Доступ к списку обращений
+    res_appeals = _http_request(
+        f"{base_url}/admin/appeals",
+        headers={"Cookie": asst_cookie},
+    )
+    assert res_appeals["status"] == 200
+    assert "Обращения граждан" in res_appeals["body"]
+    assert "Канцелярия / Приёмная" in res_appeals["body"]
+    assert "asst_e2e" in res_appeals["body"]
+
+    # 4. Доступ к карточке обращения
+    appeals_list = appeal_service.list(per_page=1)
+    if appeals_list["items"]:
+        appeal_id = appeals_list["items"][0]["id"]
+        res_card = _http_request(
+            f"{base_url}/admin/appeals/view?id={appeal_id}",
+            headers={"Cookie": asst_cookie},
+        )
+        assert res_card["status"] == 200
+        assert "Суть обращения" in res_card["body"]
+
+        # Извлекаем CSRF и обновляем обращение помощником
+        csrf_match = re.search(r'name="csrf_token"\s+value="([a-f0-9]+)"', res_card["body"])
+        assert csrf_match is not None
+        csrf_tok = csrf_match.group(1)
+
+        update_payload = urllib.parse.urlencode({
+            "id": str(appeal_id),
+            "status": "ANSWERED",
+            "admin_comment": "Ответ сформирован помощником канцелярии.",
+            "csrf_token": csrf_tok,
+        }).encode("utf-8")
+
+        res_upd = _http_request(
+            f"{base_url}/admin/appeals/update",
+            method="POST",
+            data=update_payload,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Cookie": asst_cookie,
+            },
+            follow_redirects=False,
+        )
+        assert res_upd["status"] in (302, 303)
+        updated_obj = appeal_service.get_by_id(appeal_id)
+        assert updated_obj["status"] == "ANSWERED"
+        assert updated_obj["assigned_to"] == "asst_e2e"
+
+    # 5. Помощник НЕ имеет доступа к другим закрытым разделам админки -> 403 Forbidden
+    for restricted_path in ("/admin/pages", "/admin/users", "/upload", "/reconcile"):
+        res_forbidden = _http_request(
+            f"{base_url}{restricted_path}",
+            headers={"Cookie": asst_cookie},
+        )
+        assert res_forbidden["status"] == 403, f"Ожидался 403 для помощника на {restricted_path}, получено {res_forbidden['status']}"
+        assert "Доступ ограничен" in res_forbidden["body"]
+        assert "Административный помощник" in res_forbidden["body"]
+
+    # 6. Оператор сбыта НЕ имеет доступа к /admin/appeals -> 403 Forbidden
+    try:
+        auth_service.create_user(
+            username="op_e2e",
+            password="OperatorPassword123!",
+            full_name="Оператор Сбыта",
+            role="operator"
+        )
+    except ValueError:
+        pass
+
+    op_login = urllib.parse.urlencode(
+        {"username": "op_e2e", "password": "OperatorPassword123!"}
+    ).encode("utf-8")
+    res_op_login = _http_request(
+        f"{base_url}/login",
+        method="POST",
+        data=op_login,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+    op_cookie = res_op_login["headers"]["Set-Cookie"].split(";")[0]
+
+    res_op_appeals = _http_request(
+        f"{base_url}/admin/appeals",
+        headers={"Cookie": op_cookie},
+    )
+    assert res_op_appeals["status"] == 403
+    assert "Доступ ограничен" in res_op_appeals["body"]
+

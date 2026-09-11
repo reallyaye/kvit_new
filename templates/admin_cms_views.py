@@ -15,6 +15,12 @@ def _admin_nav_bar(active_tab: str = 'pages', role: str = 'admin', username: str
         ]
         badge_title = "Отдел сбыта"
         badge_sub = f"Оператор: {html.escape(username)}"
+    elif role == 'assistant':
+        tabs = [
+            ('appeals', '/admin/appeals', 'bell', 'Обращения'),
+        ]
+        badge_title = "Канцелярия / Приёмная"
+        badge_sub = f"Помощник: {html.escape(username)}"
     else:
         tabs = [
             ('stats', '/admin/stats', 'trending_up', 'Посещаемость'),
@@ -829,7 +835,12 @@ def render_admin_users(
         u_active = u.get('is_active', True)
         u_last = time_format(u.get('last_login_at')) if u.get('last_login_at') else 'Никогда'
 
-        role_badge = f'<span class="status-badge" style="background:#e0e7ff;color:#3730a3;display:inline-flex;align-items:center;gap:4px">{icon("shield", 13, "#4f46e5")} Администратор</span>' if u_role == 'admin' else f'<span class="status-badge" style="background:#dcfce7;color:#166534;display:inline-flex;align-items:center;gap:4px">{icon("user", 13, "#16a34a")} Оператор сбыта</span>'
+        if u_role == 'admin':
+            role_badge = f'<span class="status-badge" style="background:#e0e7ff;color:#3730a3;display:inline-flex;align-items:center;gap:4px">{icon("shield", 13, "#4f46e5")} Администратор</span>'
+        elif u_role == 'assistant':
+            role_badge = f'<span class="status-badge" style="background:#fef3c7;color:#92400e;display:inline-flex;align-items:center;gap:4px">{icon("file_text", 13, "#d97706")} Административный помощник</span>'
+        else:
+            role_badge = f'<span class="status-badge" style="background:#dcfce7;color:#166534;display:inline-flex;align-items:center;gap:4px">{icon("user", 13, "#16a34a")} Оператор сбыта</span>'
         status_badge = '<span style="color:#16a34a;font-weight:600">● Активен</span>' if u_active else '<span style="color:#dc2626;font-weight:600">● Заблокирован</span>'
 
         delete_btn = ''
@@ -961,6 +972,7 @@ def render_admin_users(
                 <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:#334155;">Роль в системе</label>
                 <select name="role" style="width:100%;margin-bottom:18px;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;">
                     <option value="operator" selected>Оператор сбыта (только загрузка и сверка)</option>
+                    <option value="assistant">Административный помощник (доступ к реестру обращений)</option>
                     <option value="admin">Администратор (полный доступ к сайту)</option>
                 </select>
 
@@ -1252,25 +1264,41 @@ def render_admin_audit_log(
 
 
 def render_access_denied_page(role: str = 'operator', username: str = 'user') -> str:
-    """Рендерит страницу 403 Доступ ограничен для оператора."""
+    """Рендерит страницу 403 Доступ ограничен для сотрудников с ограниченными ролями."""
+    if role == 'assistant':
+        active_tab = 'appeals'
+        role_label = 'Административный помощник'
+        desc_text = 'У вашей учетной записи нет прав на управление страницами, файлами и настройками портала.<br>Вам доступна работа с реестром обращений граждан.'
+        buttons = f'''
+        <a href="/admin/appeals" class="btn btn-green" style="display:inline-flex;align-items:center;gap:6px">
+            {icon('bell', 15)} Перейти к обращениям
+        </a>
+        '''
+    else:
+        active_tab = 'upload'
+        role_label = 'Оператор отдела сбыта'
+        desc_text = 'У вашей учетной записи нет прав на управление страницами и настройками портала.<br>Вам доступна загрузка квитанций и сверка реестров.'
+        buttons = f'''
+        <a href="/upload" class="btn btn-green" style="display:inline-flex;align-items:center;gap:6px">
+            {icon('upload', 15)} Перейти к загрузке квитанций
+        </a>
+        <a href="/reconcile" class="btn btn-outline" style="display:inline-flex;align-items:center;gap:6px">
+            {icon('reconcile', 15)} Сверка базы
+        </a>
+        '''
+
     return f'''
-    {_admin_nav_bar('upload', role=role, username=username)}
+    {_admin_nav_bar(active_tab, role=role, username=username)}
     <div class="card" style="max-width:600px;margin:40px auto;text-align:center;padding:40px 32px">
         <div style="width:64px;height:64px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
             {icon('shield_alert', 32, '#dc2626')}
         </div>
         <h1 style="color:#0f172a;font-size:24px;margin-bottom:8px">Доступ ограничен</h1>
         <p style="color:#64748b;line-height:1.6;margin-bottom:24px">
-            У вашей учетной записи (роль: <b>Оператор отдела сбыта</b>) нет прав на управление страницами и настройками портала.
-            <br>Вам доступна загрузка квитанций и сверка реестров.
+            У вашей учетной записи (роль: <b>{html.escape(role_label)}</b>) {desc_text}
         </p>
         <div style="display:flex;gap:12px;justify-content:center">
-            <a href="/upload" class="btn btn-green" style="display:inline-flex;align-items:center;gap:6px">
-                {icon('upload', 15)} Перейти к загрузке квитанций
-            </a>
-            <a href="/reconcile" class="btn btn-outline" style="display:inline-flex;align-items:center;gap:6px">
-                {icon('reconcile', 15)} Сверка базы
-            </a>
+            {buttons}
         </div>
     </div>
     '''

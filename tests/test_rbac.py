@@ -146,6 +146,72 @@ class TestRBACAndAuth(unittest.TestCase):
         self.assertIn('127.0.0.1', html_out)
         self.assertIn('admin', html_out)
 
+    def test_create_and_manage_assistant(self):
+        """Проверка создания, аутентификации, сессии и управления административным помощником."""
+        # 1. Создание помощника
+        asst = auth_service.create_user(
+            username='pomoshnik_asel',
+            password='AselPassword789!',
+            full_name='Аселя (Канцелярия / Приёмная)',
+            role='assistant'
+        )
+        self.assertEqual(asst['username'], 'pomoshnik_asel')
+        self.assertEqual(asst['role'], 'assistant')
+
+        # 2. Проверка учетных данных
+        creds = auth_service.verify_credentials('pomoshnik_asel', 'AselPassword789!')
+        self.assertIsNotNone(creds)
+        self.assertEqual(creds['role'], 'assistant')
+        self.assertEqual(creds['full_name'], 'Аселя (Канцелярия / Приёмная)')
+
+        # 3. Сессия возвращает роль assistant
+        token = auth_service.create_session(username='pomoshnik_asel', role='assistant')
+        sess_user = auth_service.get_session_user(token)
+        self.assertIsNotNone(sess_user)
+        self.assertEqual(sess_user['username'], 'pomoshnik_asel')
+        self.assertEqual(sess_user['role'], 'assistant')
+
+        # 4. Блокировка и удаление
+        auth_service.toggle_user_active('pomoshnik_asel', False)
+        self.assertIsNone(auth_service.verify_credentials('pomoshnik_asel', 'AselPassword789!'))
+        auth_service.toggle_user_active('pomoshnik_asel', True)
+        self.assertIsNotNone(auth_service.verify_credentials('pomoshnik_asel', 'AselPassword789!'))
+
+        auth_service.delete_user('pomoshnik_asel')
+        self.assertIsNone(auth_service.verify_credentials('pomoshnik_asel', 'AselPassword789!'))
+
+    def test_invalid_role_rejected(self):
+        """Проверка отклонения некорректных ролей при создании пользователя."""
+        with self.assertRaises(ValueError) as ctx:
+            auth_service.create_user('bad_role_user', 'Pass123456!', role='superhacker')
+        self.assertIn('Недопустимая роль', str(ctx.exception))
+
+    def test_assistant_ui_components(self):
+        """Проверка отображения роли 'assistant' в UI: бейдж, форма создания, навбар и страница отказа в доступе."""
+        from templates.admin_cms_views import _admin_nav_bar, render_access_denied_page, render_admin_users
+
+        # Навбар для помощника
+        nav_html = _admin_nav_bar('appeals', role='assistant', username='asel')
+        self.assertIn('Канцелярия / Приёмная', nav_html)
+        self.assertIn('Обращения', nav_html)
+        self.assertNotIn('Сотрудники', nav_html)
+        self.assertNotIn('Страницы сайта', nav_html)
+
+        # Таблица сотрудников с бейджем помощника
+        users = [
+            {'username': 'admin', 'full_name': 'Главный Админ', 'role': 'admin', 'is_active': 1},
+            {'username': 'asel', 'full_name': 'Аселя Помощник', 'role': 'assistant', 'is_active': 1},
+            {'username': 'sbyt1', 'full_name': 'Оператор 1', 'role': 'operator', 'is_active': 1},
+        ]
+        users_html = render_admin_users(users, [], csrf_token='csrf_test', current_username='admin')
+        self.assertIn('Административный помощник', users_html)
+        self.assertIn('value="assistant"', users_html)
+
+        # Страница доступа
+        denied_html = render_access_denied_page(role='assistant', username='asel')
+        self.assertIn('Административный помощник', denied_html)
+        self.assertIn('/admin/appeals', denied_html)
+
 
 if __name__ == '__main__':
     unittest.main()
