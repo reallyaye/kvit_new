@@ -174,11 +174,11 @@ def build_blocklist_conf(project_dir: str, dry_run: bool = False, no_reload: boo
     # Если вообще все фиды упали (сбой сети/DNS), сохраняем текущую рабочую базу
     if len(all_nets) <= len(manual_nets):
         if os.path.exists(target_conf) and os.path.getsize(target_conf) > 100:
-            logger.warning(
+            logger.error(
                 f"Онлайн-фиды временно недоступны. Текущая активная рабочая база ({target_conf}) "
-                "сохранена без изменений для непрерывной защиты."
+                "сохранена без изменений для непрерывной защиты, но обновление возвращает статус ошибки для системы мониторинга."
             )
-            return True
+            return False
         else:
             logger.warning("Онлайн-фиды недоступны и локальная база пуста. Применяются резервные подсети.")
             for fb in FALLBACK_SUBNETS:
@@ -236,23 +236,40 @@ def build_blocklist_conf(project_dir: str, dry_run: bool = False, no_reload: boo
 
     # 7. Проверка конфигурации Nginx и reload с гарантированным откатом
     if not no_reload:
-        def do_rollback(reason: str):
+        def do_rollback(reason: str) -> bool:
             logger.error(f"ОШИБКА: {reason}")
-            if os.path.exists(backup_path):
-                logger.info("Выполняется откат к предыдущей рабочей версии blocklist.conf...")
-                shutil.copyfile(backup_path, target_conf)
-                try:
-                    subprocess.run(
-                        ["docker", "exec", "kvit-nginx", "nginx", "-t"],
-                        capture_output=True, text=True, timeout=15
+            if not os.path.exists(backup_path):
+                logger.critical(f"Критический сбой: файл резервной копии {backup_path} отсутствует, откат невозможен!")
+                return False
+
+            logger.info("Выполняется откат к предыдущей рабочей версии blocklist.conf...")
+            shutil.copyfile(backup_path, target_conf)
+            try:
+                res_t = subprocess.run(
+                    ["docker", "exec", "kvit-nginx", "nginx", "-t"],
+                    capture_output=True, text=True, timeout=15
+                )
+                if res_t.returncode != 0:
+                    logger.critical(
+                        f"Критический сбой: откат blocklist.conf не прошел проверку nginx -t (код {res_t.returncode}):\n{res_t.stderr}"
                     )
-                    subprocess.run(
-                        ["docker", "exec", "kvit-nginx", "nginx", "-s", "reload"],
-                        capture_output=True, text=True, timeout=15
+                    return False
+
+                res_r = subprocess.run(
+                    ["docker", "exec", "kvit-nginx", "nginx", "-s", "reload"],
+                    capture_output=True, text=True, timeout=15
+                )
+                if res_r.returncode != 0:
+                    logger.critical(
+                        f"Критический сбой: ошибка при перезагрузке Nginx после отката (код {res_r.returncode}):\n{res_r.stderr}"
                     )
-                    logger.info("Откат успешно завершен, предыдущая рабочая конфигурация активна.")
-                except Exception as rb_err:
-                    logger.error(f"Сбой при откате Nginx: {rb_err}")
+                    return False
+
+                logger.info("Откат успешно завершен, предыдущая рабочая конфигурация проверена и активна.")
+                return True
+            except Exception as rb_err:
+                logger.critical(f"Исключение при выполнении отката Nginx: {rb_err}")
+                return False
 
         test_cmd = ["docker", "exec", "kvit-nginx", "nginx", "-t"]
         try:

@@ -89,3 +89,53 @@ def test_build_blocklist_conf_dry_run():
 
         success = build_blocklist_conf(tmp_dir, dry_run=True, no_reload=True, logger=logger)
         assert success is True
+
+
+def test_build_blocklist_conf_feed_outage_retains_db_and_returns_false():
+    logger = logging.getLogger("test")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        lists_dir = os.path.join(tmp_dir, "nginx", "lists")
+        os.makedirs(lists_dir, exist_ok=True)
+        target_conf = os.path.join(lists_dir, "blocklist.conf")
+
+        # Создаем существующую активную базу > 100 байт
+        initial_content = "# Existing active working blacklist\n" + "\n".join([f"185.220.101.{i}/32 1;" for i in range(10)]) + "\n"
+        with open(target_conf, "w", encoding="utf-8") as f:
+            f.write(initial_content)
+
+        # Мокаем fetch_feed так, чтобы все фиды вернули пустой результат (сетевой сбой)
+        with patch("scripts.update_blacklists.fetch_feed", return_value=set()):
+            success = build_blocklist_conf(tmp_dir, dry_run=False, no_reload=True, logger=logger)
+
+            # Обязано вернуть False (для алерта в мониторинге о сбое внешних фидов)
+            assert success is False
+
+            # Но файл базы на диске обязан остаться нетронутым (не даунгрейдиться)
+            with open(target_conf, "r", encoding="utf-8") as f:
+                current_content = f.read()
+            assert current_content == initial_content
+
+
+def test_rollback_returns_false_when_nginx_check_fails():
+    import subprocess
+    logger = logging.getLogger("test")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        lists_dir = os.path.join(tmp_dir, "nginx", "lists")
+        os.makedirs(lists_dir, exist_ok=True)
+        target_conf = os.path.join(lists_dir, "blocklist.conf")
+        with open(target_conf, "w", encoding="utf-8") as f:
+            f.write("# initial working config\n")
+
+        # Мокаем успешный фид, но сбой nginx -t при первой проверке И сбой при откате
+        feed_data = {ipaddress.ip_network("185.220.101.5/32")}
+
+        def fake_subprocess_run(cmd, *args, **kwargs):
+            if "nginx" in cmd and "-t" in cmd:
+                return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr="syntax error")
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+
+        with patch("scripts.update_blacklists.fetch_feed", return_value=feed_data), \
+             patch("subprocess.run", side_effect=fake_subprocess_run):
+            success = build_blocklist_conf(tmp_dir, dry_run=False, no_reload=False, logger=logger)
+            assert success is False
+
