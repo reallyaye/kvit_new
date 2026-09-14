@@ -55,12 +55,6 @@ body{{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:
 .nav-back{{color:#60a5fa!important;font-size:13px;padding:10px 12px;border:1px solid #334155;border-radius:8px;border-bottom:1px solid #334155!important;margin-right:8px;transition:background .15s,color .15s}}
 .nav-back:hover{{background:#0f172a;color:#fff!important}}
 .nav-auth{{margin-left:auto}}
-.receipt-lang-switch{{display:inline-grid;grid-template-columns:repeat(2,minmax(42px,1fr));gap:3px;margin-left:auto;padding:3px;border:1px solid rgba(148,163,184,.25);border-radius:12px;background:rgba(2,6,23,.38);box-shadow:inset 0 1px 2px rgba(0,0,0,.24)}}
-.receipt-lang-btn{{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 9px;border-radius:9px;color:#94a3b8;font-size:12px;font-weight:700;line-height:1;text-decoration:none;transition:color .18s,background-color .18s,box-shadow .18s,transform .18s;-webkit-tap-highlight-color:transparent}}
-.receipt-lang-btn:not(.active):hover{{color:#fff;background:rgba(255,255,255,.08)}}
-.receipt-lang-btn.active{{color:#fff;background:linear-gradient(135deg,#0ea5e9,#2563eb);box-shadow:0 4px 10px rgba(37,99,235,.34),inset 0 1px 0 rgba(255,255,255,.24)}}
-.receipt-lang-btn:active{{transform:scale(.96)}}
-.receipt-lang-btn:focus-visible{{outline:2px solid #7dd3fc;outline-offset:2px}}
 .wrap{{max-width:900px;margin:32px auto;padding:0 20px}}
 .card{{background:#fff;border-radius:14px;padding:28px 32px;box-shadow:0 1px 4px #0001,0 4px 16px #0001;margin-bottom:24px}}
 h1{{margin:0 0 8px;font-size:22px;color:#1a1a2e}}
@@ -196,9 +190,10 @@ select:focus{{border-color:#3b82f6;box-shadow:0 0 0 3px #3b82f620}}
     </a>
     {ws_indicator_html}
     <a class="nav-link nav-back" href="/">{icon('arrow_left', 14)} На главную сайта</a>
-    <span class="receipt-lang-switch" role="group" aria-label="Язык страницы">
-        <a href="{ru_kvit}" class="receipt-lang-btn {'active' if locale == 'ru' else ''}" lang="ru" {'aria-current="page"' if locale == 'ru' else ''}>Рус</a>
-        <a href="{kk_kvit}" class="receipt-lang-btn {'active' if locale == 'kk' else ''}" lang="kk" {'aria-current="page"' if locale == 'kk' else ''}>Қаз</a>
+    <span style="display:inline-flex;gap:6px;align-items:center;margin-left:auto;font-size:12px;">
+        <a href="{ru_kvit}" lang="ru" style="color:{'#38bdf8' if locale == 'ru' else '#94a3b8'};font-weight:700;text-decoration:none;">Рус</a>
+        <span style="color:#475569;">/</span>
+        <a href="{kk_kvit}" lang="kk" style="color:{'#38bdf8' if locale == 'kk' else '#94a3b8'};font-weight:700;text-decoration:none;">Қаз</a>
     </span>
     {nav_html}
 </div>
