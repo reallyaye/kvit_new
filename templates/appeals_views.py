@@ -72,7 +72,7 @@ def render_appeals_page(is_admin=False):
       const form=document.getElementById('appeal-form'),result=document.getElementById('appeal-result'),button=document.getElementById('appeal-submit');
       if(!form)return;
       form.addEventListener('submit',async(event)=>{{event.preventDefault();result.className='appeals-result';result.textContent='';if(!form.reportValidity())return;button.disabled=true;button.textContent='Отправляем…';
-        try{{const response=await fetch(form.action,{{method:'POST',headers:{{'Accept':'application/json'}},body:new URLSearchParams(new FormData(form))}});const data=await response.json();if(!response.ok)throw new Error(data.message||'Не удалось отправить обращение.');const emailNote=data.confirmation_sent?' Копия данных отправлена на вашу почту.':'';result.textContent='';const message=document.createElement('div');message.textContent=`Обращение зарегистрировано. Номер: ${{data.registration_number}}. Код доступа: ${{data.access_code}}. Сохраните их — код показывается один раз.${{emailNote}}`;const link=document.createElement('a');link.href='/appeals/status';link.textContent='Проверить статус и ответ →';result.append(message,link);result.className='appeals-result ok';form.reset();}}
+        try{{const response=await fetch(form.action,{{method:'POST',headers:{{'Accept':'application/json'}},body:new URLSearchParams(new FormData(form))}});const data=await response.json();if(!response.ok)throw new Error(data.message||'Не удалось отправить обращение.');const emailNote=data.confirmation_sent?' Персональная ссылка отправлена на вашу почту.':'';result.textContent='';const message=document.createElement('div');message.textContent=`Обращение зарегистрировано. Сохраните персональную ссылку — по ней вы увидите статус и ответ.${{emailNote}}`;const link=document.createElement('a');const access=new URLSearchParams({{number:data.registration_number,code:data.access_code}});link.href=`/appeals/status#${{access.toString()}}`;link.textContent='Открыть моё обращение →';result.append(message,link);result.className='appeals-result ok';form.reset();}}
         catch(error){{result.textContent=error.message||'Произошла ошибка. Попробуйте ещё раз.';result.className='appeals-result error';}}
         finally{{button.disabled=false;button.textContent='Отправить обращение';}}
       }});
@@ -114,6 +114,9 @@ def render_appeal_status_page(is_admin=False):
           const answer=document.createElement('div');if(data.response_text){{const title=document.createElement('h2');title.textContent='Ответ на ваше обращение';answer.className='appeal-public-answer';answer.textContent=data.response_text;result.append(title,answer);}}else{{answer.className='appeal-awaiting';answer.textContent='Ответ ещё не подготовлен. Зайдите позже.';result.append(answer);}}result.className='appeal-status-result show';
         }}catch(exc){{error.textContent=exc.message||'Произошла ошибка.';error.style.display='block';}}finally{{button.disabled=false;}}
       }});
+      const personalLink=new URLSearchParams(window.location.hash.slice(1));
+      const savedNumber=personalLink.get('number'),savedCode=personalLink.get('code');
+      if(savedNumber&&savedCode){{form.elements.registration_number.value=savedNumber;form.elements.credential.value=savedCode;form.requestSubmit();}}
     }})();
     </script>'''
     return portal_layout(content=content, title='Статус обращения — ТОО «КРЭК»', active_nav='appeals', is_admin=is_admin, current_slug='appeals')

@@ -143,6 +143,7 @@ def test_notify_sends_office_and_confirmation(monkeypatch):
 
     assert result == {'office_notified': True, 'confirmation_sent': True}
     assert len(sent) == 2
+    assert 'https://krec.kz/appeals/status#number=' in sent[1].get_content()
     stored = appeal_service.get_by_id(appeal['id'])
     assert stored['office_notified'] == 1
     assert stored['confirmation_sent'] == 1
@@ -217,9 +218,13 @@ def test_public_and_admin_templates_escape_content():
     assert 'fetch(form.action' in public_html
     assert 'Math.random' not in public_html
     assert 'setTimeout' not in public_html
+    assert "link.href=`/appeals/status#${access.toString()}`" in public_html
+    assert 'Открыть моё обращение' in public_html
     status_html = render_appeal_status_page()
     assert 'action="/api/appeals/status"' in status_html
     assert 'name="credential"' in status_html
+    assert 'window.location.hash.slice(1)' in status_html
+    assert 'form.requestSubmit()' in status_html
 
     appeal = appeal_service.create({**VALID_APPEAL, 'applicant_name': '<script>alert(1)</script>'})
     listing = appeal_service.list()

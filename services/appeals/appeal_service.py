@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formataddr
+from urllib.parse import urlencode
 
 import config
 from database import get_db
@@ -422,11 +423,19 @@ class AppealService:
     @staticmethod
     def _confirmation_email_body(appeal):
         access_line = f"\nКод доступа: {appeal['access_code']}\n" if appeal.get('access_code') else ''
+        personal_url = ''
+        if appeal.get('access_code'):
+            fragment = urlencode({
+                'number': appeal['registration_number'],
+                'code': appeal['access_code'],
+            })
+            personal_url = f"\nПерсональная ссылка: {config.PUBLIC_BASE_URL}/appeals/status#{fragment}\n"
         return (
             f"Здравствуйте, {appeal['applicant_name']}!\n\n"
             f"Ваше обращение зарегистрировано под номером {appeal['registration_number']}.\n"
             f"{access_line}"
-            "Сохраните номер и код: они нужны для проверки статуса на сайте.\n"
+            f"{personal_url}"
+            "Сохраните персональную ссылку: по ней можно открыть статус и ответ.\n"
             "Срок рассмотрения — до 15 рабочих дней со дня поступления в соответствии с законодательством Республики Казахстан (АППК РК).\n"
             "Ответ будет направлен на этот адрес электронной почты.\n\n"
             "ТОО «КРЭК»"

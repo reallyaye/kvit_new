@@ -66,6 +66,7 @@ IS_PRODUCTION = (APP_ENV == 'production')
 # ────────────────────── Пути к файлам и БД ──────────────────────
 DB_TYPE = os.environ.get('DB_TYPE', 'sqlite').lower().strip()
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL', 'https://krec.kz').rstrip('/')
 DB_PATH = os.environ.get('DB_PATH', 'data.sqlite3')
 DB = DB_PATH if os.path.isabs(DB_PATH) else os.path.join(BASE, DB_PATH)
 
