@@ -160,7 +160,11 @@ def migrate_db():
                     admin_comment TEXT,
                     office_notified INTEGER NOT NULL DEFAULT 0,
                     confirmation_sent INTEGER NOT NULL DEFAULT 0,
-                    consent_version TEXT DEFAULT 'v1.0-2026-kz'
+                    consent_version TEXT DEFAULT 'v1.0-2026-kz',
+                    public_token_hash TEXT,
+                    response_text TEXT,
+                    responded_at REAL,
+                    response_sent INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
                 CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);
@@ -188,6 +192,14 @@ def migrate_db():
             appeal_cols = [row[1] for row in con.execute('PRAGMA table_info(appeals)').fetchall()]
             if 'consent_version' not in appeal_cols:
                 con.execute("ALTER TABLE appeals ADD COLUMN consent_version TEXT DEFAULT 'legacy-unversioned'")
+            if 'public_token_hash' not in appeal_cols:
+                con.execute('ALTER TABLE appeals ADD COLUMN public_token_hash TEXT')
+            if 'response_text' not in appeal_cols:
+                con.execute('ALTER TABLE appeals ADD COLUMN response_text TEXT')
+            if 'responded_at' not in appeal_cols:
+                con.execute('ALTER TABLE appeals ADD COLUMN responded_at REAL')
+            if 'response_sent' not in appeal_cols:
+                con.execute('ALTER TABLE appeals ADD COLUMN response_sent INTEGER NOT NULL DEFAULT 0')
 
             sess_cols = [row[1] for row in con.execute('PRAGMA table_info(app_sessions)').fetchall()]
             if 'username' not in sess_cols:
@@ -381,6 +393,5 @@ def purge_missing_receipts() -> int:
             changes = con.execute("SELECT changes()").fetchone()
             deleted_count = changes[0] if changes else 0
     return deleted_count
-
 
 

@@ -129,10 +129,18 @@ CREATE TABLE IF NOT EXISTS appeals (
     admin_comment TEXT,
     office_notified BOOLEAN NOT NULL DEFAULT FALSE,
     confirmation_sent BOOLEAN NOT NULL DEFAULT FALSE,
-    consent_version VARCHAR(32) DEFAULT 'legacy-unversioned'
+    consent_version VARCHAR(32) DEFAULT 'legacy-unversioned',
+    public_token_hash VARCHAR(64),
+    response_text TEXT,
+    responded_at DOUBLE PRECISION,
+    response_sent BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 ALTER TABLE appeals ADD COLUMN IF NOT EXISTS consent_version VARCHAR(32) DEFAULT 'legacy-unversioned';
+ALTER TABLE appeals ADD COLUMN IF NOT EXISTS public_token_hash VARCHAR(64);
+ALTER TABLE appeals ADD COLUMN IF NOT EXISTS response_text TEXT;
+ALTER TABLE appeals ADD COLUMN IF NOT EXISTS responded_at DOUBLE PRECISION;
+ALTER TABLE appeals ADD COLUMN IF NOT EXISTS response_sent BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
 CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);

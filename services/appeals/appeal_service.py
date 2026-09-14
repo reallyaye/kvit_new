@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import re
 import secrets
 import smtplib
@@ -38,7 +40,8 @@ _APPEAL_COLUMNS = (
     'email', 'account_number', 'service_address', 'message', 'status',
     'consent', 'submitted_at', 'updated_at', 'client_ip', 'user_agent',
     'assigned_to', 'admin_comment', 'office_notified', 'confirmation_sent',
-    'consent_version',
+    'consent_version', 'public_token_hash', 'response_text', 'responded_at',
+    'response_sent',
 )
 
 
@@ -58,6 +61,15 @@ def _row_to_dict(row):
 
 def _clean(value, max_length):
     return str(value or '').strip()[:max_length]
+
+
+def _normalize_phone(value):
+    return re.sub(r'\D', '', str(value or ''))
+
+
+def _hash_access_code(value):
+    normalized = re.sub(r'[^A-Z0-9]', '', str(value or '').upper())
+    return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
 
 
 ACTIVE_CONSENT_VERSION = 'v1.0-2026-kz'
@@ -115,6 +127,12 @@ class AppealService:
         suffix = ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6))
         return f'ЭП-{datetime.now().strftime("%Y%m%d")}-{suffix}'
 
+    @staticmethod
+    def _new_access_code():
+        alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+        raw = ''.join(secrets.choice(alphabet) for _ in range(15))
+        return '-'.join(raw[index:index + 5] for index in range(0, 15, 5))
+
     def create(self, payload, client_ip='', user_agent=''):
         from services.analytics.stats_service import stats_service
 
@@ -127,23 +145,27 @@ class AppealService:
 
         for _ in range(5):
             registration_number = self._new_registration_number()
+            access_code = self._new_access_code()
+            token_hash = _hash_access_code(access_code)
             try:
                 with write_transaction() as con:
                     con.execute(
                         '''INSERT INTO appeals (
                             registration_number, category, applicant_name, phone, email,
                             account_number, service_address, message, status, consent,
-                            submitted_at, updated_at, client_ip, user_agent, consent_version
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?, ?)''',
+                            submitted_at, updated_at, client_ip, user_agent, consent_version,
+                            public_token_hash
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?, ?, ?)''',
                         (
                             registration_number, data['category'], data['applicant_name'],
                             data['phone'], data['email'], data['account_number'],
                             data['service_address'], data['message'], data['consent'],
-                            now, now, anonymized_ip, safe_ua, data['consent_version'],
+                            now, now, anonymized_ip, safe_ua, data['consent_version'], token_hash,
                         ),
                     )
                 appeal = self.get_by_registration_number(registration_number)
                 if appeal:
+                    appeal['access_code'] = access_code
                     return appeal
             except Exception as exc:
                 if 'unique' not in str(exc).lower() and 'duplicate' not in str(exc).lower():
@@ -155,6 +177,39 @@ class AppealService:
 
     def get_by_registration_number(self, registration_number):
         return self._get_one('registration_number', registration_number)
+
+    def get_public(self, registration_number, credential):
+        registration_number = _clean(registration_number, 40).upper()
+        credential = _clean(credential, 64)
+        if not registration_number or not credential:
+            raise AppealValidationError('Укажите номер обращения и код доступа.')
+        appeal = self.get_by_registration_number(registration_number)
+        if not appeal:
+            raise AppealValidationError('Обращение не найдено или данные доступа неверны.')
+
+        token_hash = appeal.get('public_token_hash') or ''
+        if token_hash:
+            authorized = hmac.compare_digest(token_hash, _hash_access_code(credential))
+        else:
+            # Обращения, созданные до внедрения кодов, проверяются по полному телефону.
+            authorized = hmac.compare_digest(
+                _normalize_phone(appeal.get('phone')),
+                _normalize_phone(credential),
+            ) and len(_normalize_phone(credential)) >= 10
+        if not authorized:
+            raise AppealValidationError('Обращение не найдено или данные доступа неверны.')
+        return {
+            'registration_number': appeal['registration_number'],
+            'category': appeal['category'],
+            'status': appeal['status'],
+            'submitted_at': appeal['submitted_at'],
+            'updated_at': appeal['updated_at'],
+            'response_text': (
+                appeal.get('response_text') or ''
+                if appeal['status'] in ('ANSWERED', 'CLOSED') else ''
+            ),
+            'responded_at': appeal.get('responded_at'),
+        }
 
     @staticmethod
     def _get_one(field, value):
@@ -237,6 +292,62 @@ class AppealService:
                 raise AppealValidationError('Обращение не найдено.')
         return self.get_by_id(int(appeal_id))
 
+    def respond(self, appeal_id, response_text, admin_comment='', assigned_to=''):
+        response = _clean(response_text, 10000)
+        if len(response) < 3:
+            raise AppealValidationError('Введите текст ответа заявителю.')
+        comment = _clean(admin_comment, 5000)
+        assignee = _clean(assigned_to, 64)
+        now = time.time()
+        with write_transaction() as con:
+            cursor = con.execute(
+                '''UPDATE appeals SET status = 'ANSWERED', response_text = ?,
+                   responded_at = ?, response_sent = ?, admin_comment = ?,
+                   assigned_to = ?, updated_at = ? WHERE id = ?''',
+                (response, now, False, comment, assignee, now, int(appeal_id)),
+            )
+            if cursor.rowcount == 0:
+                raise AppealValidationError('Обращение не найдено.')
+        return self.get_by_id(int(appeal_id))
+
+    def notify_response(self, appeal):
+        if (
+            not appeal.get('email') or not config.APPEALS_EMAIL_ENABLED
+            or not config.SMTP_HOST or not config.SMTP_FROM_EMAIL
+        ):
+            return False
+        from_name = getattr(config, 'SMTP_FROM_NAME', 'ТОО «КРЭК»')
+        from_header = formataddr((from_name, config.SMTP_FROM_EMAIL)) if from_name else config.SMTP_FROM_EMAIL
+        message = EmailMessage()
+        message['Subject'] = f"Ответ на обращение {appeal['registration_number']}"
+        message['From'] = from_header
+        message['To'] = appeal['email']
+        message.set_content(
+            f"Здравствуйте, {appeal['applicant_name']}!\n\n"
+            f"На ваше обращение {appeal['registration_number']} подготовлен ответ:\n\n"
+            f"{appeal.get('response_text', '')}\n\nТОО «КРЭК»"
+        )
+        try:
+            smtp_class = smtplib.SMTP_SSL if config.SMTP_USE_SSL else smtplib.SMTP
+            context = ssl.create_default_context()
+            kwargs = {'timeout': config.SMTP_TIMEOUT}
+            if config.SMTP_USE_SSL:
+                kwargs['context'] = context
+            with smtp_class(config.SMTP_HOST, config.SMTP_PORT, **kwargs) as client:
+                if config.SMTP_USE_TLS and not config.SMTP_USE_SSL:
+                    client.starttls(context=context)
+                if config.SMTP_USERNAME:
+                    client.login(config.SMTP_USERNAME, config.SMTP_PASSWORD)
+                client.send_message(message)
+            metrics_collector.record_smtp_success()
+            with write_transaction() as con:
+                con.execute('UPDATE appeals SET response_sent = ? WHERE id = ?', (True, appeal['id']))
+            return True
+        except Exception as exc:
+            metrics_collector.record_smtp_error(str(exc))
+            logger.warning('[Appeals] Response email failed for %s: %s', appeal['registration_number'], exc)
+            return False
+
     def notify(self, appeal):
         result = {'office_notified': False, 'confirmation_sent': False}
         if not config.APPEALS_EMAIL_ENABLED or not config.SMTP_HOST or not config.SMTP_FROM_EMAIL:
@@ -310,9 +421,12 @@ class AppealService:
 
     @staticmethod
     def _confirmation_email_body(appeal):
+        access_line = f"\nКод доступа: {appeal['access_code']}\n" if appeal.get('access_code') else ''
         return (
             f"Здравствуйте, {appeal['applicant_name']}!\n\n"
             f"Ваше обращение зарегистрировано под номером {appeal['registration_number']}.\n"
+            f"{access_line}"
+            "Сохраните номер и код: они нужны для проверки статуса на сайте.\n"
             "Срок рассмотрения — до 15 рабочих дней со дня поступления в соответствии с законодательством Республики Казахстан (АППК РК).\n"
             "Ответ будет направлен на этот адрес электронной почты.\n\n"
             "ТОО «КРЭК»"
@@ -339,6 +453,8 @@ class AppealService:
                            client_ip = '',
                            user_agent = '',
                            admin_comment = 'Обезличено по истечении срока хранения',
+                           response_text = '',
+                           public_token_hash = NULL,
                            assigned_to = NULL,
                            status = 'CLOSED'
                        WHERE submitted_at < ?

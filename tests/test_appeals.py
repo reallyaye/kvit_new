@@ -13,6 +13,7 @@ from services.appeals import AppealValidationError, appeal_service
 from templates.appeals_views import (
     render_admin_appeal_detail,
     render_admin_appeals_list,
+    render_appeal_status_page,
     render_appeals_page,
 )
 
@@ -34,7 +35,10 @@ def test_migration_creates_appeals_table():
         columns = {row[1] for row in con.execute('PRAGMA table_info(appeals)').fetchall()}
     finally:
         con.close()
-    assert {'registration_number', 'status', 'confirmation_sent'} <= columns
+    assert {
+        'registration_number', 'status', 'confirmation_sent', 'public_token_hash',
+        'response_text', 'responded_at', 'response_sent',
+    } <= columns
 
 
 @pytest.mark.parametrize(
@@ -63,7 +67,15 @@ def test_create_list_update_and_stats():
 
     assert first['id'] != second['id']
     assert re.fullmatch(r'ЭП-\d{8}-[A-Z2-9]{6}', first['registration_number'])
+    assert re.fullmatch(r'[A-Z2-9]{5}-[A-Z2-9]{5}-[A-Z2-9]{5}', first['access_code'])
+    assert first['public_token_hash'] != first['access_code']
     assert appeal_service.get_by_registration_number(first['registration_number'])['email'] == VALID_APPEAL['email']
+
+    public = appeal_service.get_public(first['registration_number'], first['access_code'])
+    assert public['registration_number'] == first['registration_number']
+    assert 'email' not in public
+    with pytest.raises(AppealValidationError):
+        appeal_service.get_public(first['registration_number'], 'WRONG-CODE')
 
     listing = appeal_service.list(status='NEW', search='Иванов')
     assert listing['total'] == 1
@@ -76,6 +88,11 @@ def test_create_list_update_and_stats():
     assert stats['TOTAL'] == 2
     assert stats['NEW'] == 1
     assert stats['IN_REVIEW'] == 1
+
+    answered = appeal_service.respond(first['id'], 'Ваши начисления проверены.', 'Готово', 'assistant')
+    assert answered['status'] == 'ANSWERED'
+    assert answered['response_text'] == 'Ваши начисления проверены.'
+    assert appeal_service.get_public(first['registration_number'], first['access_code'])['response_text'] == answered['response_text']
 
 
 def test_update_rejects_missing_or_invalid_appeal():
@@ -130,6 +147,11 @@ def test_notify_sends_office_and_confirmation(monkeypatch):
     assert stored['office_notified'] == 1
     assert stored['confirmation_sent'] == 1
 
+    answered = appeal_service.respond(appeal['id'], 'Тестовый ответ заявителю.', assigned_to='assistant')
+    assert appeal_service.notify_response(answered) is True
+    assert len(sent) == 3
+    assert appeal_service.get_by_id(appeal['id'])['response_sent'] == 1
+
 
 def _make_handler(payload, origin='https://krec.kz'):
     body = urlencode(payload).encode()
@@ -162,6 +184,7 @@ def test_submit_handler_persists_and_returns_real_number(monkeypatch):
     status, response, _ = handler.responses[-1]
     assert status == 201
     assert response['success'] is True
+    assert response['access_code']
     stored = appeal_service.get_by_registration_number(response['registration_number'])
     assert stored['applicant_name'] == VALID_APPEAL['applicant_name']
 
@@ -194,6 +217,9 @@ def test_public_and_admin_templates_escape_content():
     assert 'fetch(form.action' in public_html
     assert 'Math.random' not in public_html
     assert 'setTimeout' not in public_html
+    status_html = render_appeal_status_page()
+    assert 'action="/api/appeals/status"' in status_html
+    assert 'name="credential"' in status_html
 
     appeal = appeal_service.create({**VALID_APPEAL, 'applicant_name': '<script>alert(1)</script>'})
     listing = appeal_service.list()

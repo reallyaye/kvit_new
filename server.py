@@ -60,6 +60,7 @@ from templates.admin_stats_views import render_admin_stats_dashboard
 from templates.appeals_views import (
     render_admin_appeal_detail,
     render_admin_appeals_list,
+    render_appeal_status_page,
     render_appeals_page,
 )
 from templates.locale import set_locale
@@ -1004,6 +1005,11 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self.send_html(render_portal_page('home', is_admin=is_admin))
             elif path == '/appeals':
                 self.send_html(render_appeals_page(is_admin=is_admin))
+            elif path == '/appeals/status':
+                self.send_html(
+                    render_appeal_status_page(is_admin=is_admin),
+                    extra_headers={'Cache-Control': 'no-store, no-cache'},
+                )
             elif path in ('/privacy', '/privacy-policy', '/privacy.php'):
                 self.send_html(render_privacy_page(is_admin=is_admin))
             elif path in ('/terms', '/terms-of-use', '/terms.php'):
@@ -1155,6 +1161,18 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     }, 429, {'Retry-After': str(retry_after)})
                     return
 
+            if u.path == '/api/appeals/status':
+                allowed, retry_after, remaining = rate_limiter.is_allowed(
+                    'appeals_status', client_ip, 10, 60
+                )
+                if not allowed:
+                    self.send_json({
+                        'error': 'Too Many Requests',
+                        'message': 'Слишком много попыток. Попробуйте через минуту.',
+                        'retry_after': retry_after,
+                    }, 429, {'Retry-After': str(retry_after), 'Cache-Control': 'no-store'})
+                    return
+
             if u.path.startswith('/api/'):
                 allowed, retry_after, remaining = rate_limiter.is_allowed('api', client_ip, RATE_LIMIT_API, 60)
                 if not allowed:
@@ -1220,6 +1238,8 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 self._handle_admin_stats_import_nginx()
             elif u.path == '/api/appeals':
                 self._handle_appeal_submit()
+            elif u.path == '/api/appeals/status':
+                self._handle_appeal_status()
             elif u.path == '/api/upload-batch':
                 self._handle_api_upload_batch()
             elif u.path == '/api/upload-accounts':
@@ -1295,6 +1315,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             self.send_json({
                 'success': True,
                 'registration_number': appeal['registration_number'],
+                'access_code': appeal['access_code'],
                 'confirmation_sent': notification['confirmation_sent'],
             }, 201, {'Cache-Control': 'no-store'})
         except AppealValidationError as exc:
@@ -1308,6 +1329,31 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 'error': 'Internal Server Error',
                 'message': 'Не удалось зарегистрировать обращение. Попробуйте позднее.',
             }, 500, {'Cache-Control': 'no-store'})
+
+    def _handle_appeal_status(self):
+        origin = self.headers.get('Origin', '').strip()
+        host = self.headers.get('Host', '').split(':', 1)[0].strip().lower()
+        if origin and urlparse(origin).hostname != host:
+            self.send_json({
+                'error': 'Forbidden',
+                'message': 'Запрос отправлен с недоверенного сайта.',
+            }, 403, {'Cache-Control': 'no-store'})
+            return
+        params = self._read_form_params(max_bytes=4096)
+        if not params:
+            return
+        try:
+            appeal = appeal_service.get_public(
+                params.get('registration_number', [''])[0],
+                params.get('credential', [''])[0],
+            )
+            self.send_json({'success': True, **appeal}, 200, {'Cache-Control': 'no-store, no-cache'})
+        except AppealValidationError as exc:
+            # Одинаковый ответ не раскрывает, существует ли указанный номер.
+            self.send_json({
+                'error': 'Not Found',
+                'message': str(exc),
+            }, 404, {'Cache-Control': 'no-store, no-cache'})
 
     def _handle_admin_appeal_update(self):
         if not self._is_assistant_or_admin():
@@ -1327,14 +1373,27 @@ class AppRequestHandler(BaseHTTPRequestHandler):
             appeal_id = int(params.get('id', ['0'])[0])
             status = params.get('status', [''])[0].strip().upper()
             comment = params.get('admin_comment', [''])[0]
+            action = params.get('action', ['save'])[0].strip().lower()
             current_user = self._get_current_user() or {}
             username = current_user.get('username', 'admin')
-            appeal = appeal_service.update(
-                appeal_id,
-                status,
-                admin_comment=comment,
-                assigned_to=username,
-            )
+            if action == 'respond':
+                appeal = appeal_service.respond(
+                    appeal_id,
+                    params.get('response_text', [''])[0],
+                    admin_comment=comment,
+                    assigned_to=username,
+                )
+                email_sent = appeal_service.notify_response(appeal)
+                status = 'ANSWERED'
+                result_message = 'Ответ опубликован и отправлен на email' if email_sent else 'Ответ опубликован. Email-уведомление не отправлено'
+            else:
+                appeal = appeal_service.update(
+                    appeal_id,
+                    status,
+                    admin_comment=comment,
+                    assigned_to=username,
+                )
+                result_message = 'Изменения сохранены'
             auth_service.log_audit(
                 username,
                 self._get_client_ip(),
@@ -1342,7 +1401,7 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                 f"Обращение {appeal['registration_number']}: статус {status}",
             )
             self._redirect(
-                f'/admin/appeals/view?id={appeal_id}&msg={quote("Изменения сохранены")}'
+                f'/admin/appeals/view?id={appeal_id}&msg={quote(result_message)}'
             )
         except (AppealValidationError, ValueError) as exc:
             appeal_id = params.get('id', ['0'])[0]

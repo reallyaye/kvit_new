@@ -14,6 +14,7 @@ End-to-End (E2E) браузерный / HTTP интеграционный тес
 """
 
 import re
+import time
 import urllib.parse
 import urllib.request
 
@@ -159,7 +160,30 @@ def test_appeals_full_e2e_lifecycle(e2e_server):
     res_json = json.loads(res_valid["body"])
     assert res_json["success"] is True
     reg_number = res_json["registration_number"]
+    access_code = res_json["access_code"]
     assert reg_number.startswith("ЭП-")
+    assert access_code.count("-") == 2
+
+    res_status_page = _http_request(f"{base_url}/appeals/status")
+    assert res_status_page["status"] == 200
+    assert 'id="appeal-status-form"' in res_status_page["body"]
+
+    lookup_data = urllib.parse.urlencode({
+        "registration_number": reg_number,
+        "credential": access_code,
+    }).encode("utf-8")
+    res_lookup = _http_request(
+        f"{base_url}/api/appeals/status",
+        method="POST",
+        data=lookup_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Origin": base_url},
+    )
+    assert res_lookup["status"] == 200
+    lookup_json = json.loads(res_lookup["body"])
+    assert lookup_json["registration_number"] == reg_number
+    assert lookup_json["response_text"] == ""
+    assert "email" not in lookup_json
+    time.sleep(1.05)  # Новая серия запросов после проверки burst-throttling.
 
     # ─────────────────────────────────────────────────────────────
     # Шаг 5: Защита админки от неавторизованного доступа
@@ -267,6 +291,46 @@ def test_appeals_full_e2e_lifecycle(e2e_server):
     assert refreshed_appeal["status"] == "IN_REVIEW"
     assert refreshed_appeal["admin_comment"] == "Передано главному инженеру для выезда бригады."
 
+    response_text = "Напряжение проверено. Нарушение устранено аварийной бригадой."
+    respond_data = urllib.parse.urlencode({
+        "id": str(appeal_id),
+        "status": "IN_REVIEW",
+        "admin_comment": refreshed_appeal["admin_comment"],
+        "response_text": response_text,
+        "action": "respond",
+        "csrf_token": csrf_token,
+    }).encode("utf-8")
+    res_respond = _http_request(
+        f"{base_url}/admin/appeals/update",
+        method="POST",
+        data=respond_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": session_cookie},
+        follow_redirects=False,
+    )
+    assert res_respond["status"] in (302, 303)
+    assert appeal_service.get_by_id(appeal_id)["status"] == "ANSWERED"
+
+    res_answer = _http_request(
+        f"{base_url}/api/appeals/status",
+        method="POST",
+        data=lookup_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Origin": base_url},
+    )
+    assert res_answer["status"] == 200
+    assert json.loads(res_answer["body"])["response_text"] == response_text
+
+    wrong_lookup = urllib.parse.urlencode({
+        "registration_number": reg_number,
+        "credential": "WRONG-CODE",
+    }).encode("utf-8")
+    res_wrong = _http_request(
+        f"{base_url}/api/appeals/status",
+        method="POST",
+        data=wrong_lookup,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Origin": base_url},
+    )
+    assert res_wrong["status"] == 404
+
 
 def test_assistant_role_appeals_access_e2e(e2e_server):
     """
@@ -335,6 +399,8 @@ def test_assistant_role_appeals_access_e2e(e2e_server):
             "id": str(appeal_id),
             "status": "ANSWERED",
             "admin_comment": "Ответ сформирован помощником канцелярии.",
+            "response_text": "Ваше обращение рассмотрено помощником.",
+            "action": "respond",
             "csrf_token": csrf_tok,
         }).encode("utf-8")
 
@@ -352,6 +418,7 @@ def test_assistant_role_appeals_access_e2e(e2e_server):
         updated_obj = appeal_service.get_by_id(appeal_id)
         assert updated_obj["status"] == "ANSWERED"
         assert updated_obj["assigned_to"] == "asst_e2e"
+        assert updated_obj["response_text"] == "Ваше обращение рассмотрено помощником."
 
     # 5. Помощник НЕ имеет доступа к другим закрытым разделам админки -> 403 Forbidden
     for restricted_path in ("/admin/pages", "/admin/users", "/upload", "/reconcile"):
@@ -392,4 +459,3 @@ def test_assistant_role_appeals_access_e2e(e2e_server):
     )
     assert res_op_appeals["status"] == 403
     assert "Доступ ограничен" in res_op_appeals["body"]
-

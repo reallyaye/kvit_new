@@ -1,4 +1,5 @@
 import html
+import json
 import urllib.parse
 from datetime import datetime
 
@@ -14,7 +15,7 @@ def render_appeals_page(is_admin=False):
     )
     content = f'''
     <section class="appeals-page">
-      <div class="appeals-intro"><h1>Электронная приёмная обращений потребителей</h1><p>Подача обращений, вопросов и заявлений в ТОО «Карагандинская Региональная Энергетическая Компания» (ТОО «КРЭК»).</p></div>
+      <div class="appeals-intro"><h1>Электронная приёмная обращений потребителей</h1><p>Подача обращений, вопросов и заявлений в ТОО «Карагандинская Региональная Энергетическая Компания» (ТОО «КРЭК»).</p><a class="appeals-track-link" href="/appeals/status">Проверить статус и ответ →</a></div>
       <div class="appeals-grid">
         <div class="appeals-card appeals-form-card">
           <h2>Форма подачи обращения</h2>
@@ -64,20 +65,58 @@ def render_appeals_page(is_admin=False):
       </div>
     </section>
     <style>
-      .appeals-page{{max-width:1120px;margin:0 auto;padding:16px 20px 54px;color:#172033}}.appeals-intro{{padding:0 0 28px;border-bottom:1px solid #dbe3ef;margin-bottom:32px}}.appeals-intro h1{{font-size:18px;margin:0 0 5px}}.appeals-intro p,.appeals-help,.appeals-card p,.appeals-card small{{color:#64748b}}.appeals-grid{{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:30px;align-items:start}}.appeals-card{{background:#fff;border:1px solid #d9e1ec;border-radius:15px;padding:28px 32px;box-shadow:0 3px 12px rgba(15,23,42,.04);margin-bottom:20px}}.appeals-card h2{{font-size:23px;margin:0 0 8px}}.appeals-card h3{{font-size:18px;margin:0 0 18px;padding-bottom:13px;border-bottom:1px solid #e5eaf1}}.appeals-help{{font-size:14px;line-height:1.55;margin:0 0 25px}}#appeal-form>label,.appeals-fields label{{display:flex;flex-direction:column;gap:8px;font-weight:600;font-size:14px;margin-bottom:20px}}.appeals-fields{{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}}#appeal-form input,#appeal-form select,#appeal-form textarea{{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:13px 14px;font:inherit;background:#fff;color:#172033}}#appeal-form input:focus,#appeal-form select:focus,#appeal-form textarea:focus{{outline:2px solid #bfdbfe;border-color:#2563eb}}.appeals-consent{{flex-direction:row!important;align-items:flex-start;gap:11px!important;font-weight:500!important}}.appeals-consent input{{width:auto!important;margin-top:3px}}.appeals-honeypot{{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden}}.appeals-submit{{border:0;border-radius:10px;background:#1367d1;color:#fff;font-weight:700;padding:14px 22px;cursor:pointer}}.appeals-submit:disabled{{opacity:.6;cursor:wait}}.appeals-result{{display:none;border-radius:10px;padding:12px 14px;margin:0 0 16px;font-size:14px}}.appeals-result.ok{{display:block;background:#ecfdf5;color:#166534;border:1px solid #bbf7d0}}.appeals-result.error{{display:block;background:#fef2f2;color:#991b1b;border:1px solid #fecaca}}.appeals-steps{{list-style:none;padding:0;margin:0;counter-reset:step}}.appeals-steps li{{counter-increment:step;position:relative;padding:0 0 24px 55px;min-height:35px}}.appeals-steps li:before{{content:counter(step);position:absolute;left:0;top:0;width:27px;height:27px;border-radius:50%;background:#eff6ff;color:#2563eb;display:grid;place-items:center;font-weight:700}}.appeals-steps strong,.appeals-steps span{{display:block}}.appeals-steps span{{color:#64748b;font-size:14px;line-height:1.55;margin-top:5px}}.appeals-office p{{font-size:14px;line-height:1.55}}@media(max-width:800px){{.appeals-grid{{grid-template-columns:1fr}}.appeals-fields{{grid-template-columns:1fr}}.appeals-card{{padding:22px 18px}}}}
+      .appeals-page{{max-width:1120px;margin:0 auto;padding:16px 20px 54px;color:#172033}}.appeals-intro{{padding:0 0 28px;border-bottom:1px solid #dbe3ef;margin-bottom:32px}}.appeals-intro h1{{font-size:18px;margin:0 0 5px}}.appeals-intro p,.appeals-help,.appeals-card p,.appeals-card small{{color:#64748b}}.appeals-track-link{{display:inline-block;margin-top:6px;color:#2563eb;font-weight:700}}.appeals-grid{{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:30px;align-items:start}}.appeals-card{{background:#fff;border:1px solid #d9e1ec;border-radius:15px;padding:28px 32px;box-shadow:0 3px 12px rgba(15,23,42,.04);margin-bottom:20px}}.appeals-card h2{{font-size:23px;margin:0 0 8px}}.appeals-card h3{{font-size:18px;margin:0 0 18px;padding-bottom:13px;border-bottom:1px solid #e5eaf1}}.appeals-help{{font-size:14px;line-height:1.55;margin:0 0 25px}}#appeal-form>label,.appeals-fields label{{display:flex;flex-direction:column;gap:8px;font-weight:600;font-size:14px;margin-bottom:20px}}.appeals-fields{{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}}#appeal-form input,#appeal-form select,#appeal-form textarea{{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:13px 14px;font:inherit;background:#fff;color:#172033}}#appeal-form input:focus,#appeal-form select:focus,#appeal-form textarea:focus{{outline:2px solid #bfdbfe;border-color:#2563eb}}.appeals-consent{{flex-direction:row!important;align-items:flex-start;gap:11px!important;font-weight:500!important}}.appeals-consent input{{width:auto!important;margin-top:3px}}.appeals-honeypot{{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden}}.appeals-submit{{border:0;border-radius:10px;background:#1367d1;color:#fff;font-weight:700;padding:14px 22px;cursor:pointer}}.appeals-submit:disabled{{opacity:.6;cursor:wait}}.appeals-result{{display:none;border-radius:10px;padding:12px 14px;margin:0 0 16px;font-size:14px}}.appeals-result.ok{{display:block;background:#ecfdf5;color:#166534;border:1px solid #bbf7d0}}.appeals-result.error{{display:block;background:#fef2f2;color:#991b1b;border:1px solid #fecaca}}.appeals-result a{{display:inline-block;margin-top:8px;color:inherit;font-weight:700;text-decoration:underline}}.appeals-steps{{list-style:none;padding:0;margin:0;counter-reset:step}}.appeals-steps li{{counter-increment:step;position:relative;padding:0 0 24px 55px;min-height:35px}}.appeals-steps li:before{{content:counter(step);position:absolute;left:0;top:0;width:27px;height:27px;border-radius:50%;background:#eff6ff;color:#2563eb;display:grid;place-items:center;font-weight:700}}.appeals-steps strong,.appeals-steps span{{display:block}}.appeals-steps span{{color:#64748b;font-size:14px;line-height:1.55;margin-top:5px}}.appeals-office p{{font-size:14px;line-height:1.55}}@media(max-width:800px){{.appeals-grid{{grid-template-columns:1fr}}.appeals-fields{{grid-template-columns:1fr}}.appeals-card{{padding:22px 18px}}}}
     </style>
     <script>
     (() => {{
       const form=document.getElementById('appeal-form'),result=document.getElementById('appeal-result'),button=document.getElementById('appeal-submit');
       if(!form)return;
       form.addEventListener('submit',async(event)=>{{event.preventDefault();result.className='appeals-result';result.textContent='';if(!form.reportValidity())return;button.disabled=true;button.textContent='Отправляем…';
-        try{{const response=await fetch(form.action,{{method:'POST',headers:{{'Accept':'application/json'}},body:new URLSearchParams(new FormData(form))}});const data=await response.json();if(!response.ok)throw new Error(data.message||'Не удалось отправить обращение.');const emailNote=data.confirmation_sent?' Подтверждение отправлено на вашу почту.':'';result.textContent=`Обращение зарегистрировано. Ваш номер: ${{data.registration_number}}.${{emailNote}}`;result.className='appeals-result ok';form.reset();}}
+        try{{const response=await fetch(form.action,{{method:'POST',headers:{{'Accept':'application/json'}},body:new URLSearchParams(new FormData(form))}});const data=await response.json();if(!response.ok)throw new Error(data.message||'Не удалось отправить обращение.');const emailNote=data.confirmation_sent?' Копия данных отправлена на вашу почту.':'';result.textContent='';const message=document.createElement('div');message.textContent=`Обращение зарегистрировано. Номер: ${{data.registration_number}}. Код доступа: ${{data.access_code}}. Сохраните их — код показывается один раз.${{emailNote}}`;const link=document.createElement('a');link.href='/appeals/status';link.textContent='Проверить статус и ответ →';result.append(message,link);result.className='appeals-result ok';form.reset();}}
         catch(error){{result.textContent=error.message||'Произошла ошибка. Попробуйте ещё раз.';result.className='appeals-result error';}}
         finally{{button.disabled=false;button.textContent='Отправить обращение';}}
       }});
     }})();
     </script>'''
     return portal_layout(content=content, title='Подать обращение — ТОО «КРЭК»', active_nav='appeals', is_admin=is_admin, current_slug='appeals')
+
+
+def render_appeal_status_page(is_admin=False):
+    category_map = json.dumps(APPEAL_CATEGORIES, ensure_ascii=False)
+    status_map = json.dumps(APPEAL_STATUSES, ensure_ascii=False)
+    content = f'''
+    <section class="appeal-status-page">
+      <div class="appeal-status-card">
+        <a class="appeal-status-back" href="/appeals">← К форме обращения</a>
+        <h1>Проверить статус и ответ</h1>
+        <p class="appeal-status-help">Введите регистрационный номер и код доступа, выданные после отправки. Для старых обращений введите полный номер телефона.</p>
+        <form id="appeal-status-form" action="/api/appeals/status" method="post">
+          <label>Номер обращения<input name="registration_number" maxlength="40" autocomplete="off" required placeholder="ЭП-20260914-XXXXXX"></label>
+          <label>Код доступа<input name="credential" maxlength="64" autocomplete="off" required placeholder="XXXXX-XXXXX-XXXXX"></label>
+          <button id="appeal-status-submit" type="submit">Проверить</button>
+        </form>
+        <div id="appeal-status-error" class="appeal-status-error" role="alert"></div>
+        <div id="appeal-status-result" class="appeal-status-result" aria-live="polite"></div>
+      </div>
+    </section>
+    <style>
+      .appeal-status-page{{max-width:760px;margin:0 auto;padding:34px 20px 70px;color:#172033}}.appeal-status-card{{background:#fff;border:1px solid #d9e1ec;border-radius:16px;padding:32px;box-shadow:0 4px 18px rgba(15,23,42,.06)}}.appeal-status-back{{color:#2563eb;font-weight:600}}.appeal-status-card h1{{margin:24px 0 8px;font-size:28px}}.appeal-status-help{{color:#64748b;line-height:1.6}}#appeal-status-form{{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin-top:26px}}#appeal-status-form label{{font-size:14px;font-weight:650}}#appeal-status-form input{{display:block;width:100%;box-sizing:border-box;margin-top:7px;padding:12px;border:1px solid #cbd5e1;border-radius:9px;font:inherit;text-transform:uppercase}}#appeal-status-form button{{padding:13px 20px;border:0;border-radius:9px;background:#1367d1;color:#fff;font-weight:700;cursor:pointer}}#appeal-status-form button:disabled{{opacity:.6}}.appeal-status-error{{display:none;margin-top:18px;padding:12px;border-radius:9px;background:#fef2f2;color:#991b1b}}.appeal-status-result{{display:none;margin-top:22px;border-top:1px solid #e2e8f0;padding-top:22px}}.appeal-status-result.show{{display:block}}.appeal-status-summary{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}}.appeal-status-summary div,.appeal-public-answer{{background:#f8fafc;border-radius:10px;padding:15px}}.appeal-status-summary small{{display:block;color:#64748b;margin-bottom:5px}}.appeal-public-answer{{white-space:pre-wrap;line-height:1.65;border-left:4px solid #2563eb}}.appeal-awaiting{{padding:15px;background:#fffbeb;color:#854d0e;border-radius:10px}}@media(max-width:700px){{#appeal-status-form{{grid-template-columns:1fr}}.appeal-status-summary{{grid-template-columns:1fr}}.appeal-status-card{{padding:23px 18px}}}}
+    </style>
+    <script>
+    (() => {{
+      const form=document.getElementById('appeal-status-form'),button=document.getElementById('appeal-status-submit'),error=document.getElementById('appeal-status-error'),result=document.getElementById('appeal-status-result');
+      const categories={category_map},statuses={status_map};
+      const formatDate=(value)=>value?new Intl.DateTimeFormat(document.documentElement.lang==='kk'?'kk-KZ':'ru-RU',{{dateStyle:'medium',timeStyle:'short'}}).format(new Date(value*1000)):'—';
+      form.addEventListener('submit',async(event)=>{{event.preventDefault();error.style.display='none';result.className='appeal-status-result';result.textContent='';button.disabled=true;
+        try{{const response=await fetch(form.action,{{method:'POST',headers:{{'Accept':'application/json'}},body:new URLSearchParams(new FormData(form))}});const data=await response.json();if(!response.ok)throw new Error(data.message||'Не удалось проверить обращение.');
+          const summary=document.createElement('div');summary.className='appeal-status-summary';
+          [['Номер',data.registration_number],['Статус',statuses[data.status]||data.status],['Категория',categories[data.category]||data.category],['Подано',formatDate(data.submitted_at)]].forEach(([label,value])=>{{const box=document.createElement('div'),small=document.createElement('small'),strong=document.createElement('strong');small.textContent=label;strong.textContent=value;box.append(small,strong);summary.append(box);}});result.append(summary);
+          const answer=document.createElement('div');if(data.response_text){{const title=document.createElement('h2');title.textContent='Ответ на ваше обращение';answer.className='appeal-public-answer';answer.textContent=data.response_text;result.append(title,answer);}}else{{answer.className='appeal-awaiting';answer.textContent='Ответ ещё не подготовлен. Зайдите позже.';result.append(answer);}}result.className='appeal-status-result show';
+        }}catch(exc){{error.textContent=exc.message||'Произошла ошибка.';error.style.display='block';}}finally{{button.disabled=false;}}
+      }});
+    }})();
+    </script>'''
+    return portal_layout(content=content, title='Статус обращения — ТОО «КРЭК»', active_nav='appeals', is_admin=is_admin, current_slug='appeals')
 
 
 def _format_datetime(timestamp):
@@ -127,4 +166,21 @@ def render_admin_appeal_detail(appeal, csrf_token, message=None, error=None, use
     status_options = ''.join(f'<option value="{key}"{" selected" if appeal["status"] == key else ""}>{html.escape(label)}</option>' for key, label in APPEAL_STATUSES.items())
     fields = [('Заявитель', appeal['applicant_name']), ('Телефон', appeal['phone']), ('Email', appeal['email']), ('Лицевой счёт', appeal['account_number'] or '—'), ('Адрес объекта', appeal['service_address']), ('Категория', APPEAL_CATEGORIES.get(appeal['category'], appeal['category'])), ('Поступило', _format_datetime(appeal['submitted_at']))]
     details = ''.join(f'<div><small>{label}</small><strong>{html.escape(str(value))}</strong></div>' for label, value in fields)
-    return f'''{_admin_nav_bar('appeals', role, username)}<div class="appeal-detail">{alerts}<a href="/admin/appeals">← Все обращения</a><h1>{html.escape(appeal['registration_number'])}</h1><div class="appeal-detail-grid"><section><div class="appeal-meta">{details}</div><h3>Суть обращения</h3><div class="appeal-message">{html.escape(appeal['message'])}</div></section><aside><h3>Обработка</h3><form method="post" action="/admin/appeals/update"><input type="hidden" name="csrf_token" value="{html.escape(csrf_token)}"><input type="hidden" name="id" value="{appeal['id']}"><label>Статус<select class="input" name="status">{status_options}</select></label><label>Комментарий<textarea class="input" name="admin_comment" maxlength="5000" rows="7">{html.escape(appeal['admin_comment'] or '')}</textarea></label><button class="btn btn-primary" type="submit">Сохранить</button></form></aside></div></div><style>.appeal-detail{{max-width:1000px;margin:26px auto;padding:0 18px}}.appeal-detail>a{{color:#2563eb}}.appeal-detail-grid{{display:grid;grid-template-columns:1.3fr .7fr;gap:18px}}.appeal-detail section,.appeal-detail aside{{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;align-self:start}}.appeal-meta{{display:grid;grid-template-columns:1fr 1fr;gap:20px}}.appeal-meta small,.appeal-meta strong{{display:block}}.appeal-meta small{{color:#64748b;margin-bottom:4px}}.appeal-message{{white-space:pre-wrap;line-height:1.6;background:#f8fafc;padding:16px;border-radius:10px}}.appeal-detail label{{display:block;margin-bottom:14px}}.appeal-detail select,.appeal-detail textarea{{display:block;width:100%;box-sizing:border-box;margin-top:6px}}@media(max-width:750px){{.appeal-detail-grid{{grid-template-columns:1fr}}.appeal-meta{{grid-template-columns:1fr}}}}</style>'''
+    email_state = 'Отправлен на email' if appeal.get('response_sent') else 'На email не отправлен'
+    return f'''{_admin_nav_bar('appeals', role, username)}
+    <div class="appeal-detail">{alerts}<a href="/admin/appeals">← Все обращения</a><h1>{html.escape(appeal['registration_number'])}</h1>
+      <div class="appeal-detail-grid">
+        <section><div class="appeal-meta">{details}</div><h3>Суть обращения</h3><div class="appeal-message">{html.escape(appeal['message'])}</div></section>
+        <aside><h3>Обработка</h3>
+          <form method="post" action="/admin/appeals/update">
+            <input type="hidden" name="csrf_token" value="{html.escape(csrf_token)}"><input type="hidden" name="id" value="{appeal['id']}">
+            <label>Статус<select class="input" name="status">{status_options}</select></label>
+            <label>Внутренний комментарий <small>Виден только сотрудникам</small><textarea class="input" name="admin_comment" maxlength="5000" rows="5">{html.escape(appeal['admin_comment'] or '')}</textarea></label>
+            <button class="btn" name="action" value="save" type="submit">Сохранить изменения</button>
+            <hr><label>Ответ заявителю <small>Будет виден заявителю по его коду доступа</small><textarea class="input" name="response_text" maxlength="10000" rows="8">{html.escape(appeal.get('response_text') or '')}</textarea></label>
+            <p class="response-state">{email_state}</p><button class="btn btn-primary" name="action" value="respond" type="submit">Отправить ответ заявителю</button>
+          </form>
+        </aside>
+      </div>
+    </div>
+    <style>.appeal-detail{{max-width:1100px;margin:26px auto;padding:0 18px}}.appeal-detail>a{{color:#2563eb}}.appeal-detail-grid{{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}}.appeal-detail section,.appeal-detail aside{{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;align-self:start}}.appeal-meta{{display:grid;grid-template-columns:1fr 1fr;gap:20px}}.appeal-meta small,.appeal-meta strong{{display:block}}.appeal-meta small,.appeal-detail label small{{color:#64748b;margin-bottom:4px}}.appeal-message{{white-space:pre-wrap;line-height:1.6;background:#f8fafc;padding:16px;border-radius:10px}}.appeal-detail label{{display:block;margin-bottom:14px}}.appeal-detail label small{{display:block;font-weight:400;margin-top:3px}}.appeal-detail select,.appeal-detail textarea{{display:block;width:100%;box-sizing:border-box;margin-top:6px}}.appeal-detail hr{{border:0;border-top:1px solid #e2e8f0;margin:22px 0}}.response-state{{font-size:13px;color:#64748b}}@media(max-width:750px){{.appeal-detail-grid{{grid-template-columns:1fr}}.appeal-meta{{grid-template-columns:1fr}}}}</style>'''
