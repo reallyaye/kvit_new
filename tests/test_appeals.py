@@ -229,6 +229,9 @@ def test_public_and_admin_templates_escape_content():
     assert 'form.requestSubmit()' in status_html
     assert 'id="saved-appeals-list"' in status_html
     assert 'localStorage.removeItem(storageKey)' in status_html
+    assert "link.addEventListener('click'" in status_html
+    assert 'loadAppeal(item.number,item.code)' in status_html
+    assert "result.scrollIntoView({block:'nearest'})" in status_html
 
     appeal = appeal_service.create({**VALID_APPEAL, 'applicant_name': '<script>alert(1)</script>'})
     listing = appeal_service.list()
