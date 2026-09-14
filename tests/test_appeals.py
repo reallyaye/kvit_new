@@ -221,7 +221,8 @@ def test_public_and_admin_templates_escape_content():
     assert "link.href=`/appeals/status#${access.toString()}`" in public_html
     assert 'Открыть моё обращение' in public_html
     assert "localStorage.setItem('krec_my_appeals_v1'" in public_html
-    assert 'class="krec-btn-cabinet"' in public_html
+    assert 'class="krec-btn-cabinet"' not in public_html
+    assert '<a href="/appeals/status" class="krec-dropdown-item">' in public_html
     status_html = render_appeal_status_page()
     assert 'action="/api/appeals/status"' in status_html
     assert 'name="credential"' in status_html

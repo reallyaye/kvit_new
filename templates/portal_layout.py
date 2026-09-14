@@ -374,9 +374,6 @@ if ('serviceWorker' in navigator) {{
 
         <!-- Правый блок: Бургер-меню -->
         <div class="krec-header-actions">
-            <a href="/appeals/status" class="krec-btn-cabinet" aria-label="Мои обращения">
-                {icon('file_text', 16, '#ffffff')} <span>Мои обращения</span>
-            </a>
             <div class="krec-lang-switch" aria-label="Язык страницы">
                 <a href="{ru_path}" class="krec-lang-btn {'active' if locale == 'ru' else ''}" lang="ru">Рус</a>
                 <span class="krec-lang-sep">/</span>

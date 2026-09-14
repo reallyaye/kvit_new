@@ -4670,31 +4670,6 @@ html, body {
     font-size: 11px;
 }
 
-/* Кнопка Личный кабинет / Квитанции */
-.krec-btn-cabinet {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(135deg, #2563eb, #1d4ed8);
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 8px 16px;
-    border-radius: 9999px;
-    text-decoration: none;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
-    transition: all 0.2s ease;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    white-space: nowrap;
-}
-
-.krec-btn-cabinet:hover {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5);
-    transform: translateY(-1px);
-    color: #ffffff;
-}
-
 /* --- БОЛЬШОЙ КОРПОРАТИВНЫЙ FOOTER (4 КОЛОНКИ) --- */
 .krec-footer {
     background: #090e17;
@@ -4911,15 +4886,6 @@ html, body {
 
     .krec-logo-img {
         height: 36px;
-    }
-
-    .krec-btn-cabinet {
-        padding: 6px 12px;
-        font-size: 12px;
-    }
-
-    .krec-btn-cabinet span {
-        display: none;
     }
 
     .krec-footer-container {
