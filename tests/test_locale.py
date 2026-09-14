@@ -23,6 +23,8 @@ def test_localized_path_and_locale_layout():
     assert '<html lang="kk">' in rendered
     assert 'hreflang="ru"' in rendered
     assert 'https://krec.kz/kk/consumers' in rendered
+    assert 'class="krec-lang-btn active" lang="kk" aria-current="page"' in rendered
+    assert 'krec-lang-sep' not in rendered
 
 
 def test_unknown_locale_falls_back_to_russian():
@@ -33,6 +35,7 @@ def test_unknown_locale_falls_back_to_russian():
 def test_kazakh_translation_is_applied_to_receipt_ui():
     set_locale('kk')
     rendered = layout(render_search_form([]))
+    assert 'class="receipt-lang-btn active" lang="kk" aria-current="page"' in rendered
     assert 'Квитанция алу' in rendered
     assert 'Жиі қойылатын сұрақтар' in rendered
     assert 'Жеке шот' in rendered

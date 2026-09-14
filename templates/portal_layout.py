@@ -377,10 +377,9 @@ if ('serviceWorker' in navigator) {{
             <a href="/appeals/status" class="krec-btn-cabinet" aria-label="Мои обращения">
                 {icon('file_text', 16, '#ffffff')} <span>Мои обращения</span>
             </a>
-            <div class="krec-lang-switch" aria-label="Язык страницы">
-                <a href="{ru_path}" class="krec-lang-btn {'active' if locale == 'ru' else ''}" lang="ru">Рус</a>
-                <span class="krec-lang-sep">/</span>
-                <a href="{kk_path}" class="krec-lang-btn {'active' if locale == 'kk' else ''}" lang="kk">Қаз</a>
+            <div class="krec-lang-switch" role="group" aria-label="Язык страницы">
+                <a href="{ru_path}" class="krec-lang-btn {'active' if locale == 'ru' else ''}" lang="ru" {'aria-current="page"' if locale == 'ru' else ''}>Рус</a>
+                <a href="{kk_path}" class="krec-lang-btn {'active' if locale == 'kk' else ''}" lang="kk" {'aria-current="page"' if locale == 'kk' else ''}>Қаз</a>
             </div>
             <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Открыть навигационное меню" aria-expanded="false" onclick="toggleMobileNav(event)">
                 <span class="burger-icon-bars">
