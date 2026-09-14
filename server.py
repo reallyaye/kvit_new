@@ -1054,6 +1054,15 @@ class AppRequestHandler(BaseHTTPRequestHandler):
                     'appeals': 'appeals',
                     'obrascheniya': 'appeals',
                     'safety': 'tbquest',
+                    'dogovor': 'pd_byt_potr',
+                    'dogovory': 'pd_byt_potr',
+                    'dogovor-fiz': 'pd_byt_potr',
+                    'dogovor-fiz-lic': 'pd_byt_potr',
+                    'publichnyj-dogovor': 'pd_byt_potr',
+                    'public-contract': 'pd_byt_potr',
+                    'tipovoj-dogovor': 'pd_byt_potr',
+                    'pd-byt-potr': 'pd_byt_potr',
+                    'pd_byt': 'pd_byt_potr',
                 }
                 clean_name = path.strip('/').removesuffix('.php').strip('/')
                 clean_name = PAGE_ALIASES.get(clean_name, clean_name)
