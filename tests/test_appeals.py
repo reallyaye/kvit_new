@@ -220,11 +220,15 @@ def test_public_and_admin_templates_escape_content():
     assert 'setTimeout' not in public_html
     assert "link.href=`/appeals/status#${access.toString()}`" in public_html
     assert 'Открыть моё обращение' in public_html
+    assert "localStorage.setItem('krec_my_appeals_v1'" in public_html
+    assert 'class="krec-btn-cabinet"' in public_html
     status_html = render_appeal_status_page()
     assert 'action="/api/appeals/status"' in status_html
     assert 'name="credential"' in status_html
     assert 'window.location.hash.slice(1)' in status_html
     assert 'form.requestSubmit()' in status_html
+    assert 'id="saved-appeals-list"' in status_html
+    assert 'localStorage.removeItem(storageKey)' in status_html
 
     appeal = appeal_service.create({**VALID_APPEAL, 'applicant_name': '<script>alert(1)</script>'})
     listing = appeal_service.list()
