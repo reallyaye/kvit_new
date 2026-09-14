@@ -43,6 +43,7 @@ ENV/
 /data/processing/
 /data/failed/
 /data/certbot/
+/data/archives/
 /data/uploads/*
 !/data/uploads/.gitkeep
 /logs/
