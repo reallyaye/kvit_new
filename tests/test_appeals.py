@@ -225,6 +225,9 @@ def test_public_and_admin_templates_escape_content():
     status_html = render_appeal_status_page()
     assert 'action="/api/appeals/status"' in status_html
     assert 'name="credential"' in status_html
+    assert 'method="post" hidden aria-hidden="true"' in status_html
+    assert 'Найти обращение вручную' not in status_html
+    assert 'id="saved-appeals-empty"' in status_html
     assert 'window.location.hash.slice(1)' in status_html
     assert 'form.requestSubmit()' in status_html
     assert 'id="saved-appeals-list"' in status_html
