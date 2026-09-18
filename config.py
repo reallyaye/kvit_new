@@ -294,6 +294,8 @@ APPEALS_EMAIL_ENABLED = os.environ.get(
     'APPEALS_EMAIL_ENABLED',
     'true' if SMTP_HOST and SMTP_FROM_EMAIL else 'false'
 ).lower() in ('true', '1', 'yes')
+APPEALS_MAX_ATTEMPTS = int(os.environ.get('APPEALS_MAX_ATTEMPTS', '5'))
+APPEALS_RETRY_BACKOFF_BASE = float(os.environ.get('APPEALS_RETRY_BACKOFF_BASE', '30.0'))
 
 
 

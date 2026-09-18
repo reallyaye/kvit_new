@@ -1,13 +1,15 @@
 import importlib
 import io
 import re
+import smtplib
+import time
 from types import MethodType
 from urllib.parse import urlencode
 
 import pytest
 
 import config
-from database import get_db
+from database import get_db, write_transaction
 from server import AppRequestHandler
 from services.appeals import AppealValidationError, appeal_service
 from templates.appeals_views import (
@@ -18,14 +20,9 @@ from templates.appeals_views import (
 )
 
 VALID_APPEAL = {
-    'category': 'billing',
-    'applicant_name': 'Иванов Иван Иванович',
-    'phone': '+7 (700) 123-45-67',
-    'email': 'person@example.kz',
-    'account_number': '12345678',
-    'service_address': 'г. Караганда, ул. Тестовая, 10',
-    'message': 'Прошу проверить корректность начисления за август.',
-    'consent': '1',
+    'category': 'billing', 'applicant_name': 'Иванов Иван Иванович', 'phone': '+7 (700) 123-45-67',
+    'email': 'person@example.kz', 'account_number': '12345678', 'service_address': 'г. Караганда, ул. Тестовая, 10',
+    'message': 'Прошу проверить корректность начисления за август.', 'consent': '1',
 }
 
 
@@ -44,13 +41,8 @@ def test_migration_creates_appeals_table():
 @pytest.mark.parametrize(
     ('field', 'value'),
     [
-        ('category', 'unknown'),
-        ('applicant_name', ''),
-        ('phone', '123'),
-        ('email', 'wrong-address'),
-        ('service_address', 'x'),
-        ('message', 'коротко'),
-        ('consent', ''),
+        ('category', 'unknown'), ('applicant_name', ''), ('phone', '123'),
+        ('email', 'wrong-address'), ('service_address', 'x'), ('message', 'коротко'), ('consent', ''),
     ],
 )
 def test_validation_rejects_invalid_payload(field, value):
@@ -127,15 +119,12 @@ def test_notify_sends_office_and_confirmation(monkeypatch):
         def send_message(self, message):
             sent.append(message)
 
-    monkeypatch.setattr(config, 'APPEALS_EMAIL_ENABLED', True)
-    monkeypatch.setattr(config, 'SMTP_HOST', 'smtp.example.kz')
-    monkeypatch.setattr(config, 'SMTP_PORT', 587)
-    monkeypatch.setattr(config, 'SMTP_USERNAME', 'mailer')
-    monkeypatch.setattr(config, 'SMTP_PASSWORD', 'secret')
-    monkeypatch.setattr(config, 'SMTP_FROM_EMAIL', 'no-reply@example.kz')
-    monkeypatch.setattr(config, 'APPEALS_NOTIFY_EMAIL', 'office@example.kz')
-    monkeypatch.setattr(config, 'SMTP_USE_TLS', True)
-    monkeypatch.setattr(config, 'SMTP_USE_SSL', False)
+    for k, v in [
+        ('APPEALS_EMAIL_ENABLED', True), ('SMTP_HOST', 'smtp.example.kz'), ('SMTP_PORT', 587),
+        ('SMTP_USERNAME', 'mailer'), ('SMTP_PASSWORD', 'secret'), ('SMTP_FROM_EMAIL', 'no-reply@example.kz'),
+        ('APPEALS_NOTIFY_EMAIL', 'office@example.kz'), ('SMTP_USE_TLS', True), ('SMTP_USE_SSL', False),
+    ]:
+        monkeypatch.setattr(config, k, v)
     service_module = importlib.import_module('services.appeals.appeal_service')
     monkeypatch.setattr(service_module.smtplib, 'SMTP', FakeSMTP)
 
@@ -152,6 +141,28 @@ def test_notify_sends_office_and_confirmation(monkeypatch):
     assert appeal_service.notify_response(answered) is True
     assert len(sent) == 3
     assert appeal_service.get_by_id(appeal['id'])['response_sent'] == 1
+    assert 'обработано' in sent[2].get_content().lower()
+    assert 'Тестовый ответ заявителю.' in sent[2].get_content()
+    assert 'https://krec.kz/appeals/status#number=' in sent[2].get_content()
+    assert '&code=' in sent[2].get_content()
+    code_match = re.search(r'&code=([A-Z0-9-]+)', sent[2].get_content())
+    assert code_match is not None
+    public_res = appeal_service.get_public(answered['registration_number'], code_match.group(1))
+    assert public_res['response_text'] == 'Тестовый ответ заявителю.'
+
+    closed = appeal_service.update(
+        appeal['id'], 'CLOSED', admin_comment='Вопрос решен', response_text='Заявка выполнена в полном объеме'
+    )
+    assert appeal_service.notify_response(closed) is True
+    assert len(sent) == 4
+    assert 'закрыто' in sent[3].get_content().lower()
+    assert 'Заявка выполнена в полном объеме' in sent[3].get_content()
+
+    rejected = appeal_service.update(
+        appeal['id'], 'REJECTED', response_text='Отклонено: не в зоне обслуживания'
+    )
+    public_view = appeal_service.get_public(rejected['registration_number'], appeal['access_code'])
+    assert public_view['response_text'] == 'Отклонено: не в зоне обслуживания'
 
 
 def _make_handler(payload, origin='https://krec.kz'):
@@ -244,3 +255,240 @@ def test_public_and_admin_templates_escape_content():
     assert '<script>alert(1)</script>' not in list_html
     assert '&lt;script&gt;alert(1)&lt;/script&gt;' in list_html
     assert '<script>alert(1)</script>' not in detail_html
+
+
+def test_purge_expired_appeals_clears_response_text_and_token_hash():
+    appeal = appeal_service.create(VALID_APPEAL)
+    answered = appeal_service.respond(appeal['id'], 'Конфиденциальный ответ заявителю.')
+    assert answered['response_text'] == 'Конфиденциальный ответ заявителю.'
+    token = appeal_service._make_access_token(answered)
+    assert appeal_service.get_public(answered['registration_number'], token)['response_text'] == 'Конфиденциальный ответ заявителю.'
+
+    con = get_db()
+    try:
+        con.execute('UPDATE appeals SET submitted_at = ? WHERE id = ?', (time.time() - (365 * 4 * 86400), appeal['id']))
+        con.commit()
+    finally:
+        con.close()
+
+    affected = appeal_service.purge_expired_appeals(retention_days=1095)
+    assert affected >= 1
+
+    stored = appeal_service.get_by_id(appeal['id'])
+    assert stored['response_text'] == ''
+    assert stored['public_token_hash'] is None
+    assert stored['applicant_name'] == 'Обезличено (истёк срок хранения)'
+
+    with pytest.raises(AppealValidationError):
+        appeal_service.get_public(appeal['registration_number'], token)
+    with pytest.raises(AppealValidationError):
+        appeal_service.get_public(appeal['registration_number'], appeal['access_code'])
+
+
+def test_admin_appeal_update_duplicate_and_versioning(monkeypatch):
+    sent = []
+
+    class MockSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def login(self, u, p):
+            pass
+        def starttls(self, context=None):
+            pass
+        def send_message(self, msg):
+            sent.append(msg)
+
+    for k, v in [
+        ('APPEALS_EMAIL_ENABLED', True), ('SMTP_HOST', 'smtp.example.kz'), ('SMTP_USE_TLS', False),
+        ('SMTP_USE_SSL', False), ('SMTP_FROM_EMAIL', 'no-reply@example.kz'), ('APPEALS_NOTIFY_EMAIL', 'office@example.kz'),
+    ]:
+        monkeypatch.setattr(config, k, v)
+    service_module = importlib.import_module('services.appeals.appeal_service')
+    monkeypatch.setattr(service_module.smtplib, 'SMTP', MockSMTP)
+
+    appeal = appeal_service.create(VALID_APPEAL)
+
+    handler = object.__new__(AppRequestHandler)
+    handler.responses = []
+    handler.redirects = []
+    handler._get_current_user = lambda: {'username': 'admin', 'role': 'admin'}
+    handler._is_assistant_or_admin = lambda: True
+    handler._get_client_ip = lambda: '127.0.0.1'
+    handler._verify_csrf = lambda **kw: True
+    handler._redirect = lambda url: handler.redirects.append(url)
+
+    # 1. Первый вызов respond -> письмо уходит
+    handler._read_form_params = lambda max_bytes=None: {
+        'id': [str(appeal['id'])], 'action': ['respond'],
+        'response_text': ['Первый ответ'], 'admin_comment': ['Комментарий 1'],
+        'csrf_token': ['valid'],
+    }
+    handler._handle_admin_appeal_update()
+    assert len(sent) == 1
+    assert 'Первый ответ' in sent[0].get_content()
+    assert appeal_service.get_by_id(appeal['id'])['response_sent'] == 1
+
+    # 2. Двойное нажатие (тот же текст и статус, уже отправлено) -> комментарий сохраняется, письмо НЕ дублируется
+    handler._read_form_params = lambda max_bytes=None: {
+        'id': [str(appeal['id'])], 'action': ['respond'],
+        'response_text': ['Первый ответ'], 'admin_comment': ['Обновленный комментарий'],
+        'csrf_token': ['valid'],
+    }
+    handler._handle_admin_appeal_update()
+    assert len(sent) == 1
+    assert appeal_service.get_by_id(appeal['id'])['admin_comment'] == 'Обновленный комментарий'
+
+    # 3. Обновление текста при прежнем статусе через 'save' -> сбрасывает флаг и отправляет новое письмо
+    handler._read_form_params = lambda max_bytes=None: {
+        'id': [str(appeal['id'])], 'action': ['save'], 'status': ['ANSWERED'],
+        'response_text': ['Обновленный текст ответа'], 'admin_comment': ['Дополнено'],
+        'csrf_token': ['valid'],
+    }
+    handler._handle_admin_appeal_update()
+    assert len(sent) == 2
+    assert 'Обновленный текст ответа' in sent[1].get_content()
+    assert appeal_service.get_by_id(appeal['id'])['response_sent'] == 1
+
+
+def test_make_access_token_requires_secret_key(monkeypatch):
+    appeal = appeal_service.create(VALID_APPEAL)
+    monkeypatch.setattr(config, 'SECRET_KEY', '')
+    assert appeal_service._make_access_token(appeal) == ''
+
+
+def test_admin_appeal_update_parallel_requests_no_duplicate_emails(monkeypatch):
+    import threading
+
+    sent = []
+
+    class MockSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def login(self, u, p):
+            pass
+        def starttls(self, context=None):
+            pass
+        def send_message(self, msg):
+            sent.append(msg)
+
+    for k, v in [
+        ('APPEALS_EMAIL_ENABLED', True), ('SMTP_HOST', 'smtp.example.kz'), ('SMTP_USE_TLS', False),
+        ('SMTP_USE_SSL', False), ('SMTP_FROM_EMAIL', 'no-reply@example.kz'), ('APPEALS_NOTIFY_EMAIL', 'office@example.kz'),
+    ]:
+        monkeypatch.setattr(config, k, v)
+    service_module = importlib.import_module('services.appeals.appeal_service')
+    monkeypatch.setattr(service_module.smtplib, 'SMTP', MockSMTP)
+
+    appeal = appeal_service.create(VALID_APPEAL)
+
+    def run_update(idx):
+        handler = object.__new__(AppRequestHandler)
+        handler.responses = []
+        handler.redirects = []
+        handler._get_current_user = lambda: {'username': f'admin_{idx}', 'role': 'admin'}
+        handler._is_assistant_or_admin = lambda: True
+        handler._get_client_ip = lambda: '127.0.0.1'
+        handler._verify_csrf = lambda **kw: True
+        handler._redirect = lambda url: handler.redirects.append(url)
+        handler._read_form_params = lambda max_bytes=None: {
+            'id': [str(appeal['id'])], 'action': ['respond'],
+            'response_text': ['Параллельный ответ заявителю'],
+            'admin_comment': [f'Комментарий от потока {idx}'],
+            'csrf_token': ['valid'],
+        }
+        handler._handle_admin_appeal_update()
+
+    threads = [threading.Thread(target=run_update, args=(i,)) for i in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Из 5 параллельных запросов ровно 1 должен отправить email
+    assert len(sent) == 1
+    assert appeal_service.get_by_id(appeal['id'])['response_sent'] == 1
+
+
+def test_outbox_lease_retry_and_crash_recovery(monkeypatch):
+    sent = []
+
+    class FailingSMTP:
+        def __init__(self, *a, **kw): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def send_message(self, msg): raise smtplib.SMTPException('Connection refused')
+
+    class SuccessSMTP:
+        def __init__(self, *a, **kw): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def send_message(self, msg): sent.append(msg)
+
+    for k, v in [
+        ('APPEALS_EMAIL_ENABLED', True), ('SMTP_HOST', 'smtp.example.kz'),
+        ('SMTP_USE_TLS', False), ('SMTP_USE_SSL', False), ('SMTP_FROM_EMAIL', 'no-reply@example.kz'),
+    ]:
+        monkeypatch.setattr(config, k, v)
+
+    service_module = importlib.import_module('services.appeals.appeal_service')
+    monkeypatch.setattr(service_module.smtplib, 'SMTP', FailingSMTP)
+
+    appeal = appeal_service.create(VALID_APPEAL)
+    answered = appeal_service.respond(appeal['id'], 'Ответ с имитацией сбоя сети')
+
+    now = time.time()
+    assert appeal_service.notify_response(answered) is False
+    rec = appeal_service.get_by_id(appeal['id'])
+    assert rec['response_sent'] == 0 and rec['response_attempts'] == 1 and rec['response_lease'] >= now + 25.0
+    assert appeal_service.retry_pending_responses() == 0  # задержка backoff активна
+
+    # Истечение аренды -> успешная доставка и сброс счетчика попыток
+    with write_transaction() as con:
+        con.execute('UPDATE appeals SET response_lease = 0.0 WHERE id = ?', (appeal['id'],))
+    monkeypatch.setattr(service_module.smtplib, 'SMTP', SuccessSMTP)
+    assert appeal_service.retry_pending_responses() == 1
+    assert len(sent) == 1 and 'Ответ с имитацией сбоя сети' in sent[0].get_content()
+    rec_ok = appeal_service.get_by_id(appeal['id'])
+    assert rec_ok['response_sent'] == 1 and rec_ok['response_attempts'] == 0
+
+    # Предел попыток: при превышении limit автоповтор прекращается
+    monkeypatch.setattr(service_module.smtplib, 'SMTP', FailingSMTP)
+    monkeypatch.setattr(config, 'APPEALS_MAX_ATTEMPTS', 2)
+    app2 = appeal_service.create({**VALID_APPEAL, 'registration_number': f'EP-MAX-{int(now)}'})
+    ans2 = appeal_service.respond(app2['id'], 'Попытка 1')
+    appeal_service.notify_response(ans2)
+    with write_transaction() as con:
+        con.execute('UPDATE appeals SET response_lease = 0.0 WHERE id = ?', (app2['id'],))
+    appeal_service.retry_pending_responses()  # attempt 2 -> исчерпан лимит
+    assert appeal_service.get_by_id(app2['id'])['response_attempts'] == 2
+    with write_transaction() as con:
+        con.execute('UPDATE appeals SET response_lease = 0.0 WHERE id = ?', (app2['id'],))
+    monkeypatch.setattr(service_module.smtplib, 'SMTP', SuccessSMTP)
+    assert appeal_service.retry_pending_responses() == 0  # не выбирается, так как >= max_attempts
+
+    # Лимит в атомарном claim: отклоняет notify_response без обращения к SMTP
+    with write_transaction() as con:
+        con.execute('UPDATE appeals SET response_attempts = 5, response_lease = 0.0 WHERE id = ?', (app2['id'],))
+    assert appeal_service.notify_response(app2['id']) is False
+
+    # Подтверждение версии и привязка аренды к отправителю
+    class StealLeaseSMTP:
+        def __init__(self, *a, **kw): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def send_message(self, msg):
+            with write_transaction() as con:
+                con.execute('UPDATE appeals SET response_lease = ? WHERE id = ?', (time.time() + 999.0, app2['id']))
+    monkeypatch.setattr(service_module.smtplib, 'SMTP', StealLeaseSMTP)
+    with write_transaction() as con:
+        con.execute('UPDATE appeals SET response_lease = 0.0, response_attempts = 0 WHERE id = ?', (app2['id'],))
+    assert appeal_service.notify_response(app2['id']) is False
+    assert appeal_service.get_by_id(app2['id'])['response_sent'] == 0

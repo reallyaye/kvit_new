@@ -15,6 +15,8 @@ from services.receipts import receipt_service
 
 _scheduler_started = False
 _scheduler_lock = threading.Lock()
+_stop_event = threading.Event()
+_scheduler_thread: threading.Thread | None = None
 
 
 ADVISORY_LOCK_ID = 949494
@@ -88,6 +90,11 @@ def run_retention_cycle(
         except Exception as exc:
             logger.debug("[Retention] Очистка файлов логов завершилась: %s", exc)
 
+        try:
+            results['retried_appeals'] = appeal_service.retry_pending_responses()
+        except Exception as exc:
+            logger.warning("[Retention] Сбой повторной отправки ответов: %s", exc)
+
         logger.info(
             "[Retention] Плановый цикл завершен: удалено %d сетевых визитов (>%d дн.), обезличено %d архивных обращений (>%d дн.), очищено %d PDF из карантина",
             results['purged_visits'],
@@ -111,29 +118,59 @@ def run_retention_cycle(
 
 def _retention_worker_loop(interval_seconds: int = 86400, initial_delay: int = 60):
     if initial_delay > 0:
-        time.sleep(initial_delay)
-    while True:
+        if _stop_event.wait(timeout=initial_delay):
+            return
+    last_retention = 0.0
+    while not _stop_event.is_set():
+        now = time.time()
+        if now - last_retention >= interval_seconds:
+            try:
+                run_retention_cycle()
+                last_retention = now
+            except Exception as exc:
+                logger.error("[Retention] Непредвиденная ошибка в цикле очистки: %s", exc)
         try:
-            run_retention_cycle()
+            appeal_service.retry_pending_responses()
         except Exception as exc:
-            logger.error("[Retention] Непредвиденная ошибка в цикле очистки: %s", exc)
-        time.sleep(interval_seconds)
+            logger.debug("[Retention] Ошибка повтора email обращений: %s", exc)
+        if _stop_event.wait(timeout=30.0):
+            break
 
 
 def start_retention_scheduler(interval_seconds: int = 86400, initial_delay: int = 60) -> bool:
     """Запускает фоновый поток-демон для ежедневной очистки данных."""
-    global _scheduler_started
+    global _scheduler_started, _scheduler_thread
     with _scheduler_lock:
-        if _scheduler_started:
+        if _scheduler_started and _scheduler_thread and _scheduler_thread.is_alive():
             return False
+        _stop_event.clear()
         _scheduler_started = True
-
-    thread = threading.Thread(
-        target=_retention_worker_loop,
-        args=(interval_seconds, initial_delay),
-        name="RetentionCleanerThread",
-        daemon=True,
-    )
-    thread.start()
+        _scheduler_thread = threading.Thread(
+            target=_retention_worker_loop,
+            args=(interval_seconds, initial_delay),
+            name="RetentionCleanerThread",
+            daemon=True,
+        )
+        _scheduler_thread.start()
     logger.info("[Retention] Фоновый планировщик очистки запущен (интервал: %d сек.)", interval_seconds)
+    return True
+
+
+def stop_retention_scheduler(timeout: float = 5.0) -> bool:
+    """Штатно останавливает фоновый поток очистки данных."""
+    global _scheduler_started, _scheduler_thread
+    with _scheduler_lock:
+        if not _scheduler_started:
+            return True
+        _stop_event.set()
+        thread = _scheduler_thread
+        _scheduler_started = False
+        _scheduler_thread = None
+
+    if thread and thread.is_alive():
+        thread.join(timeout=timeout)
+        if thread.is_alive():
+            logger.warning("[Retention] Поток RetentionCleanerThread не завершился за %.1f сек.", timeout)
+            return False
+    logger.info("[Retention] Фоновый планировщик очистки успешно остановлен")
     return True

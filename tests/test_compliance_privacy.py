@@ -6,7 +6,7 @@
 
 import time
 
-from database.connection import get_db
+from database.connection import get_db, write_transaction
 from services.analytics.stats_service import stats_service
 from services.appeals.appeal_service import appeal_service
 from templates.appeals_views import render_appeals_page
@@ -148,7 +148,6 @@ def test_kvit_layout_unification():
 
 
 def test_deep_anonymization_appeals():
-    from database import get_db
     from services.appeals import appeal_service
     payload = {
         'category': 'meter',
@@ -165,12 +164,11 @@ def test_deep_anonymization_appeals():
 
     # Имитируем возраст обращения более 3 лет (например, 1150 дней назад)
     old_timestamp = time.time() - (1150 * 86400)
-    with get_db() as db:
+    with write_transaction() as db:
         db.execute(
             "UPDATE appeals SET submitted_at = ?, admin_comment = ?, assigned_to = ? WHERE id = ?",
             (old_timestamp, "Служебный комментарий инженера", "engineer_ivanov", appeal_id)
         )
-        db.commit()
 
     # Запуск очистки
     purged_count = appeal_service.purge_expired_appeals(retention_days=1095)

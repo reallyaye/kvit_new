@@ -1,7 +1,7 @@
 import pytest
 
-from templates.layout import layout
 from templates.i18n import KK_TRANSLATIONS, translate_html
+from templates.layout import layout
 from templates.locale import localized_path, set_locale
 from templates.portal_layout import portal_layout
 from templates.portal_views import render_page

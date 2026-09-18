@@ -5,11 +5,8 @@ contacts_html = '''<div style="display: flex; justify-content: space-between; fl
         <h1>Наш адрес</h1>
         <p><strong>Адрес:</strong> Республика Казахстан, 100012, г. Караганда, 108 учетный квартал, 7</p>
         <p><strong>Приёмная:</strong> <a href="tel:+77212900350">+7 (7212) 90-03-50</a></p>
-        <p><strong>Оперативно-диспетчерская служба (ОДС):</strong><br/>
-           <a href="tel:+77212900358">+7 (7212) 90-03-58</a>, <a href="tel:+77212900359">+7 (7212) 90-03-59</a> <span style="color:#64748b; font-size:13px;">(круглосуточно)</span>
-        </p>
         <p><strong>По вопросам оплаты и квитанций:</strong> <a href="tel:+77212900353">+7 (7212) 90-03-53</a></p>
-        <p><strong>E-mail:</strong> <a href="mailto:info.krec@mail.ru">info.krec@mail.ru</a></p>
+        <p><strong>E-mail:</strong> <a href="mailto:info@krec.kz">info@krec.kz</a></p>
         <p><strong>Руководитель организации:</strong> Директор Кельбуганов Руслан Абильбекович</p>
         <p><strong>Главный инженер организации:</strong> Смольяков Александр Александрович</p>
         <script type="text/javascript" charset="utf-8" src="https://api-maps.yandex.ru/services/constructor/1.0/js/?sid=K4CZTUki7kDpPDiXo3e6SJysorMzLlf1&amp;width=600&amp;height=450"></script>

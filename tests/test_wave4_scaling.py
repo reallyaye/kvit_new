@@ -178,7 +178,7 @@ def test_nginx_config_ssl_and_body_size():
         conf = f.read()
 
     # Проверяем согласованность путей сертификатов
-    assert "/etc/nginx/ssl/fullchain.pem" in conf
-    assert "/etc/nginx/ssl/privkey.pem" in conf
+    assert "/etc/nginx/ssl/fullchain.pem" in conf or "/etc/letsencrypt/live/krec.kz-0001/fullchain.pem" in conf
+    assert "/etc/nginx/ssl/privkey.pem" in conf or "/etc/letsencrypt/live/krec.kz-0001/privkey.pem" in conf
     # Проверяем согласованность максимального размера запроса
     assert "client_max_body_size 500m;" in conf

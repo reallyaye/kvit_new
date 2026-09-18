@@ -62,8 +62,7 @@ def render_terms_page(is_admin: bool = False) -> str:
                     <ul>
                         <li><strong>БИН:</strong> 031140001297</li>
                         <li><strong>Адрес:</strong> 100000, Республика Казахстан, Карагандинская область, г. Караганда, район имени Казыбек би, 108 учетный квартал, строение 7</li>
-                        <li><strong>Канцелярия:</strong> +7 (7212) 90-03-50, 90-03-58</li>
-                        <li><strong>Круглосуточная диспетчерская служба (ОДС):</strong> +7 (7212) 90-03-58, +7 (7212) 90-03-59</li>
+                        <li><strong>Канцелярия:</strong> +7 (7212) 90-03-50</li>
                         <li><strong>Email:</strong> <a href="mailto:info@krec.kz">info@krec.kz</a></li>
                     </ul>
                 </div>

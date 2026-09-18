@@ -164,7 +164,10 @@ def migrate_db():
                     public_token_hash TEXT,
                     response_text TEXT,
                     responded_at REAL,
-                    response_sent INTEGER NOT NULL DEFAULT 0
+                    response_sent INTEGER NOT NULL DEFAULT 0,
+                    response_version INTEGER NOT NULL DEFAULT 1,
+                    response_lease REAL NOT NULL DEFAULT 0,
+                    response_attempts INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status);
                 CREATE INDEX IF NOT EXISTS idx_appeals_submitted ON appeals(submitted_at);
@@ -200,6 +203,12 @@ def migrate_db():
                 con.execute('ALTER TABLE appeals ADD COLUMN responded_at REAL')
             if 'response_sent' not in appeal_cols:
                 con.execute('ALTER TABLE appeals ADD COLUMN response_sent INTEGER NOT NULL DEFAULT 0')
+            if 'response_version' not in appeal_cols:
+                con.execute('ALTER TABLE appeals ADD COLUMN response_version INTEGER NOT NULL DEFAULT 1')
+            if 'response_lease' not in appeal_cols:
+                con.execute('ALTER TABLE appeals ADD COLUMN response_lease REAL NOT NULL DEFAULT 0')
+            if 'response_attempts' not in appeal_cols:
+                con.execute('ALTER TABLE appeals ADD COLUMN response_attempts INTEGER NOT NULL DEFAULT 0')
 
             sess_cols = [row[1] for row in con.execute('PRAGMA table_info(app_sessions)').fetchall()]
             if 'username' not in sess_cols:

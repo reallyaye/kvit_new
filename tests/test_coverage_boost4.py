@@ -1,6 +1,8 @@
 import io
 import os
 import tempfile
+import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -118,11 +120,12 @@ def test_server_api_upload_batch_and_accounts():
 
     # 4. API upload accounts success
     h._is_admin.return_value = True
-    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tf:
+    test_acc_dir = tempfile.mkdtemp(prefix='kvit_test_acc_')
+    tf_path = os.path.join(test_acc_dir, 'accounts.xlsx')
+    with open(tf_path, 'wb') as tf:
         tf.write(b"mock xlsx content")
-        tf_path = tf.name
 
-    h._parse_accounts_multipart = MagicMock(return_value=(os.path.dirname(tf_path), tf_path, 'upsert', 'accounts.xlsx'))
+    h._parse_accounts_multipart = MagicMock(return_value=(test_acc_dir, tf_path, 'upsert', 'accounts.xlsx'))
     with patch('import_accounts.import_accounts_file', return_value={'imported': 10, 'skipped': 0, 'total_in_db': 100, 'elapsed_seconds': 0.5}):
         h.send_json.reset_mock()
         h._handle_api_upload_accounts()
@@ -188,14 +191,20 @@ def test_bot_main(monkeypatch):
 
 def test_worker_main(monkeypatch):
     import worker
+    main_thread_id = threading.get_ident()
+    orig_sleep = time.sleep
 
-    # Mock migration, queue creation, manager
+    def scoped_sleep(sec):
+        if threading.get_ident() == main_thread_id:
+            raise KeyboardInterrupt()
+        orig_sleep(sec)
+
     mock_mgr = MagicMock()
     with patch('sys.argv', ['worker.py']), \
          patch('worker.migrate_db'), \
          patch('worker.create_task_queue_backend'), \
          patch('worker.TaskQueueManager', return_value=mock_mgr), \
-         patch('time.sleep', side_effect=KeyboardInterrupt):
+         patch('worker.time.sleep', side_effect=scoped_sleep):
         with pytest.raises(SystemExit):
             worker.main()
         assert mock_mgr.start.called

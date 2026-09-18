@@ -203,6 +203,8 @@ def main():
         grpc_server.stop(grace=1)
         if getattr(config, 'RUN_EMBEDDED_WORKER', True):
             task_manager.stop()
+            from services.retention_scheduler import stop_retention_scheduler
+            stop_retention_scheduler()
         logger.info("Все серверы успешно остановлены.")
 
 

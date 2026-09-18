@@ -8,175 +8,37 @@
 import html
 from typing import Any, Dict, Optional
 
-from templates.admin_cms_views import _admin_nav_bar
+from templates.admin_nav import _admin_nav_bar
+from templates.admin_stats_chart import render_stats_chart_svg
 from templates.icons import icon
 
-
-def _get_labeled_indices(daily_trend: list, target_count: int = 8) -> set:
-    """Вычисляет гармоничный набор индексов для отображения подписей дат на оси X без наложения."""
-    num_days = len(daily_trend)
-    if num_days <= 14:
-        return set(range(num_days))
-
-    ideal_step = max(3, round(num_days / target_count))
-    anchors = {0, num_days - 1}
-    for idx, item in enumerate(daily_trend):
-        d_str = str(item.get('date', ''))
-        if d_str.endswith('-01'):
-            anchors.add(idx)
-
-    sorted_anchors = sorted(anchors)
-    selected = set(anchors)
-
-    for a_idx in range(len(sorted_anchors) - 1):
-        left = sorted_anchors[a_idx]
-        right = sorted_anchors[a_idx + 1]
-        dist = right - left
-        if dist >= 6:
-            n_sub = round(dist / ideal_step)
-            for k in range(1, n_sub):
-                sub_pos = left + round((k * dist) / n_sub)
-                if (right - sub_pos >= 2) and (sub_pos - left >= 2):
-                    selected.add(sub_pos)
-        elif dist >= 4:
-            selected.add(left + dist // 2)
-
-    return selected
-
-
-_STATS_CHART_CSS = """
+_STATS_RESPONSIVE_CSS = """
 <style>
-    .chart-group:hover rect.view-bar, .chart-group.active rect.view-bar { fill: #1d4ed8 !important; opacity: 1 !important; filter: drop-shadow(0 3px 6px rgba(37,99,235,0.35)); }
-    .chart-group:hover rect.user-bar, .chart-group.active rect.user-bar { fill: #0284c7 !important; }
-    .chart-group:hover text.bar-val, .chart-group.active text.bar-val { font-weight: 700 !important; fill: #0f172a !important; }
-    .chart-group:hover rect.bar-col-bg, .chart-group.active rect.bar-col-bg { opacity: 1 !important; }
-
-    .stats-chart-wrapper {
-        position: relative;
-        width: 100%;
-        overflow-x: auto;
-        padding-bottom: 8px;
+    .stats-two-cols {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        gap: 20px;
+        margin-bottom: 24px;
     }
-
-    .chart-tooltip {
-        position: absolute;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-        background: rgba(15, 23, 42, 0.94);
-        backdrop-filter: blur(8px);
-        color: #fff;
-        border-radius: 10px;
-        padding: 10px 14px;
-        font-size: 12px;
-        line-height: 1.4;
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.2);
-        z-index: 100;
-        white-space: nowrap;
-        min-width: 175px;
-        border: 1px solid rgba(255,255,255,0.14);
+    .stats-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 14px;
+        margin-bottom: 24px;
     }
-    .chart-tooltip.visible { opacity: 1; }
-    .chart-tooltip.tooltip-top { transform: translate(-50%, -100%); }
-    .chart-tooltip.tooltip-top::after {
-        content: '';
-        position: absolute;
-        bottom: -6px;
-        left: calc(50% + var(--arrow-shift, 0px));
-        transform: translateX(-50%);
-        border-width: 6px 6px 0;
-        border-style: solid;
-        border-color: rgba(15, 23, 42, 0.94) transparent transparent transparent;
+    @media (max-width: 900px) {
+        .stats-two-cols {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+        }
     }
-    .chart-tooltip.tooltip-bottom { transform: translate(-50%, 0); }
-    .chart-tooltip.tooltip-bottom::after {
-        content: '';
-        position: absolute;
-        top: -6px;
-        left: calc(50% + var(--arrow-shift, 0px));
-        transform: translateX(-50%);
-        border-width: 0 6px 6px;
-        border-style: solid;
-        border-color: transparent transparent rgba(15, 23, 42, 0.94) transparent;
+    @media (max-width: 480px) {
+        .stats-kpi-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
     }
 </style>
-"""
-
-_STATS_TOOLTIP_SCRIPT = """
-<script>
-(function() {
-    var tooltip = document.getElementById('statsChartTooltip');
-    var card = document.getElementById('statsChartCard');
-    var svg = document.getElementById('statsChartSvg');
-    if (!tooltip || !card || !svg) return;
-
-    var groups = svg.querySelectorAll('.chart-group');
-    function showTooltip(group) {
-        var dateStr = group.getAttribute('data-fulldate') || group.getAttribute('data-date') || '';
-        var views = Number(group.getAttribute('data-views') || 0).toLocaleString('ru-RU');
-        var visitors = Number(group.getAttribute('data-visitors') || 0).toLocaleString('ru-RU');
-        var cx = Number(group.getAttribute('data-cx') || 0);
-        var cy = Number(group.getAttribute('data-cy') || 0);
-
-        tooltip.innerHTML = '<div style="font-size:12.5px;font-weight:700;color:#f8fafc;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.14);">' + dateStr + '</div>' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:4px;">' +
-                '<span style="display:flex;align-items:center;color:#94a3b8;"><span style="width:8px;height:8px;border-radius:2px;background:#2563eb;display:inline-block;margin-right:6px;"></span>Просмотры</span>' +
-                '<span style="font-weight:700;color:#fff;font-size:13px;font-family:Consolas,monospace;">' + views + '</span>' +
-            '</div>' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:4px;">' +
-                '<span style="display:flex;align-items:center;color:#94a3b8;"><span style="width:8px;height:8px;border-radius:2px;background:#38bdf8;display:inline-block;margin-right:6px;"></span>Уникальные</span>' +
-                '<span style="font-weight:700;color:#38bdf8;font-size:13px;font-family:Consolas,monospace;">' + visitors + '</span>' +
-            '</div>';
-
-        var cardRect = card.getBoundingClientRect();
-        var svgRect = svg.getBoundingClientRect();
-        var scaleX = svgRect.width / 860.0;
-        var scaleY = svgRect.height / 195.0;
-
-        var colX = (svgRect.left - cardRect.left) + (cx * scaleX);
-        var colY = (svgRect.top - cardRect.top) + (cy * scaleY);
-
-        var tooltipHalfWidth = 90;
-        var clampLeft = Math.max(tooltipHalfWidth + 10, Math.min(colX, cardRect.width - tooltipHalfWidth - 10));
-        var arrowShift = colX - clampLeft;
-
-        // Tooltip height is ~75px. If colY < 95px from top of card, flip below the bar
-        if (colY < 95) {
-            tooltip.style.left = clampLeft + 'px';
-            tooltip.style.top = (colY + 28) + 'px';
-            tooltip.className = 'chart-tooltip tooltip-bottom visible';
-        } else {
-            tooltip.style.left = clampLeft + 'px';
-            tooltip.style.top = (colY - 10) + 'px';
-            tooltip.className = 'chart-tooltip tooltip-top visible';
-        }
-        tooltip.style.setProperty('--arrow-shift', arrowShift + 'px');
-
-        groups.forEach(function(g) { g.classList.remove('active'); });
-        group.classList.add('active');
-    }
-
-    function hideTooltip() {
-        tooltip.className = 'chart-tooltip';
-        groups.forEach(function(g) { g.classList.remove('active'); });
-    }
-
-    groups.forEach(function(g) {
-        g.addEventListener('mouseenter', function() { showTooltip(g); });
-        g.addEventListener('mouseleave', hideTooltip);
-        g.addEventListener('focus', function() { showTooltip(g); });
-        g.addEventListener('blur', hideTooltip);
-        g.addEventListener('click', function(e) {
-            e.stopPropagation();
-            showTooltip(g);
-        });
-    });
-
-    document.addEventListener('click', function(e) {
-        if (!card.contains(e.target)) hideTooltip();
-    });
-})();
-</script>
 """
 
 
@@ -205,118 +67,7 @@ def render_admin_stats_dashboard(
 
     # 1. Построение SVG-графика динамики по дням
     daily_trend = stats.get('daily_trend', [])
-    chart_bars_html = []
-    max_views = max([d.get('views', 0) for d in daily_trend] + [1])
-
-    chart_width = 860
-    chart_height = 195
-    baseline = chart_height - 34
-    num_days = len(daily_trend)
-    if num_days > 0:
-        pad_x = 16
-        available_w = chart_width - pad_x * 2
-        bar_gap = 6 if num_days > 14 else 10
-        total_gaps = (num_days - 1) * bar_gap
-        bar_width = max(14, int((available_w - total_gaps) / num_days))
-
-        labeled_indices = _get_labeled_indices(daily_trend)
-
-        for idx, item in enumerate(daily_trend):
-            v_val = item.get('views', 0)
-            u_val = item.get('visitors', 0)
-            lbl = html.escape(item.get('label', ''))
-            bar_h = max(4, int((v_val / max_views) * (baseline - 32))) if max_views > 0 else 4
-            x = pad_x + idx * (bar_width + bar_gap)
-            y = baseline - bar_h
-
-            # Высота для уникальных посетителей
-            u_bar_h = max(2, int((u_val / max_views) * (baseline - 32))) if max_views > 0 else 2
-            u_y = baseline - u_bar_h
-
-            cx = x + bar_width / 2.0
-            is_labeled = idx in labeled_indices
-            d_str = str(item.get('date', ''))
-            is_first_of_month = d_str.endswith('-01')
-            is_last_day = (idx == num_days - 1)
-
-            # Форматирование полной даты для всплывающего окна
-            months_full_ru = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
-            try:
-                _parts = [int(p) for p in d_str.split('-')]
-                full_date_str = f"{_parts[2]} {months_full_ru[_parts[1]]} {_parts[0]}"
-            except Exception:
-                full_date_str = d_str
-
-            if is_first_of_month:
-                lbl_color = '#2563eb'
-                lbl_weight = '700'
-                tick_stroke = '#3b82f6'
-                tick_width = '1.5'
-            elif is_last_day:
-                lbl_color = '#0f172a'
-                lbl_weight = '600'
-                tick_stroke = '#94a3b8'
-                tick_width = '1.5'
-            else:
-                lbl_color = '#64748b'
-                lbl_weight = '500'
-                tick_stroke = '#cbd5e1'
-                tick_width = '1'
-
-            if is_labeled:
-                tick_and_label_svg = f'''
-                <line x1="{cx}" y1="{baseline}" x2="{cx}" y2="{baseline + 4}" stroke="{tick_stroke}" stroke-width="{tick_width}" />
-                <text x="{cx}" y="{baseline + 18}" text-anchor="middle" font-size="11" font-weight="{lbl_weight}" fill="{lbl_color}" font-family="'Inter',sans-serif">{lbl}</text>
-                '''
-            else:
-                tick_and_label_svg = f'''
-                <circle cx="{cx}" cy="{baseline + 2}" r="1" fill="#cbd5e1" />
-                '''
-
-            chart_bars_html.append(f'''
-            <g class="chart-group" tabindex="0" style="cursor:pointer;"
-               data-date="{d_str}"
-               data-fulldate="{full_date_str}"
-               data-views="{v_val}"
-               data-visitors="{u_val}"
-               data-cx="{cx:.1f}"
-               data-cy="{y:.1f}">
-                <title>{d_str}: {u_val} уникальных посетителей, {v_val} просмотров</title>
-                <!-- Подсветка всей колонки при наведении -->
-                <rect class="bar-col-bg" x="{x - bar_gap/2}" y="10" width="{bar_width + bar_gap}" height="{baseline - 10}" rx="6" fill="#f1f5f9" opacity="0" style="transition:opacity 0.15s; pointer-events:none;"></rect>
-                <!-- Общие просмотры -->
-                <rect class="view-bar" x="{x}" y="{y}" width="{bar_width}" height="{bar_h}" rx="3.5" fill="url(#blueGrad)" opacity="0.85">
-                    <animate attributeName="height" from="0" to="{bar_h}" dur="0.4s" fill="freeze" />
-                </rect>
-                <!-- Уникальные посетители -->
-                <rect class="user-bar" x="{x + 1.5}" y="{u_y}" width="{max(3, bar_width - 3)}" height="{u_bar_h}" rx="2.5" fill="#38bdf8">
-                    <animate attributeName="height" from="0" to="{u_bar_h}" dur="0.5s" fill="freeze" />
-                </rect>
-                <!-- Засечка и подпись даты -->
-                {tick_and_label_svg}
-                <!-- Число над столбцом -->
-                <text class="bar-val" x="{cx}" y="{max(14, y - 6)}" text-anchor="middle" font-size="10" font-weight="600" fill="#1e293b" font-family="'Inter',sans-serif">{v_val if v_val > 0 else ''}</text>
-            </g>
-            ''')
-
-    chart_svg = f'''
-    {_STATS_CHART_CSS}
-    <div class="stats-chart-wrapper" id="statsChartWrapper">
-        <svg id="statsChartSvg" viewBox="0 0 {chart_width} {chart_height}" width="100%" height="{chart_height}" style="min-width:650px;display:block;">
-            <defs>
-                <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stop-color="#2563eb" />
-                    <stop offset="100%" stop-color="#3b82f6" />
-                </linearGradient>
-            </defs>
-            <!-- Фоновая сетка -->
-            <line x1="0" y1="{baseline}" x2="{chart_width}" y2="{baseline}" stroke="#e2e8f0" stroke-width="1.5" />
-            <line x1="0" y1="{baseline // 2}" x2="{chart_width}" y2="{baseline // 2}" stroke="#f1f5f9" stroke-dasharray="4 4" />
-            {''.join(chart_bars_html)}
-        </svg>
-    </div>
-    {_STATS_TOOLTIP_SCRIPT}
-    ''' if daily_trend else '<div style="padding:40px;text-align:center;color:#64748b;">Нет накопленных данных за выбранный период</div>'
+    chart_svg = render_stats_chart_svg(daily_trend)
 
     # 2. Популярные страницы
     top_pages = stats.get('top_pages', [])
@@ -328,7 +79,6 @@ def render_admin_stats_dashboard(
             p_visitors = page.get('visitors', 0)
             p_pct = page.get('pct', 0.0)
 
-            # Названия страниц для удобства
             title_alias = {
                 '/': 'Главная страница',
                 '/search': 'Поиск квитанций',
@@ -348,51 +98,58 @@ def render_admin_stats_dashboard(
             alias_badge = f'<span style="font-size:12px;color:#64748b;font-weight:400;margin-left:6px;">({title_alias})</span>' if title_alias else ''
 
             top_pages_rows.append(f'''
-            <tr style="border-bottom:1px solid #f1f5f9;">
-                <td style="padding:10px 14px;font-weight:600;color:#64748b;width:30px;">#{idx}</td>
-                <td style="padding:10px 14px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <a href="{p_path}" target="_blank" style="color:#2563eb;text-decoration:none;font-weight:600;font-size:13.5px;" title="Открыть страницу">
-                            <code>{p_path}</code>
-                        </a>
-                        {alias_badge}
-                    </div>
-                    <div style="background:#f1f5f9;height:5px;border-radius:3px;margin-top:6px;overflow:hidden;">
-                        <div style="background:#3b82f6;height:100%;width:{min(100, max(3, int(p_pct)))}%;border-radius:3px;"></div>
-                    </div>
+            <tr style="border-bottom:1px solid #f1f5f9;transition:background 0.15s;">
+                <td style="padding:10px 14px;color:#94a3b8;font-weight:600;">{idx}</td>
+                <td style="padding:10px 14px;font-weight:600;color:#0f172a;">
+                    <a href="{p_path}" target="_blank" style="color:#2563eb;text-decoration:none;">{p_path}</a>
+                    {alias_badge}
                 </td>
-                <td style="padding:10px 14px;text-align:right;font-weight:700;color:#1e293b;font-size:14px;">{p_views:,}</td>
-                <td style="padding:10px 14px;text-align:right;color:#64748b;font-size:13.5px;">{p_visitors:,}</td>
-                <td style="padding:10px 14px;text-align:right;font-weight:600;color:#2563eb;font-size:13px;">{p_pct}%</td>
+                <td style="padding:10px 14px;text-align:right;font-weight:700;color:#1e293b;font-family:Consolas,monospace;">{p_views:,}</td>
+                <td style="padding:10px 14px;text-align:right;color:#0284c7;font-weight:600;font-family:Consolas,monospace;">{p_visitors:,}</td>
+                <td style="padding:10px 14px;text-align:right;">
+                    <span style="background:#eff6ff;color:#1d4ed8;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;">{p_pct}%</span>
+                </td>
             </tr>
             ''')
     else:
-        top_pages_rows.append('<tr><td colspan="5" style="padding:24px;text-align:center;color:#64748b;">Данные пока не сформированы</td></tr>')
+        top_pages_rows.append('<tr><td colspan="5" style="padding:20px;text-align:center;color:#64748b;">Нет данных за выбранный период</td></tr>')
 
-    # 3. Распределение устройств
-    devices = stats.get('device_stats', {})
-    d_mob = devices.get('mobile', 0)
-    d_desk = devices.get('desktop', 0)
-    d_tab = devices.get('tablet', 0)
-    d_total = d_mob + d_desk + d_tab
-    mob_pct_calc = round((d_mob / d_total * 100), 1) if d_total > 0 else 0.0
-    desk_pct_calc = round((d_desk / d_total * 100), 1) if d_total > 0 else 0.0
-    tab_pct_calc = round((d_tab / d_total * 100), 1) if d_total > 0 else 0.0
+    # 3. Устройства
+    dev = stats.get('device_stats') or stats.get('devices', {})
+    d_mob = dev.get('mobile', 0)
+    d_desk = dev.get('desktop', 0)
+    d_tab = dev.get('tablet', 0)
+    dev_total = max(1, d_mob + d_desk + d_tab)
+    mob_pct_calc = round((d_mob / dev_total) * 100, 1)
+    desk_pct_calc = round((d_desk / dev_total) * 100, 1)
+    tab_pct_calc = round((d_tab / dev_total) * 100, 1)
 
     # 4. Браузеры
-    browser_stats = stats.get('browser_stats', [])
+    raw_browsers = stats.get('browser_stats') or stats.get('browsers', [])
+    if isinstance(raw_browsers, dict):
+        browsers = [{'browser': k, 'count': v} for k, v in raw_browsers.items()]
+    elif isinstance(raw_browsers, list):
+        browsers = [
+            b if isinstance(b, dict) else ({'browser': b[0], 'count': b[1]} if isinstance(b, (list, tuple)) and len(b) >= 2 else {'browser': str(b), 'count': 1})
+            for b in raw_browsers
+        ]
+    else:
+        browsers = []
+
     browser_rows = []
-    total_br_views = sum(b.get('count', 0) for b in browser_stats) or 1
-    for b_item in browser_stats:
-        b_name = html.escape(b_item.get('browser', 'Other'))
-        b_cnt = b_item.get('count', 0)
-        b_pct = round((b_cnt / total_br_views) * 100, 1)
+    b_max = max([b.get('count', b.get('views', 0)) for b in browsers] + [1])
+    for b in browsers[:5]:
+        b_name = html.escape(b.get('browser', 'Неизвестно'))
+        b_cnt = b.get('count', b.get('views', 0))
+        b_pct = round((b_cnt / b_max) * 100) if b_max else 0
         browser_rows.append(f'''
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #f1f5f9;font-size:13px;">
-            <span style="font-weight:600;color:#334155;">{b_name}</span>
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="color:#64748b;">{b_cnt:,}</span>
-                <span style="background:#eff6ff;color:#2563eb;padding:2px 8px;border-radius:9999px;font-weight:600;font-size:11.5px;min-width:44px;text-align:center;">{b_pct}%</span>
+        <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+                <span style="color:#334155;font-weight:600;">{b_name}</span>
+                <span style="color:#64748b;font-weight:700;">{b_cnt:,}</span>
+            </div>
+            <div style="background:#f1f5f9;height:6px;border-radius:3px;overflow:hidden;">
+                <div style="background:#3b82f6;height:100%;width:{b_pct}%;"></div>
             </div>
         </div>
         ''')
@@ -400,54 +157,49 @@ def render_admin_stats_dashboard(
     # 5. Последние визиты
     recent_visits = stats.get('recent_visits', [])
     recent_rows = []
-    if recent_visits:
-        for rv in recent_visits:
-            rv_time = rv.get('time_str', '')
-            rv_path = html.escape(rv.get('path', ''))
-            rv_ip = html.escape(rv.get('ip_masked', ''))
-            rv_dev = html.escape(rv.get('device_type', 'desktop'))
-            rv_browser = html.escape(rv.get('browser', 'Other'))
-            rv_is_bot = rv.get('is_bot', False)
+    for rv in recent_visits:
+        rv_time = html.escape(rv.get('time_str') or rv.get('time', ''))
+        rv_path = html.escape(rv.get('path', ''))
+        rv_dev = rv.get('device_type') or rv.get('device', 'desktop')
+        rv_dev_icon = 'phone' if rv_dev == 'mobile' else ('tablet' if rv_dev == 'tablet' else 'monitor')
+        rv_browser = html.escape(rv.get('browser', ''))
+        raw_ip = str(rv.get('ip_masked') or rv.get('ip_hash', ''))
+        rv_ip_display = html.escape(raw_ip if (raw_ip.endswith('…') or raw_ip.endswith('...')) else f"{raw_ip[:10]}…")
 
-            if rv_is_bot:
-                badge = '<span style="background:#fef2f2;color:#ef4444;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">Робот / Бот</span>'
-            elif rv_dev == 'mobile':
-                badge = '<span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">Смартфон</span>'
-            else:
-                badge = '<span style="background:#eff6ff;color:#2563eb;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">ПК</span>'
-
-            recent_rows.append(f'''
-            <tr style="border-bottom:1px solid #f8fafc;font-size:13px;">
-                <td style="padding:8px 12px;color:#64748b;font-family:Consolas,monospace;">{rv_time}</td>
-                <td style="padding:8px 12px;font-weight:600;color:#1e293b;"><code>{rv_path}</code></td>
-                <td style="padding:8px 12px;color:#64748b;font-family:Consolas,monospace;">{rv_ip}</td>
-                <td style="padding:8px 12px;">{badge}</td>
-                <td style="padding:8px 12px;color:#475569;">{rv_browser}</td>
-            </tr>
-            ''')
-    else:
-        recent_rows.append('<tr><td colspan="5" style="padding:20px;text-align:center;color:#64748b;">Ожидание первых визитов...</td></tr>')
+        recent_rows.append(f'''
+        <tr style="border-bottom:1px solid #f1f5f9;font-size:12.5px;">
+            <td style="padding:8px 12px;color:#64748b;font-family:Consolas,monospace;white-space:nowrap;">{rv_time}</td>
+            <td style="padding:8px 12px;font-weight:600;color:#1e293b;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{rv_path}</td>
+            <td style="padding:8px 12px;font-family:Consolas,monospace;color:#94a3b8;font-size:11.5px;">{rv_ip_display}</td>
+            <td style="padding:8px 12px;color:#475569;">
+                <span style="display:inline-flex;align-items:center;gap:4px;">{icon(rv_dev_icon, 13, '#64748b')} {rv_dev}</span>
+            </td>
+            <td style="padding:8px 12px;color:#64748b;">{rv_browser}</td>
+        </tr>
+        ''')
 
     return f'''
-    <div class="card" style="max-width:1160px;margin:24px auto;">
+    {_STATS_RESPONSIVE_CSS}
+    <div class="card" style="max-width:1150px;margin:24px auto;">
         {_admin_nav_bar('stats', role='admin', username=username)}
 
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:14px;">
+        <!-- ШАПКА ДАШБОРДА -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:14px;">
             <div>
                 <h1 style="font-size:22px;color:#1e293b;margin:0 0 4px;display:flex;align-items:center;gap:8px;">
-                    {icon('trending_up', 22, '#2563eb')} Статистика посещаемости портала
+                    {icon('trending_up', 24, '#2563eb')} Статистика посещаемости портала
                 </h1>
-                <p class="subtitle" style="margin:0;">Оперативные данные об уникальных посетителях, просмотрах страниц, географии и устройствах потребителей.</p>
+                <p class="subtitle" style="margin:0;">Официальная статистика визитов портала ТОО «КРЭК» без использования сторонних счетчиков.</p>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                <form action="/admin/stats/import-nginx" method="post" style="margin:0;" onsubmit="return confirm('Импортировать исторические логи из веб-сервера Nginx? Это может занять несколько секунд.');">
+                <form action="/admin/stats/import-nginx" method="post" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{csrf_token}">
-                    <button type="submit" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;" title="Синхронизировать данные из /var/log/nginx/access.log">
-                        {icon('refresh', 14, '#2563eb')} Импорт из Nginx
+                    <button type="submit" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;background:#f8fafc;border-color:#cbd5e1;color:#334155;" title="Синхронизировать данные из access.log веб-сервера Nginx">
+                        {icon('download', 14, '#2563eb')} Импорт из Nginx
                     </button>
                 </form>
-                <a href="/admin/stats" class="btn btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
-                    {icon('refresh', 14, '#fff')} Обновить
+                <a href="/admin/stats" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+                    {icon('activity', 14, '#2563eb')} Обновить
                 </a>
             </div>
         </div>
@@ -455,9 +207,8 @@ def render_admin_stats_dashboard(
         {msg_html}
         {err_html}
 
-        <!-- СЕТКА KPI КАРТОЧЕК -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:14px;margin-bottom:24px;">
-            <!-- Сегодня -->
+        <!-- СЕТКА KPI-КАРТОЧЕК -->
+        <div class="stats-kpi-grid">
             <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;">
                 <div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;">
                     {icon('users', 18, '#2563eb')}
@@ -467,17 +218,15 @@ def render_admin_stats_dashboard(
                 <div style="font-size:12.5px;color:#64748b;">{v_today:,} просмотров</div>
             </div>
 
-            <!-- Вчера -->
             <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;">
-                <div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;background:#f1f5f9;color:#475569;display:flex;align-items:center;justify-content:center;">
-                    {icon('calendar', 18, '#475569')}
+                <div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;background:#f8fafc;color:#64748b;display:flex;align-items:center;justify-content:center;">
+                    {icon('clock', 18, '#64748b')}
                 </div>
                 <span style="font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Вчера</span>
-                <div style="font-size:26px;font-weight:800;color:#1e293b;margin:6px 0 2px;">{u_yesterday:,}</div>
+                <div style="font-size:26px;font-weight:800;color:#475569;margin:6px 0 2px;">{u_yesterday:,}</div>
                 <div style="font-size:12.5px;color:#64748b;">{v_yesterday:,} просмотров</div>
             </div>
 
-            <!-- За 7 дней -->
             <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;">
                 <div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;background:#f0fdf4;color:#16a34a;display:flex;align-items:center;justify-content:center;">
                     {icon('trending_up', 18, '#16a34a')}
@@ -487,7 +236,6 @@ def render_admin_stats_dashboard(
                 <div style="font-size:12.5px;color:#64748b;">{v_week:,} просмотров</div>
             </div>
 
-            <!-- За месяц (30 дней) -->
             <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;">
                 <div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;background:#faf5ff;color:#9333ea;display:flex;align-items:center;justify-content:center;">
                     {icon('bar_chart', 18, '#9333ea')}
@@ -497,7 +245,6 @@ def render_admin_stats_dashboard(
                 <div style="font-size:12.5px;color:#64748b;">{v_month:,} просмотров</div>
             </div>
 
-            <!-- Смартфоны -->
             <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;">
                 <div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;background:#fff7ed;color:#ea580c;display:flex;align-items:center;justify-content:center;">
                     {icon('phone', 18, '#ea580c')}
@@ -507,7 +254,6 @@ def render_admin_stats_dashboard(
                 <div style="font-size:12.5px;color:#64748b;">доля смартфонов</div>
             </div>
 
-            <!-- Боты за сегодня -->
             <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;">
                 <div style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;background:#f8fafc;color:#64748b;display:flex;align-items:center;justify-content:center;">
                     {icon('shield_check', 18, '#64748b')}
@@ -540,7 +286,7 @@ def render_admin_stats_dashboard(
         </div>
 
         <!-- ДВЕ КОЛОНКИ: ТОП СТРАНИЦ И УСТРОЙСТВА/БРАУЗЕРЫ -->
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:24px;" class="stats-two-cols">
+        <div class="stats-two-cols">
             <!-- ТОП-10 СТРАНИЦ -->
             <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.03);">
                 <h3 style="margin:0 0 14px;font-size:16px;color:#1e293b;display:flex;align-items:center;gap:8px;">
@@ -566,7 +312,6 @@ def render_admin_stats_dashboard(
 
             <!-- УСТРОЙСТВА И БРАУЗЕРЫ -->
             <div style="display:flex;flex-direction:column;gap:18px;">
-                <!-- Устройства -->
                 <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.03);">
                     <h3 style="margin:0 0 14px;font-size:15px;color:#1e293b;display:flex;align-items:center;gap:8px;">
                         {icon('phone', 16, '#ea580c')} Типы устройств
@@ -603,7 +348,6 @@ def render_admin_stats_dashboard(
                     </div>
                 </div>
 
-                <!-- Браузеры -->
                 <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.03);">
                     <h3 style="margin:0 0 10px;font-size:15px;color:#1e293b;display:flex;align-items:center;gap:8px;">
                         {icon('code', 16, '#2563eb')} Популярные браузеры

@@ -33,7 +33,7 @@ from database.migrations import migrate_db
 from server import AppRequestHandler
 from services.security import auth_service
 from services.tasks.queue_backend import MemoryTaskQueueBackend
-from services.tasks.task_manager import TaskQueueManager
+from services.tasks.task_manager import TaskQueueManager, TaskStatus
 
 
 def _find_free_port() -> int:
@@ -324,6 +324,11 @@ def test_full_stack_end_to_end_lifecycle(tmp_path):
         assert receipt_record is not None, "Квитанция не была обработана воркером вовремя!"
         access_token = receipt_record['access_token']
         assert access_token is not None and len(access_token) == 32
+
+        # Проверяем, что задача прошла именно через подмененный worker_mgr
+        worker_tasks = worker_mgr.list_tasks()
+        assert len(worker_tasks) >= 1, "worker_mgr не получил задачу: подмена очереди в server.task_manager не сработала!"
+        assert any(t.get('status') == TaskStatus.COMPLETED for t in worker_tasks), "Задача в worker_mgr не завершена со статусом COMPLETED!"
 
         # ─── 8. Поиск квитанции через API (балансировка на API-2) ───
         search_req = urllib.request.Request(

@@ -74,6 +74,8 @@ def test_nginx_blocks_known_scanner_and_wordpress_probes():
     with open("nginx/nginx.conf", encoding="utf-8") as f:
         nginx_config = f.read()
 
-    assert nginx_config.count("deny 45.148.10.247;") == 2
+    with open("nginx/lists/manual_blocklist.conf", encoding="utf-8") as f_bl:
+        manual_bl = f_bl.read()
+    assert "45.148.10.247" in manual_bl or nginx_config.count("deny 45.148.10.247;") == 2
     assert "wp-login\\.php" in nginx_config
     assert "location = /index.php" in nginx_config

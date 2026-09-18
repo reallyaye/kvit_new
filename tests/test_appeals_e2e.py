@@ -47,13 +47,14 @@ def _http_request(url, method="GET", data=None, headers=None, follow_redirects=T
                 "url": response.url,
             }
     except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        return {
-            "status": exc.code,
-            "headers": dict(exc.headers),
-            "body": body,
-            "url": exc.url,
-        }
+        with exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            return {
+                "status": exc.code,
+                "headers": dict(exc.headers),
+                "body": body,
+                "url": exc.url,
+            }
 
 
 def test_appeals_full_e2e_lifecycle(e2e_server):

@@ -128,6 +128,12 @@ def test_postgres_migration_and_schema_verification(pg_connection, monkeypatch):
         "admin_comment",
         "office_notified",
         "confirmation_sent",
+        "response_sent",
+        "response_version",
+        "response_lease",
+        "response_attempts",
+        "response_text",
+        "responded_at",
     ]
     for col in required_columns:
         assert col in columns, f"Колонка {col} отсутствует в таблице appeals"
@@ -135,8 +141,14 @@ def test_postgres_migration_and_schema_verification(pg_connection, monkeypatch):
     assert columns["consent"][0] == "boolean"
     assert columns["office_notified"][0] == "boolean"
     assert columns["confirmation_sent"][0] == "boolean"
+    assert columns["response_sent"][0] == "boolean"
+    assert columns["response_version"][0] in ("integer", "smallint", "bigint")
+    assert columns["response_lease"][0] in ("double precision", "real")
+    assert columns["response_attempts"][0] in ("integer", "smallint", "bigint")
 
     # 5. Проверка записи и чтения через db_conn.write_transaction()
+    from services.appeals import appeal_service
+
     reg_num = f"TEST-PG-{int(time.time())}"
     with db_conn.write_transaction() as con:
         con.execute(
@@ -144,8 +156,8 @@ def test_postgres_migration_and_schema_verification(pg_connection, monkeypatch):
             INSERT INTO appeals (
                 registration_number, category, applicant_name, phone, email,
                 service_address, message, status, consent, submitted_at, updated_at,
-                office_notified, confirmation_sent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                office_notified, confirmation_sent, response_sent, response_version, response_lease
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 reg_num,
@@ -161,10 +173,13 @@ def test_postgres_migration_and_schema_verification(pg_connection, monkeypatch):
                 time.time(),
                 False,
                 False,
+                False,
+                1,
+                0.0,
             ),
         )
 
-    # Читаем обратно
+    # Читаем обратно и проверяем совместимость SQL CASE/BOOLEAN в appeal_service
     con = db_conn.get_db()
     try:
         row = con.execute("SELECT * FROM appeals WHERE registration_number = ?", (reg_num,)).fetchone()
@@ -174,5 +189,17 @@ def test_postgres_migration_and_schema_verification(pg_connection, monkeypatch):
         assert row["email"] == "test_pg@example.com"
         assert row["consent"] is True
         assert row["office_notified"] is False
+        assert row["response_sent"] is False
+        appeal_id = row["id"]
     finally:
         con.close()
+
+    # Проверка работы respond() и update() с PostgreSQL BOOLEAN выражениями
+    answered = appeal_service.respond(appeal_id, "Официальный ответ протестирован на PostgreSQL", admin_comment="Отвечено в тесте")
+    assert answered["status"] == "ANSWERED"
+    assert answered["response_sent"] is False
+    assert answered["response_version"] >= 1
+
+    updated = appeal_service.update(appeal_id, "ANSWERED", admin_comment="Повторное сохранение")
+    assert updated["admin_comment"] == "Повторное сохранение"
+    assert updated["response_sent"] is False

@@ -59,7 +59,8 @@ def main():
         nonlocal stop_requested
         if not stop_requested:
             stop_requested = True
-            logger.info(f"[Worker] Получен сигнал {signum}. Выполняется корректное завершение (Graceful Shutdown)...")
+            from services.retention_scheduler import stop_retention_scheduler
+            stop_retention_scheduler()
             manager.stop()
             sys.exit(0)
 
