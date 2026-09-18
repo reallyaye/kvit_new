@@ -88,7 +88,7 @@ def render_portal_header(active_nav: str, locale: str, ru_path: str, kk_path: st
                             <div class="krec-dd-icon"><svg width="15" height="15" viewBox="0 0 24 24" class="svg-icon-stroke"><circle cx="12" cy="12" r="10"/><line x1="7" y1="6.5" x2="17" y2="6.5"/><line x1="7" y1="10.5" x2="17" y2="10.5"/><line x1="12" y1="10.5" x2="12" y2="18.5"/></svg></div>
                             <div>
                                 <div class="krec-dd-title">Тариф на передачу э/э</div>
-                                <div class="krec-dd-desc">Регулируемый тариф (Приказ № 77-ОД)</div>
+                                <div class="krec-dd-desc">Регулируемый тариф (Приказ № 100-ОД)</div>
                             </div>
                         </a>
                         <a href="/price" class="krec-dropdown-item">
